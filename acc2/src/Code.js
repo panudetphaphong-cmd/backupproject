@@ -1,12 +1,12 @@
 /**
- * PROJECT ACCOUNTING WEB APP — RELEASE V15.5.0
+ * PROJECT ACCOUNTING WEB APP — RELEASE V16.0.0
  * Multi-entry up to 50 rows · Document types · Mobile responsive
  */
 const APP = Object.freeze({
   spreadsheetProperty: 'PROJECT_ACCOUNTING_SPREADSHEET_ID',
   schemaProperty: 'PROJECT_ACCOUNTING_SCHEMA_VERSION',
-  schemaVersion: '16',
-  version: '15.5.0',
+  schemaVersion: '20',
+  version: '16.0.0',
   projectsSheet: 'Projects',
   transactionsSheet: 'Transactions',
   usersSheet: 'Users',
@@ -17,8 +17,9 @@ const APP = Object.freeze({
   centralTransactionsSheet: 'CentralTransactions',
   centralCategoriesSheet: 'CentralCategories',
   documentTypesSheet: 'DocumentTypes',
+  employeesSheet: 'Employees',
   timezone: 'Asia/Bangkok',
-  cacheKey: 'PROJECT_ACCOUNTING_INITIAL_DATA_V16',
+  cacheKey: 'PROJECT_ACCOUNTING_INITIAL_DATA_V20',
   authUsersCacheKey: 'PROJECT_ACCOUNTING_AUTH_USERS_V1',
   cacheSeconds: 1800,
   sessionSeconds: 21600,
@@ -48,8 +49,8 @@ function setup() {
 
 function warmDataCache_(spreadsheet) {
   const projects = readProjects_(spreadsheet), transactions = readTransactions_(spreadsheet), subprojects = readSubprojects_(spreadsheet), categories = readCategories_(spreadsheet);
-  const centralTransactions = readCentralTransactions_(spreadsheet), centralCategories = readCentralCategories_(spreadsheet), documentTypes = readDocumentTypes_(spreadsheet);
-  const snapshot = { projects: projects, transactions: transactions, subprojects: subprojects, categories: categories, centralTransactions: centralTransactions, centralCategories: centralCategories, documentTypes: documentTypes, summary: buildSummary_(projects, transactions), centralSummary: buildCentralSummary_(centralTransactions) };
+  const centralTransactions = readCentralTransactions_(spreadsheet), centralCategories = readCentralCategories_(spreadsheet), documentTypes = readDocumentTypes_(spreadsheet), employees = readEmployees_(spreadsheet);
+  const snapshot = { projects: projects, transactions: transactions, subprojects: subprojects, categories: categories, centralTransactions: centralTransactions, centralCategories: centralCategories, documentTypes: documentTypes, employees: employees, summary: buildSummary_(projects, transactions), centralSummary: buildCentralSummary_(centralTransactions) };
   const serialized = JSON.stringify(snapshot);
   if (serialized.length < 95000) CacheService.getScriptCache().put(APP.cacheKey, serialized, APP.cacheSeconds);
   return snapshot;
@@ -85,6 +86,7 @@ function buildInitialData_(authUser, spreadsheet) {
     centralTransactions: rowsForAuditRole_(snapshot.centralTransactions || [], authUser.role),
     centralCategories: rowsForAuditRole_(snapshot.centralCategories || [], authUser.role),
     documentTypes: rowsForAuditRole_(snapshot.documentTypes || [], authUser.role),
+    employees: rowsForAuditRole_(snapshot.employees || [], authUser.role),
     summary: snapshot.summary,
     centralSummary: snapshot.centralSummary || buildCentralSummary_([]),
     spreadsheetUrl: spreadsheet.getUrl(),
@@ -161,15 +163,19 @@ function createProject(payload, authToken) {
     const budget = toAmount_(payload && payload.budget, true);
     const shareholders = parseShareholders_(payload && payload.shareholdersJson);
     const profitDistributionStatus = normalizeProfitDistributionStatus_(payload && payload.profitDistributionStatus);
+    const startDate = parseOptionalDate_(payload && payload.startDate);
+    const dueDate = parseOptionalDate_(payload && payload.dueDate);
+    const projectType = normalizeProjectType_(payload && payload.projectType);
     if (!name) throw new Error('กรุณาระบุชื่อโปรเจกต์');
+    if (startDate && dueDate && dueDate < startDate) throw new Error('วันส่งงานต้องไม่น้อยกว่าวันเริ่มงาน');
 
     const sheet = getSpreadsheet_().getSheetByName(APP.projectsSheet);
     const id = Utilities.getUuid();
     const now = new Date();
-    sheet.appendRow([id, name, customer, budget, 'กำลังดำเนินการ', now, now, authUser.username, authUser.username, 'รอเริ่มงาน', 0, JSON.stringify(shareholders), profitDistributionStatus]);
+    sheet.appendRow([id, name, customer, budget, 'กำลังดำเนินการ', now, now, authUser.username, authUser.username, 'รอเริ่มงาน', 0, JSON.stringify(shareholders), profitDistributionStatus, startDate || '', dueDate || '', projectType]);
     writeAudit_('CREATE_PROJECT', 'project', id, '', JSON.stringify({ name: name, customer: customer, budget: budget, stage: 'รอเริ่มงาน', progress: 0, shareholders: shareholders, profitDistributionStatus: profitDistributionStatus }), authUser.username);
     clearDataCache_();
-    return { success: true, project: { id: id, name: name, customer: customer, budget: budget, status: 'กำลังดำเนินการ', createdAt: serializeDate_(now), updatedAt: serializeDate_(now), createdBy: authUser.username, updatedBy: authUser.username, stage: 'รอเริ่มงาน', progress: 0, shareholders: shareholders, profitDistributionStatus: profitDistributionStatus }, message: 'เพิ่มโปรเจกต์เรียบร้อยแล้ว' };
+    return { success: true, project: { id: id, name: name, customer: customer, budget: budget, status: 'กำลังดำเนินการ', createdAt: serializeDate_(now), updatedAt: serializeDate_(now), createdBy: authUser.username, updatedBy: authUser.username, stage: 'รอเริ่มงาน', progress: 0, shareholders: shareholders, profitDistributionStatus: profitDistributionStatus, startDate: serializeDateOnly_(startDate), dueDate: serializeDateOnly_(dueDate), projectType: projectType }, message: 'เพิ่มโปรเจกต์เรียบร้อยแล้ว' };
   });
 }
 
@@ -187,11 +193,15 @@ function updateProject(payload, authToken) {
     const hasDistributionStatus = payload && Object.prototype.hasOwnProperty.call(payload, 'profitDistributionStatus');
     const submittedShareholders = hasShareholders ? parseShareholders_(payload.shareholdersJson) : null;
     const submittedDistributionStatus = hasDistributionStatus ? normalizeProfitDistributionStatus_(payload.profitDistributionStatus) : '';
+    const startDate = parseOptionalDate_(payload && payload.startDate);
+    const dueDate = parseOptionalDate_(payload && payload.dueDate);
+    const projectType = normalizeProjectType_(payload && payload.projectType);
     const allowedStatuses = ['กำลังดำเนินการ', 'เสร็จสิ้น', 'พักงาน'];
     if (!id) throw new Error('ไม่พบรหัสโปรเจกต์');
     if (!name) throw new Error('กรุณาระบุชื่อโปรเจกต์');
     if (allowedStatuses.indexOf(status) === -1) throw new Error('สถานะไม่ถูกต้อง');
     if (APP.stages.indexOf(stage) === -1) throw new Error('ขั้นตอนงานไม่ถูกต้อง');
+    if (startDate && dueDate && dueDate < startDate) throw new Error('วันส่งงานต้องไม่น้อยกว่าวันเริ่มงาน');
 
     const sheet = getSpreadsheet_().getSheetByName(APP.projectsSheet);
     const rows = rowsWithoutHeader_(sheet);
@@ -203,10 +213,10 @@ function updateProject(payload, authToken) {
         const shareholders = submittedShareholders === null ? previousShareholders : submittedShareholders;
         const profitDistributionStatus = submittedDistributionStatus || previousDistributionStatus;
         const before = { name: rows[index][1], customer: rows[index][2], budget: rows[index][3], status: rows[index][4], stage: rows[index][9] || 'รอเริ่มงาน', progress: Number(rows[index][10] || 0), shareholders: previousShareholders, profitDistributionStatus: previousDistributionStatus }, now = new Date();
-        sheet.getRange(row, 2, 1, 12).setValues([[name, customer, budget, status, rows[index][5], now, rows[index][7] || authUser.username, authUser.username, stage, progress, JSON.stringify(shareholders), profitDistributionStatus]]);
+        sheet.getRange(row, 2, 1, 15).setValues([[name, customer, budget, status, rows[index][5], now, rows[index][7] || authUser.username, authUser.username, stage, progress, JSON.stringify(shareholders), profitDistributionStatus, startDate || '', dueDate || '', projectType]]);
         writeAudit_('UPDATE_PROJECT', 'project', id, JSON.stringify(before), JSON.stringify({ name: name, customer: customer, budget: budget, status: status, stage: stage, progress: progress, shareholders: shareholders, profitDistributionStatus: profitDistributionStatus }), authUser.username);
         clearDataCache_();
-        return { success: true, project: { id: id, name: name, customer: customer, budget: budget, status: status, createdAt: serializeDate_(rows[index][5]), updatedAt: serializeDate_(now), createdBy: String(rows[index][7] || authUser.username), updatedBy: authUser.username, stage: stage, progress: progress, shareholders: shareholders, profitDistributionStatus: profitDistributionStatus }, message: 'แก้ไขโปรเจกต์เรียบร้อยแล้ว' };
+        return { success: true, project: { id: id, name: name, customer: customer, budget: budget, status: status, createdAt: serializeDate_(rows[index][5]), updatedAt: serializeDate_(now), createdBy: String(rows[index][7] || authUser.username), updatedBy: authUser.username, stage: stage, progress: progress, shareholders: shareholders, profitDistributionStatus: profitDistributionStatus, startDate: serializeDateOnly_(startDate), dueDate: serializeDateOnly_(dueDate), projectType: projectType }, message: 'แก้ไขโปรเจกต์เรียบร้อยแล้ว' };
       }
     }
     throw new Error('ไม่พบโปรเจกต์');
@@ -481,7 +491,7 @@ function setupSheets_(spreadsheet, force) {
   const properties = PropertiesService.getScriptProperties();
   if (!force && properties.getProperty(APP.schemaProperty) === APP.schemaVersion) return;
   ensureSheet_(spreadsheet, APP.projectsSheet,
-    ['Project ID', 'ชื่อโปรเจกต์', 'ลูกค้า', 'งบประมาณ', 'สถานะ', 'วันที่สร้าง', 'แก้ไขล่าสุด', 'สร้างโดย', 'แก้ไขล่าสุดโดย', 'ขั้นตอนปัจจุบัน', 'ความคืบหน้า (%)', 'ผู้ถือหุ้น (JSON)', 'สถานะแบ่งผลกำไร']);
+    ['Project ID', 'ชื่อโปรเจกต์', 'ลูกค้า', 'งบประมาณ', 'สถานะ', 'วันที่สร้าง', 'แก้ไขล่าสุด', 'สร้างโดย', 'แก้ไขล่าสุดโดย', 'ขั้นตอนปัจจุบัน', 'ความคืบหน้า (%)', 'ผู้ถือหุ้น (JSON)', 'สถานะแบ่งผลกำไร', 'วันเริ่มงาน', 'วันส่งงาน', 'ประเภทธุรกิจ']);
   ensureSheet_(spreadsheet, APP.transactionsSheet,
     ['Transaction ID', 'Project ID', 'วันที่', 'ประเภท', 'หมวดหมู่', 'รายละเอียด', 'จำนวนเงิน', 'วันที่บันทึก', 'Subproject ID', 'สร้างโดย', 'แก้ไขล่าสุดโดย', 'ประเภทเอกสาร']);
   ensureSheet_(spreadsheet, APP.usersSheet,
@@ -491,7 +501,7 @@ function setupSheets_(spreadsheet, force) {
   ensureSheet_(spreadsheet, APP.appUsersSheet,
     ['Username', 'ชื่อแสดงผล', 'Password Hash', 'Salt', 'Role', 'สถานะ', 'เข้าใช้ล่าสุด', 'วันที่สร้าง', 'Auth Version']);
   ensureSheet_(spreadsheet, APP.subprojectsSheet,
-    ['Subproject ID', 'Project ID', 'ชื่อโปรเจกต์ย่อย', 'รายละเอียด', 'งบประมาณ', 'สถานะ', 'วันที่สร้าง', 'แก้ไขล่าสุด', 'สร้างโดย', 'แก้ไขล่าสุดโดย', 'ขั้นตอนปัจจุบัน', 'ความคืบหน้า (%)']);
+    ['Subproject ID', 'Project ID', 'ชื่อโปรเจกต์ย่อย', 'รายละเอียด', 'งบประมาณ', 'สถานะ', 'วันที่สร้าง', 'แก้ไขล่าสุด', 'สร้างโดย', 'แก้ไขล่าสุดโดย', 'ขั้นตอนปัจจุบัน', 'ความคืบหน้า (%)', 'ประเภทธุรกิจ']);
   ensureSheet_(spreadsheet, APP.categoriesSheet,
     ['Category ID', 'ชื่อหมวดหมู่', 'ประเภท', 'สถานะ', 'สร้างโดย', 'วันที่สร้าง', 'แก้ไขโดย', 'แก้ไขล่าสุด']);
   ensureSheet_(spreadsheet, APP.centralTransactionsSheet,
@@ -500,6 +510,8 @@ function setupSheets_(spreadsheet, force) {
     ['Central Category ID', 'ชื่อหมวดหมู่', 'ประเภท', 'สถานะ', 'ลำดับ']);
   ensureSheet_(spreadsheet, APP.documentTypesSheet,
     ['Document Type ID', 'ชื่อประเภทเอกสาร', 'สถานะ', 'สร้างโดย', 'วันที่สร้าง']);
+  ensureSheet_(spreadsheet, APP.employeesSheet,
+    ['Employee ID', 'ชื่อพนักงาน', 'เงินเดือน', 'ตำแหน่งงาน', 'สถานะ', 'วันที่สร้าง', 'แก้ไขล่าสุด', 'สร้างโดย', 'แก้ไขโดย']);
   initializeDefaultAdmin_(spreadsheet);
   initializeDefaultCategories_(spreadsheet);
   initializeDefaultCentralCategories_(spreadsheet);
@@ -536,7 +548,7 @@ function readProjects_(spreadsheet) {
     return {
       id: String(row[0]), name: String(row[1] || ''), customer: String(row[2] || ''),
       budget: Number(row[3] || 0), status: String(row[4] || 'กำลังดำเนินการ'),
-      createdAt: serializeDate_(row[5]), updatedAt: serializeDate_(row[6]), createdBy: String(row[7] || ''), updatedBy: String(row[8] || ''), stage: String(row[9] || (row[4] === 'เสร็จสิ้น' ? 'เสร็จสิ้น' : 'รอเริ่มงาน')), progress: Number(row[10] == null || row[10] === '' ? (row[4] === 'เสร็จสิ้น' ? 100 : 0) : row[10]), shareholders: readStoredShareholders_(row[11]), profitDistributionStatus: readProfitDistributionStatus_(row[12])
+      createdAt: serializeDate_(row[5]), updatedAt: serializeDate_(row[6]), createdBy: String(row[7] || ''), updatedBy: String(row[8] || ''), stage: String(row[9] || (row[4] === 'เสร็จสิ้น' ? 'เสร็จสิ้น' : 'รอเริ่มงาน')), progress: Number(row[10] == null || row[10] === '' ? (row[4] === 'เสร็จสิ้น' ? 100 : 0) : row[10]), shareholders: readStoredShareholders_(row[11]), profitDistributionStatus: readProfitDistributionStatus_(row[12]), startDate: serializeDateOnly_(row[13]), dueDate: serializeDateOnly_(row[14]), projectType: String(row[15] || 'solar')
     };
   });
 }
@@ -568,7 +580,7 @@ function readCentralTransactions_(spreadsheet) {
 function readSubprojects_(spreadsheet) {
   const rows = rowsWithoutHeader_(spreadsheet.getSheetByName(APP.subprojectsSheet));
   return rows.filter(function (row) { return row[0]; }).map(function (row) {
-    return { id: String(row[0]), projectId: String(row[1]), name: String(row[2] || ''), description: String(row[3] || ''), budget: Number(row[4] || 0), status: String(row[5] || 'กำลังดำเนินการ'), createdAt: serializeDate_(row[6]), updatedAt: serializeDate_(row[7]), createdBy: String(row[8] || ''), updatedBy: String(row[9] || ''), stage: String(row[10] || (row[5] === 'เสร็จสิ้น' ? 'เสร็จสิ้น' : 'รอเริ่มงาน')), progress: Number(row[11] == null || row[11] === '' ? (row[5] === 'เสร็จสิ้น' ? 100 : 0) : row[11]) };
+    return { id: String(row[0]), projectId: String(row[1]), name: String(row[2] || ''), description: String(row[3] || ''), budget: Number(row[4] || 0), status: String(row[5] || 'กำลังดำเนินการ'), createdAt: serializeDate_(row[6]), updatedAt: serializeDate_(row[7]), createdBy: String(row[8] || ''), updatedBy: String(row[9] || ''), stage: String(row[10] || (row[5] === 'เสร็จสิ้น' ? 'เสร็จสิ้น' : 'รอเริ่มงาน')), progress: Number(row[11] == null || row[11] === '' ? (row[5] === 'เสร็จสิ้น' ? 100 : 0) : row[11]), projectType: String(row[12] || '') };
   });
 }
 
@@ -582,16 +594,17 @@ function createSubproject(payload, authToken) {
     const status = cleanText_(payload && payload.status, 30) || 'กำลังดำเนินการ';
     const stage = cleanText_(payload && payload.stage, 40) || 'รอเริ่มงาน';
     const progress = toProgress_(payload && payload.progress);
+    const projectType = normalizeProjectType_(payload && payload.projectType);
     if (!projectId || !projectExists_(projectId, getSpreadsheet_())) throw new Error('ไม่พบโปรเจกต์หลัก');
     if (!name) throw new Error('กรุณาระบุชื่อโปรเจกต์ย่อย');
     if (['กำลังดำเนินการ', 'เสร็จสิ้น', 'พักงาน'].indexOf(status) === -1) throw new Error('สถานะไม่ถูกต้อง');
     if (APP.stages.indexOf(stage) === -1) throw new Error('ขั้นตอนงานไม่ถูกต้อง');
     const id = Utilities.getUuid();
     const now = new Date();
-    getSpreadsheet_().getSheetByName(APP.subprojectsSheet).appendRow([id, projectId, name, description, budget, status, now, now, authUser.username, authUser.username, stage, progress]);
+    getSpreadsheet_().getSheetByName(APP.subprojectsSheet).appendRow([id, projectId, name, description, budget, status, now, now, authUser.username, authUser.username, stage, progress, projectType]);
     writeAudit_('CREATE_SUBPROJECT', 'subproject', id, '', JSON.stringify({ projectId: projectId, name: name, budget: budget, status: status, stage: stage, progress: progress }), authUser.username);
     clearDataCache_();
-    return { success: true, subproject: { id: id, projectId: projectId, name: name, description: description, budget: budget, status: status, createdAt: serializeDate_(now), updatedAt: serializeDate_(now), createdBy: authUser.username, updatedBy: authUser.username, stage: stage, progress: progress }, message: 'เพิ่มโปรเจกต์ย่อยเรียบร้อยแล้ว' };
+    return { success: true, subproject: { id: id, projectId: projectId, name: name, description: description, budget: budget, status: status, createdAt: serializeDate_(now), updatedAt: serializeDate_(now), createdBy: authUser.username, updatedBy: authUser.username, stage: stage, progress: progress, projectType: projectType }, message: 'เพิ่มโปรเจกต์ย่อยเรียบร้อยแล้ว' };
   });
 }
 
@@ -605,6 +618,7 @@ function updateSubproject(payload, authToken) {
     const status = cleanText_(payload && payload.status, 30);
     const stage = cleanText_(payload && payload.stage, 40);
     const progress = toProgress_(payload && payload.progress);
+    const projectType = normalizeProjectType_(payload && payload.projectType);
     if (!name) throw new Error('กรุณาระบุชื่อโปรเจกต์ย่อย');
     if (['กำลังดำเนินการ', 'เสร็จสิ้น', 'พักงาน'].indexOf(status) === -1) throw new Error('สถานะไม่ถูกต้อง');
     if (APP.stages.indexOf(stage) === -1) throw new Error('ขั้นตอนงานไม่ถูกต้อง');
@@ -614,10 +628,10 @@ function updateSubproject(payload, authToken) {
       if (String(rows[index][0]) !== id) continue;
       const before = JSON.stringify({ name: rows[index][2], description: rows[index][3], budget: rows[index][4], status: rows[index][5], stage: rows[index][10] || 'รอเริ่มงาน', progress: Number(rows[index][11] || 0) });
       const now = new Date();
-      sheet.getRange(index + 2, 3, 1, 10).setValues([[name, description, budget, status, rows[index][6], now, rows[index][8] || authUser.username, authUser.username, stage, progress]]);
+      sheet.getRange(index + 2, 3, 1, 11).setValues([[name, description, budget, status, rows[index][6], now, rows[index][8] || authUser.username, authUser.username, stage, progress, projectType]]);
       writeAudit_('UPDATE_SUBPROJECT', 'subproject', id, before, JSON.stringify({ name: name, description: description, budget: budget, status: status, stage: stage, progress: progress }), authUser.username);
       clearDataCache_();
-      return { success: true, subproject: { id: id, projectId: String(rows[index][1]), name: name, description: description, budget: budget, status: status, createdAt: serializeDate_(rows[index][6]), updatedAt: serializeDate_(now), createdBy: String(rows[index][8] || authUser.username), updatedBy: authUser.username, stage: stage, progress: progress }, message: 'แก้ไขโปรเจกต์ย่อยเรียบร้อยแล้ว' };
+      return { success: true, subproject: { id: id, projectId: String(rows[index][1]), name: name, description: description, budget: budget, status: status, createdAt: serializeDate_(rows[index][6]), updatedAt: serializeDate_(now), createdBy: String(rows[index][8] || authUser.username), updatedBy: authUser.username, stage: stage, progress: progress, projectType: projectType }, message: 'แก้ไขโปรเจกต์ย่อยเรียบร้อยแล้ว' };
     }
     throw new Error('ไม่พบโปรเจกต์ย่อย');
   });
@@ -811,6 +825,67 @@ function centralCategoryAllowed_(name, transactionType, spreadsheet) {
   if (cached) { try { categories = JSON.parse(cached).centralCategories; } catch (error) { categories = null; } }
   categories = categories || readCentralCategories_(spreadsheet);
   return categories.some(function (item) { return item.name === name && item.status === 'active' && (item.type === 'both' || item.type === transactionType); });
+}
+
+function readEmployees_(spreadsheet) {
+  return rowsWithoutHeader_(spreadsheet.getSheetByName(APP.employeesSheet)).filter(function (row) { return row[0]; }).map(function (row) {
+    return { id: String(row[0]), name: String(row[1] || ''), salary: Number(row[2] || 0), position: String(row[3] || ''), status: String(row[4] || 'active'), createdAt: serializeDate_(row[5]), updatedAt: serializeDate_(row[6]), createdBy: String(row[7] || ''), updatedBy: String(row[8] || '') };
+  });
+}
+
+function createEmployee(payload, authToken) {
+  return withLock_(function () {
+    const user = requireWriteAccess_(authToken);
+    const name = cleanText_(payload && payload.name, 120);
+    const salary = toAmount_(payload && payload.salary, true);
+    const position = cleanText_(payload && payload.position, 80);
+    if (!name) throw new Error('กรุณาระบุชื่อพนักงาน');
+    if (!position) throw new Error('กรุณาระบุตำแหน่งงาน');
+    const id = Utilities.getUuid(), now = new Date();
+    getSpreadsheet_().getSheetByName(APP.employeesSheet).appendRow([id, name, salary, position, 'active', now, now, user.username, user.username]);
+    const employee = { id: id, name: name, salary: salary, position: position, status: 'active', createdAt: serializeDate_(now), updatedAt: serializeDate_(now), createdBy: user.username, updatedBy: user.username };
+    writeAudit_('CREATE_EMPLOYEE', 'employee', id, '', JSON.stringify(employee), user.username);
+    clearDataCache_();
+    return { success: true, employee: employee, message: 'เพิ่มพนักงานเรียบร้อยแล้ว' };
+  });
+}
+
+function updateEmployee(payload, authToken) {
+  return withLock_(function () {
+    const user = requireWriteAccess_(authToken);
+    const id = cleanText_(payload && payload.id, 80), name = cleanText_(payload && payload.name, 120);
+    const salary = toAmount_(payload && payload.salary, true), position = cleanText_(payload && payload.position, 80);
+    const status = cleanText_(payload && payload.status, 20);
+    if (!name || !position) throw new Error('กรุณาระบุชื่อและตำแหน่งพนักงาน');
+    if (['active', 'inactive'].indexOf(status) === -1) throw new Error('สถานะพนักงานไม่ถูกต้อง');
+    const sheet = getSpreadsheet_().getSheetByName(APP.employeesSheet), rows = rowsWithoutHeader_(sheet);
+    for (let index = 0; index < rows.length; index++) {
+      if (String(rows[index][0]) !== id) continue;
+      const before = JSON.stringify({ name: rows[index][1], salary: rows[index][2], position: rows[index][3], status: rows[index][4] }), now = new Date();
+      sheet.getRange(index + 2, 2, 1, 8).setValues([[name, salary, position, status, rows[index][5], now, rows[index][7] || user.username, user.username]]);
+      const employee = { id: id, name: name, salary: salary, position: position, status: status, createdAt: serializeDate_(rows[index][5]), updatedAt: serializeDate_(now), createdBy: String(rows[index][7] || user.username), updatedBy: user.username };
+      writeAudit_('UPDATE_EMPLOYEE', 'employee', id, before, JSON.stringify(employee), user.username);
+      clearDataCache_();
+      return { success: true, employee: employee, message: 'แก้ไขข้อมูลพนักงานเรียบร้อยแล้ว' };
+    }
+    throw new Error('ไม่พบพนักงาน');
+  });
+}
+
+function deleteEmployee(id, authToken) {
+  return withLock_(function () {
+    const user = requireAdminAccess_(authToken);
+    id = cleanText_(id, 80);
+    const sheet = getSpreadsheet_().getSheetByName(APP.employeesSheet), rows = rowsWithoutHeader_(sheet);
+    for (let index = 0; index < rows.length; index++) {
+      if (String(rows[index][0]) !== id) continue;
+      sheet.deleteRow(index + 2);
+      writeAudit_('DELETE_EMPLOYEE', 'employee', id, JSON.stringify({ name: rows[index][1], position: rows[index][3] }), '', user.username);
+      clearDataCache_();
+      return { success: true, id: id, message: 'ลบพนักงานเรียบร้อยแล้ว' };
+    }
+    throw new Error('ไม่พบพนักงาน');
+  });
 }
 
 function buildSummary_(projects, transactions) {
@@ -1159,6 +1234,20 @@ function parseDate_(value) {
   const date = text ? new Date(text + 'T00:00:00+07:00') : new Date();
   if (isNaN(date.getTime())) throw new Error('วันที่ไม่ถูกต้อง');
   return date;
+}
+
+function parseOptionalDate_(value) {
+  const text = cleanText_(value, 10);
+  if (!text) return null;
+  const date = new Date(text + 'T00:00:00+07:00');
+  if (isNaN(date.getTime())) throw new Error('วันที่ไม่ถูกต้อง');
+  return date;
+}
+
+function normalizeProjectType_(value) {
+  const type = cleanText_(value, 20) || 'solar';
+  if (['solar', 'ev'].indexOf(type) === -1) throw new Error('ประเภทธุรกิจโปรเจกต์ไม่ถูกต้อง');
+  return type;
 }
 
 function serializeDate_(value) {
