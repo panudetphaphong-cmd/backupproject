@@ -1,0 +1,2857 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AccStore Enterprise | ระบบบัญชีและบริหารจัดการหลายร้านค้า</title>
+
+  <!-- Google Fonts: Prompt & Kanit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <style>
+    :root {
+      --bg-dark: #080808;
+      --bg-card: rgba(20, 20, 20, 0.9);
+      --bg-card-hover: rgba(35, 35, 35, 0.95);
+      --bg-side: rgba(10, 10, 10, 0.97);
+      --border-color: rgba(255, 255, 255, 0.12);
+      --border-glow: rgba(250, 204, 21, 0.35);
+      
+      --accent-green: #facc15;
+      --accent-green-glow: rgba(250, 204, 21, 0.25);
+      --accent-red: #ef4444;
+      --accent-red-glow: rgba(239, 68, 68, 0.25);
+      --accent-gold: #facc15;
+      --accent-gold-glow: rgba(250, 204, 21, 0.25);
+      --accent-blue: #fde047;
+      --accent-purple: #eab308;
+      
+      --text-main: #f9fafb;
+      --text-sub: #e5e5e5;
+      --text-muted: #a3a3a3;
+      
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Prompt', 'Kanit', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+    }
+
+    /* Ambient Background Glows */
+    .bg-glow-1 {
+      position: fixed;
+      top: -15%;
+      right: -10%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(250, 204, 21, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .bg-glow-2 {
+      position: fixed;
+      bottom: -10%;
+      left: -10%;
+      width: 700px;
+      height: 700px;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0) 70%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* Layout Structure */
+    .app-sidebar {
+      width: 280px;
+      background: var(--bg-side);
+      backdrop-filter: blur(20px);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem 1.2rem;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 100;
+      transition: var(--transition);
+    }
+
+    .app-main {
+      margin-left: 280px;
+      flex: 1;
+      padding: 2rem 2.5rem 4rem;
+      width: calc(100% - 280px);
+    }
+
+    /* Brand Logo */
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      text-decoration: none;
+      margin-bottom: 1.5rem;
+      padding: 0 0.5rem;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(14, 165, 233, 0.25));
+      border: 1px solid var(--accent-green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-green);
+      font-size: 1.4rem;
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-name {
+      font-size: 1.3rem;
+      font-weight: 700;
+      line-height: 1.1;
+      color: var(--text-main);
+      letter-spacing: -0.3px;
+    }
+
+    .brand-name span {
+      color: var(--accent-green);
+    }
+
+    .brand-sub {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      font-weight: 500;
+    }
+
+    /* User Profile Card in Sidebar */
+    .user-profile-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 1rem;
+      margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .user-avatar-circle {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+      color: #fff;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+
+    .user-info-group {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .user-name-text {
+      font-size: 0.9rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .role-badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 20px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .role-badge.admin { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
+    .role-badge.editor { background: rgba(245, 158, 11, 0.2); color: var(--accent-gold); border: 1px solid var(--accent-gold); }
+    .role-badge.viewer { background: rgba(14, 165, 233, 0.2); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+
+    .btn-logout-icon {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      transition: var(--transition);
+    }
+
+    .btn-logout-icon:hover {
+      color: var(--accent-red);
+    }
+
+    /* Current Store Selector in Sidebar */
+    .store-selector-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 1rem;
+      margin-bottom: 1.5rem;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+    }
+
+    .store-selector-box:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--accent-green);
+    }
+
+    .store-select-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.3rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .current-store-display {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .store-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--accent-gold);
+      color: #000;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .store-info-text {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .store-name-text {
+      font-size: 0.95rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .store-code-text {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Sidebar Nav Links */
+    .nav-menu {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      flex: 1;
+    }
+
+    .nav-item a {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      padding: 0.8rem 1rem;
+      color: var(--text-sub);
+      text-decoration: none;
+      font-size: 0.92rem;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      transition: var(--transition);
+    }
+
+    .nav-item a i {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      transition: var(--transition);
+    }
+
+    .nav-item.active a, .nav-item a:hover {
+      background: linear-gradient(135deg, rgba(250, 204, 21, 0.18), rgba(255, 255, 255, 0.06));
+      color: #ffffff;
+      border-left: 3px solid var(--accent-green);
+    }
+
+    .nav-item.active a i, .nav-item a:hover i {
+      color: var(--accent-green);
+      transform: scale(1.1);
+    }
+
+    /* Quick Action Button in Sidebar */
+    .btn-add-store-nav {
+      background: linear-gradient(135deg, #fde047, #eab308);
+      color: #090909;
+      border: none;
+      padding: 0.85rem 1.2rem;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      box-shadow: 0 6px 20px rgba(250, 204, 21, 0.3);
+      transition: var(--transition);
+      margin-top: 1rem;
+    }
+
+    .btn-add-store-nav:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(250, 204, 21, 0.45);
+    }
+
+    /* Header Bar on Top of Main */
+    .top-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2.2rem;
+      padding-bottom: 1.2rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .page-title-group h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .page-title-group p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-top: 0.2rem;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .btn-action-sync {
+      background: rgba(14, 165, 233, 0.15);
+      border: 1px solid var(--accent-blue);
+      color: var(--accent-blue);
+      padding: 0.65rem 1.1rem;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: var(--transition);
+    }
+
+    .btn-action-sync:hover {
+      background: var(--accent-blue);
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
+    }
+
+    .btn-action-init {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1));
+      border: 1px solid var(--accent-gold);
+      color: var(--accent-gold);
+      padding: 0.65rem 1.1rem;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: var(--transition);
+    }
+
+    .btn-action-init:hover {
+      background: var(--accent-gold);
+      color: #000;
+      box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+    }
+
+    .btn-action-income {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
+      border: 1px solid var(--accent-green);
+      color: var(--accent-green);
+      padding: 0.65rem 1.3rem;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: var(--transition);
+    }
+
+    .btn-action-income:hover {
+      background: var(--accent-green);
+      color: #042f2e;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-action-expense {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
+      border: 1px solid var(--accent-red);
+      color: var(--accent-red);
+      padding: 0.65rem 1.3rem;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: var(--transition);
+    }
+
+    .btn-action-expense:hover {
+      background: var(--accent-red);
+      color: #ffffff;
+      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    }
+
+    .btn-action-export {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-sub);
+      padding: 0.65rem 1.1rem;
+      border-radius: 50px;
+      font-weight: 500;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: var(--transition);
+    }
+
+    .btn-action-export:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
+    /* KPI Summary Cards Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2.2rem;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      transition: var(--transition);
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .kpi-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.8rem;
+    }
+
+    .kpi-title {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .kpi-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+
+    .kpi-value {
+      font-size: 1.9rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 0.4rem;
+    }
+
+    .kpi-subtext {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    /* KPI Colors */
+    .kpi-income .kpi-icon { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+    .kpi-income .kpi-value { color: var(--accent-green); }
+    
+    .kpi-expense .kpi-icon { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+    .kpi-expense .kpi-value { color: var(--accent-red); }
+    
+    .kpi-profit .kpi-icon { background: rgba(245, 158, 11, 0.15); color: var(--accent-gold); }
+    .kpi-profit .kpi-value { color: var(--accent-gold); }
+
+    .kpi-stores .kpi-icon { background: rgba(14, 165, 233, 0.15); color: var(--accent-blue); }
+    .kpi-stores .kpi-value { color: var(--accent-blue); }
+
+    /* Dashboard Main Grid (Charts & Recent Activity) */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.8rem;
+      margin-bottom: 2.2rem;
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.6rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-header-flex {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.2rem;
+    }
+
+    .card-title-text {
+      font-size: 1.1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .chart-container-box {
+      position: relative;
+      flex: 1;
+      min-height: 280px;
+    }
+
+    /* Stores List View Tab */
+    .stores-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.6rem;
+      margin-bottom: 2.2rem;
+    }
+
+    .store-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.6rem;
+      transition: var(--transition);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .store-card:hover {
+      border-color: var(--accent-green);
+      transform: translateY(-4px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+    }
+
+    .store-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1.2rem;
+    }
+
+    .store-card-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 30px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .store-card-body {
+      margin-bottom: 1.5rem;
+      flex: 1;
+    }
+
+    .store-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 1rem;
+      border-radius: var(--radius-sm);
+      margin-top: 1rem;
+    }
+
+    .metric-item-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .metric-item-val {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-top: 0.2rem;
+    }
+
+    .store-card-footer {
+      display: flex;
+      gap: 0.6rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .btn-sm-action {
+      flex: 1;
+      padding: 0.5rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-sub);
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: var(--transition);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    .btn-sm-action:hover {
+      background: var(--accent-green);
+      color: #042f2e;
+      border-color: var(--accent-green);
+    }
+
+    .btn-sm-danger:hover {
+      background: var(--accent-red);
+      color: #ffffff;
+      border-color: var(--accent-red);
+    }
+
+    /* Transactions Table View */
+    .table-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.6rem;
+      margin-bottom: 2.2rem;
+    }
+
+    .table-filter-bar {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.4rem;
+      align-items: center;
+    }
+
+    .filter-input {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.6rem 1rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      outline: none;
+      transition: var(--transition);
+    }
+
+    .filter-input:focus {
+      border-color: var(--accent-green);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+    }
+
+    .custom-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    .custom-table th {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 0.9rem 1rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-color);
+      text-transform: uppercase;
+      font-size: 0.78rem;
+      letter-spacing: 0.5px;
+    }
+
+    .custom-table td {
+      padding: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-sub);
+    }
+
+    .custom-table tr:hover td {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .badge-type-income {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 0.2rem 0.65rem;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .badge-type-expense {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--accent-red);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      padding: 0.2rem 0.65rem;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    /* Login Screen Overlay */
+    .login-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(11, 15, 25, 0.96);
+      backdrop-filter: blur(24px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition);
+    }
+
+    .login-overlay.hidden {
+      display: none;
+    }
+
+    .login-card {
+      background: rgba(16, 16, 16, 0.94);
+      border: 1px solid var(--border-glow);
+      border-radius: var(--radius-lg);
+      width: 90%;
+      max-width: 440px;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(250, 204, 21, 0.18);
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .login-brand-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(250, 204, 21, 0.24), rgba(255, 255, 255, 0.08));
+      border: 1px solid var(--accent-green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-green);
+      font-size: 2rem;
+      margin: 0 auto 1rem;
+      box-shadow: 0 0 20px rgba(250, 204, 21, 0.3);
+    }
+
+    .login-footer {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      text-align: center;
+    }
+
+    .login-loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.4rem;
+      background: rgba(11, 15, 25, 0.94);
+      backdrop-filter: blur(18px);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+
+    .login-loading-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .swal2-container {
+      z-index: 20000 !important;
+    }
+
+    .swal2-popup {
+      border: 1px solid rgba(250, 204, 21, 0.45);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.75), 0 0 28px rgba(250, 204, 21, 0.16);
+    }
+
+    .swal2-confirm {
+      color: #090909 !important;
+    }
+
+    .charging-battery {
+      position: relative;
+      width: 132px;
+      height: 68px;
+      padding: 6px;
+      border: 5px solid #facc15;
+      border-radius: 14px;
+      filter: drop-shadow(0 0 16px rgba(250, 204, 21, 0.45));
+    }
+
+    .charging-battery::after {
+      content: '';
+      position: absolute;
+      top: 18px;
+      right: -16px;
+      width: 10px;
+      height: 24px;
+      border-radius: 0 5px 5px 0;
+      background: #facc15;
+    }
+
+    .battery-charge {
+      position: absolute;
+      inset: 6px;
+      right: auto;
+      width: 0;
+      border-radius: 5px;
+      background: linear-gradient(90deg, #eab308, #fde047);
+      animation: none;
+    }
+
+    .battery-bolt {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      color: #fff7b2;
+      font-size: 2rem;
+      text-shadow: 0 0 10px #facc15;
+      animation: none;
+    }
+
+    .login-loading-overlay.active .battery-charge {
+      animation: batteryCharge 1.6s ease-in-out infinite;
+    }
+
+    .login-loading-overlay.active .battery-bolt {
+      animation: boltPulse 0.75s ease-in-out infinite alternate;
+    }
+
+    .login-loading-text {
+      color: #fde047;
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    @keyframes batteryCharge {
+      0% { width: 0; opacity: 0.65; }
+      85%, 100% { width: calc(100% - 12px); opacity: 1; }
+    }
+
+    @keyframes boltPulse {
+      from { transform: scale(0.9); opacity: 0.7; }
+      to { transform: scale(1.12); opacity: 1; }
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(12px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: var(--transition);
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-box {
+      background: #111827;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      width: 90%;
+      max-width: 580px;
+      padding: 2rem;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(16, 185, 129, 0.15);
+      transform: translateY(20px);
+      transition: var(--transition);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-overlay.active .modal-box {
+      transform: translateY(0);
+    }
+
+    .modal-header-flex {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.8rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .modal-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .modal-close-btn:hover {
+      color: var(--accent-red);
+    }
+
+    .form-group {
+      margin-bottom: 1.2rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.88rem;
+      color: var(--text-sub);
+      margin-bottom: 0.4rem;
+      font-weight: 500;
+    }
+
+    .form-control {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.92rem;
+      outline: none;
+      transition: var(--transition);
+    }
+
+    .form-control:focus {
+      border-color: var(--accent-green);
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+    }
+
+    .form-row-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.8rem;
+      margin-top: 1.8rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-color);
+      color: var(--text-sub);
+      padding: 0.7rem 1.4rem;
+      border-radius: 50px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+
+    .btn-submit {
+      background: linear-gradient(135deg, #fde047, #eab308);
+      color: #090909;
+      border: none;
+      padding: 0.7rem 1.6rem;
+      border-radius: 50px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(250, 204, 21, 0.35);
+      transition: var(--transition);
+    }
+
+    .btn-submit:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+    }
+
+    /* Print Receipt Modal Layout */
+    .printable-receipt {
+      background: #ffffff;
+      color: #111827;
+      padding: 2rem;
+      border-radius: var(--radius-md);
+    }
+
+    .receipt-header {
+      text-align: center;
+      border-bottom: 2px dashed #e5e7eb;
+      padding-bottom: 1.2rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .receipt-store-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .receipt-info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.88rem;
+      margin-bottom: 0.4rem;
+      color: #4b5563;
+    }
+
+    .receipt-table {
+      width: 100%;
+      margin: 1.2rem 0;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    .receipt-table th {
+      border-bottom: 1px solid #d1d5db;
+      padding: 0.5rem 0;
+      text-align: left;
+    }
+
+    .receipt-table td {
+      border-bottom: 1px solid #f3f4f6;
+      padding: 0.6rem 0;
+    }
+
+    .receipt-total-box {
+      border-top: 2px solid #111827;
+      padding-top: 0.8rem;
+      margin-top: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    /* Notification Toast */
+    .toast-box {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: rgba(16, 185, 129, 0.95);
+      color: #ffffff;
+      padding: 0.9rem 1.5rem;
+      border-radius: var(--radius-md);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      z-index: 2000;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: var(--transition);
+      font-weight: 500;
+    }
+
+    .toast-box.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Views Toggle Control */
+    .view-section {
+      display: none;
+    }
+
+    .view-section.active {
+      display: block;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 1024px) {
+      .app-sidebar {
+        width: 80px;
+        padding: 1.2rem 0.8rem;
+      }
+      .brand-text, .store-info-text, .nav-item a span, .btn-add-store-nav span, .store-select-label, .user-info-group {
+        display: none;
+      }
+      .app-main {
+        margin-left: 80px;
+        width: calc(100% - 80px);
+        padding: 1.5rem;
+      }
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      body {
+        flex-direction: column;
+      }
+      .app-sidebar {
+        width: 100%;
+        position: relative;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+      }
+      .nav-menu {
+        flex-direction: row;
+      }
+      .app-main {
+        margin-left: 0;
+        width: 100%;
+        padding: 1rem;
+      }
+      .top-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+      }
+      .top-actions {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+    }
+
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #receiptModal, #receiptModal * {
+        visibility: visible;
+      }
+      #receiptModal {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background: white;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Glow Effects -->
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+
+  <!-- LOGIN SCREEN OVERLAY -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-brand-icon">
+          <i class="fa-solid fa-user-shield"></i>
+        </div>
+        <h2 style="font-size: 1.5rem; font-weight: 700;">AccStore Login</h2>
+        <p style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.3rem;">เข้าสู่ระบบจัดการบัญชีและสิทธิ์การใช้งาน</p>
+      </div>
+
+      <form id="loginForm" onsubmit="handleLoginSubmit(event)">
+        <div class="form-group">
+          <label class="form-label"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้ (Username)</label>
+          <input type="text" id="loginUsername" class="form-control" placeholder="ระบุ username..." required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label"><i class="fa-solid fa-lock"></i> รหัสผ่าน (Password)</label>
+          <input type="password" id="loginPassword" class="form-control" placeholder="ระบุ password..." required>
+        </div>
+
+        <button type="submit" class="btn-submit" style="width: 100%; margin-top: 0.8rem; justify-content: center;">
+          <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ
+        </button>
+      </form>
+
+      <footer class="login-footer">
+        พัฒนาระบบโดย <strong>GoNext</strong>
+      </footer>
+    </div>
+  </div>
+
+  <div class="login-loading-overlay" id="loginLoadingOverlay" aria-live="polite" aria-hidden="true">
+    <div class="charging-battery" aria-hidden="true">
+      <div class="battery-charge"></div>
+      <div class="battery-bolt"><i class="fa-solid fa-bolt"></i></div>
+    </div>
+    <p class="login-loading-text">กำลังชาร์จพลังงานเข้าสู่ระบบ...</p>
+  </div>
+
+  <!-- Sidebar Navigation -->
+  <aside class="app-sidebar">
+    <a href="#" class="sidebar-brand">
+      <div class="brand-icon">
+        <i class="fa-solid fa-store"></i>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">Acc<span>Store</span></div>
+        <div class="brand-sub">ENTERPRISE SYSTEM</div>
+      </div>
+    </a>
+
+    <!-- Logged in User Profile Card -->
+    <div class="user-profile-card">
+      <div class="user-avatar-circle" id="userAvatarCircle">A</div>
+      <div class="user-info-group">
+        <div class="user-name-text" id="userNameText">ผู้ดูแลระบบ</div>
+        <span class="role-badge admin" id="userRoleBadge">ADMIN</span>
+      </div>
+      <button class="btn-logout-icon" onclick="logout()" title="ออกจากระบบ">
+        <i class="fa-solid fa-right-from-bracket"></i>
+      </button>
+    </div>
+
+    <!-- Active Store Selection Dropdown Box -->
+    <div class="store-selector-box" onclick="switchTab('storesView')">
+      <div class="store-select-label">
+        <span>เลือกร้านค้าหลัก</span>
+        <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem;"></i>
+      </div>
+      <div class="current-store-display">
+        <div class="store-avatar" id="currentStoreAvatar">ALL</div>
+        <div class="store-info-text">
+          <div class="store-name-text" id="currentStoreName">ทุกร้านค้า (รวมทั้งหมด)</div>
+          <div class="store-code-text" id="currentStoreSub">ภาพรวมทุกสาขาในระบบ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Menu -->
+    <ul class="nav-menu">
+      <li class="nav-item active" id="nav-dashboard">
+        <a href="javascript:void(0)" onclick="switchTab('dashboardView')">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>แดชบอร์ดการเงิน</span>
+        </a>
+      </li>
+      <li class="nav-item" id="nav-stores">
+        <a href="javascript:void(0)" onclick="switchTab('storesView')">
+          <i class="fa-solid fa-shop"></i>
+          <span>จัดการร้านค้าในระบบ</span>
+        </a>
+      </li>
+      <li class="nav-item" id="nav-transactions">
+        <a href="javascript:void(0)" onclick="switchTab('transactionsView')">
+          <i class="fa-solid fa-receipt"></i>
+          <span>สมุดบัญชีรายรับ-รายจ่าย</span>
+        </a>
+      </li>
+      <li class="nav-item" id="nav-reports">
+        <a href="javascript:void(0)" onclick="switchTab('reportsView')">
+          <i class="fa-solid fa-file-invoice-dollar"></i>
+          <span>รายงานงบการเงิน</span>
+        </a>
+      </li>
+    </ul>
+
+    <!-- Quick Add Store Button (Admin Only) -->
+    <button class="btn-add-store-nav role-admin-only" onclick="openAddStoreModal()">
+      <i class="fa-solid fa-plus"></i>
+      <span>เพิ่มร้านค้าใหม่</span>
+    </button>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="app-main">
+    
+    <!-- Top Header -->
+    <div class="top-header">
+      <div class="page-title-group">
+        <h1 id="pageTitle">
+          <i class="fa-solid fa-chart-line" style="color: var(--accent-green);"></i>
+          ภาพรวมบัญชีหลายร้านค้า
+        </h1>
+        <p id="pageSubtitle">เชื่อมต่อฐานข้อมูล Google Sheets บันทึกรายรับ-รายจ่าย วิเคราะห์ผลประกอบการ</p>
+      </div>
+
+      <div class="top-actions">
+        <button class="btn-action-sync" onclick="loadData()" title="รีเฟรชดึงข้อมูลล่าสุดจาก Google Sheet">
+          <i class="fa-solid fa-arrows-rotate"></i>
+          Sync Sheet
+        </button>
+        <button class="btn-action-init role-admin-only" onclick="initDatabaseFromUI()" title="ตั้งค่าตารางเริ่มต้นใน Google Sheet">
+          <i class="fa-solid fa-database"></i>
+          Init Database
+        </button>
+        <button class="btn-action-income role-editor-allowed" onclick="openAddTransactionModal('income')">
+          <i class="fa-solid fa-circle-plus"></i>
+          + บันทึกรายรับ
+        </button>
+        <button class="btn-action-expense role-editor-allowed" onclick="openAddTransactionModal('expense')">
+          <i class="fa-solid fa-circle-minus"></i>
+          - บันทึกรายจ่าย
+        </button>
+        <button class="btn-action-export" onclick="exportDataCSV()">
+          <i class="fa-solid fa-file-csv"></i>
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- VIEW 1: Dashboard View -->
+    <div id="dashboardView" class="view-section active">
+      <!-- KPI Cards Summary -->
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-income">
+          <div class="kpi-card-header">
+            <span class="kpi-title">รายรับรวมทั้งหมด</span>
+            <div class="kpi-icon"><i class="fa-solid fa-arrow-down-left"></i></div>
+          </div>
+          <div class="kpi-value" id="kpiTotalIncome">฿0</div>
+          <div class="kpi-subtext"><i class="fa-solid fa-circle-check" style="color: var(--accent-green);"></i> ยอดขายและรายได้สะสม</div>
+        </div>
+
+        <div class="kpi-card kpi-expense">
+          <div class="kpi-card-header">
+            <span class="kpi-title">รายจ่ายรวมทั้งหมด</span>
+            <div class="kpi-icon"><i class="fa-solid fa-arrow-up-right"></i></div>
+          </div>
+          <div class="kpi-value" id="kpiTotalExpense">฿0</div>
+          <div class="kpi-subtext"><i class="fa-solid fa-circle-exclamation" style="color: var(--accent-red);"></i> ต้นทุนและค่าใช้จ่ายรวม</div>
+        </div>
+
+        <div class="kpi-card kpi-profit">
+          <div class="kpi-card-header">
+            <span class="kpi-title">กำไรสุทธิ (Net Profit)</span>
+            <div class="kpi-icon"><i class="fa-solid fa-coins"></i></div>
+          </div>
+          <div class="kpi-value" id="kpiNetProfit">฿0</div>
+          <div class="kpi-subtext" id="kpiMarginSub"><i class="fa-solid fa-chart-line"></i> อัตรากำไรสุทธิ 0%</div>
+        </div>
+
+        <div class="kpi-card kpi-stores">
+          <div class="kpi-card-header">
+            <span class="kpi-title">ร้านค้าในระบบ</span>
+            <div class="kpi-icon"><i class="fa-solid fa-store"></i></div>
+          </div>
+          <div class="kpi-value" id="kpiStoreCount">0</div>
+          <div class="kpi-subtext"><i class="fa-solid fa-building"></i> ร้านค้าเปิดดำเนินการ</div>
+        </div>
+      </div>
+
+      <!-- Charts & Insights Grid -->
+      <div class="dashboard-grid">
+        <div class="chart-card">
+          <div class="card-header-flex">
+            <div class="card-title-text">
+              <i class="fa-solid fa-chart-area" style="color: var(--accent-green);"></i>
+              แนวโน้มรายรับ-รายจ่ายย้อนหลัง
+            </div>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">เปรียบเทียบตามช่วงเวลา</span>
+          </div>
+          <div class="chart-container-box">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="card-header-flex">
+            <div class="card-title-text">
+              <i class="fa-solid fa-chart-pie" style="color: var(--accent-gold);"></i>
+              สัดส่วนรายจ่ายตามหมวดหมู่
+            </div>
+          </div>
+          <div class="chart-container-box">
+            <canvas id="categoryChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 2: Store Management View -->
+    <div id="storesView" class="view-section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h2 style="font-size: 1.3rem; font-weight: 600;">
+          <i class="fa-solid fa-store" style="color: var(--accent-gold);"></i>
+          รายชื่อร้านค้าในระบบ (<span id="storeListCount">0</span> ร้านค้า)
+        </h2>
+        <button class="btn-submit role-admin-only" onclick="openAddStoreModal()">
+          <i class="fa-solid fa-plus"></i> เพิ่มร้านค้าในระบบ
+        </button>
+      </div>
+
+      <div class="stores-grid" id="storesGridContainer">
+        <!-- Stores Cards Injected via JS -->
+      </div>
+    </div>
+
+    <!-- VIEW 3: Transactions Book View -->
+    <div id="transactionsView" class="view-section">
+      <div class="table-card">
+        <div class="card-header-flex">
+          <div class="card-title-text">
+            <i class="fa-solid fa-book-journal-whills" style="color: var(--accent-blue);"></i>
+            ประวัติการบันทึกรายรับ - รายจ่าย
+          </div>
+        </div>
+
+        <!-- Filters Bar -->
+        <div class="table-filter-bar">
+          <select id="filterStoreSelect" class="filter-input" onchange="filterTransactions()">
+            <option value="ALL">ทุกร้านค้า</option>
+          </select>
+
+          <select id="filterTypeSelect" class="filter-input" onchange="filterTransactions()">
+            <option value="ALL">ทุกประเภท (รับ-จ่าย)</option>
+            <option value="income">เฉพาะรายรับ</option>
+            <option value="expense">เฉพาะรายจ่าย</option>
+          </select>
+
+          <input type="text" id="filterSearchInput" class="filter-input" placeholder="ค้นหารายการ / หมายเหตุ..." onkeyup="filterTransactions()">
+        </div>
+
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>วัน/เวลา</th>
+              <th>ร้านค้า</th>
+              <th>ประเภท</th>
+              <th>หมวดหมู่</th>
+              <th>รายการ / หมายเหตุ</th>
+              <th>จำนวนเงิน (บาท)</th>
+              <th>ผู้บันทึก / อ้างอิง</th>
+              <th>จัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="transactionTableBody">
+            <!-- Transactions Rows Injected via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- VIEW 4: Financial Statement Report View -->
+    <div id="reportsView" class="view-section">
+      <div class="table-card">
+        <div class="card-header-flex">
+          <div class="card-title-text">
+            <i class="fa-solid fa-file-contract" style="color: var(--accent-purple);"></i>
+            สรุปงบกำไรขาดทุน (Profit & Loss Statement)
+          </div>
+          <button class="btn-action-export" onclick="window.print()">
+            <i class="fa-solid fa-print"></i> พิมพ์รายงาน
+          </button>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
+          <h3 style="font-size: 1.2rem; margin-bottom: 0.5rem; color: var(--accent-gold);" id="reportStoreName">งบการเงินรวมทุกสาขา</h3>
+          <p style="color: var(--text-muted); font-size: 0.88rem;">ข้อมูลสรุปบัญชีรายรับ-รายจ่ายจริงจาก Google Sheet</p>
+        </div>
+
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>รายการทางบัญชี</th>
+              <th style="text-align: right;">จำนวนเงิน (บาท)</th>
+              <th style="text-align: right;">สัดส่วน (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1. รายได้จากการขายและบริการ (Total Revenue)</strong></td>
+              <td style="text-align: right; color: var(--accent-green); font-weight: 700;" id="reportRevenue">฿0</td>
+              <td style="text-align: right;">100.0%</td>
+            </tr>
+            <tr>
+              <td><strong>2. หัก ต้นทุนสินค้าและค่าใช้จ่ายการดำเนินงาน (Total Expenses)</strong></td>
+              <td style="text-align: right; color: var(--accent-red); font-weight: 700;" id="reportExpense">฿0</td>
+              <td style="text-align: right;" id="reportExpensePct">0.0%</td>
+            </tr>
+            <tr style="background: rgba(16, 185, 129, 0.08); font-size: 1.05rem;">
+              <td><strong style="color: var(--accent-gold);">3. กำไรสุทธิก่อนภาษี (Net Operating Profit)</strong></td>
+              <td style="text-align: right; color: var(--accent-gold); font-weight: 700;" id="reportNetProfit">฿0</td>
+              <td style="text-align: right; font-weight: 700; color: var(--accent-gold);" id="reportProfitPct">0.0%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL 1: Add/Edit Store Modal -->
+  <div class="modal-overlay" id="storeModal">
+    <div class="modal-box">
+      <div class="modal-header-flex">
+        <div class="modal-title">
+          <i class="fa-solid fa-store" style="color: var(--accent-gold);"></i>
+          <span id="storeModalTitle">เพิ่มร้านค้าใหม่ในระบบ</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('storeModal')">&times;</button>
+      </div>
+
+      <form id="storeForm" onsubmit="saveStore(event)">
+        <input type="hidden" id="storeFormId">
+        
+        <div class="form-group">
+          <label class="form-label"><i class="fa-solid fa-shop"></i> ชื่อร้านค้า / สาขา *</label>
+          <input type="text" id="storeFormName" class="form-control" placeholder="เช่น MB Coffee House (สาขาสุขุมวิท)" required>
+        </div>
+
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-barcode"></i> รหัสร้านค้า (Code)</label>
+            <input type="text" id="storeFormCode" class="form-control" placeholder="เช่น ST-001" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-layer-group"></i> ประเภทธุรกิจ</label>
+            <select id="storeFormCategory" class="form-control">
+              <option value="ร้านอาหาร/เครื่องดื่ม">ร้านอาหาร / คาเฟ่</option>
+              <option value="ร้านค้าปลีก/มินิมาร์ท">ร้านค้าปลีก / มินิมาร์ท</option>
+              <option value="ศูนย์บริการ/คาร์แคร์">ศูนย์บริการ / คาร์แคร์</option>
+              <option value="ร้านแฟชั่น/เสื้อผ้า">ร้านแฟชั่น / เสื้อผ้า</option>
+              <option value="ธุรกิจบริการ">ธุรกิจบริการทั่วไป</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-wallet"></i> เงินทุนตั้งต้น (บาท)</label>
+            <input type="number" id="storeFormBalance" class="form-control" value="50000" min="0" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-palette"></i> สีธีมร้านค้า</label>
+            <input type="color" id="storeFormColor" class="form-control" value="#f59e0b" style="height: 44px; padding: 4px;">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label"><i class="fa-solid fa-id-card"></i> เลขประจำตัวผู้เสียภาษี (Tax ID)</label>
+          <input type="text" id="storeFormTaxId" class="form-control" placeholder="เช่น 0105565000011">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label"><i class="fa-solid fa-location-dot"></i> ที่อยู่ / เบอร์โทรศัพท์ติดต่อ</label>
+          <input type="text" id="storeFormAddress" class="form-control" placeholder="เช่น 123/4 ถนนสุขุมวิท กรุงเทพฯ โทร 081-234-5678">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('storeModal')">ยกเลิก</button>
+          <button type="submit" class="btn-submit"><i class="fa-solid fa-floppy-disk"></i> บันทึกร้านค้า</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: Add Transaction Modal -->
+  <div class="modal-overlay" id="transactionModal">
+    <div class="modal-box">
+      <div class="modal-header-flex">
+        <div class="modal-title">
+          <i class="fa-solid fa-file-circle-plus" id="transactionModalIcon" style="color: var(--accent-green);"></i>
+          <span id="transactionModalTitle">บันทึกรายการบัญชีใหม่</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('transactionModal')">&times;</button>
+      </div>
+
+      <form id="transactionForm" onsubmit="saveTransaction(event)">
+        <input type="hidden" id="txType" value="income">
+
+        <div class="form-group">
+          <label class="form-label"><i class="fa-solid fa-store"></i> ร้านค้าผู้ทำรายการ *</label>
+          <select id="txStoreId" class="form-control" required>
+            <!-- Injected via JS -->
+          </select>
+        </div>
+
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-money-bill-wave"></i> จำนวนเงิน (บาท) *</label>
+            <input type="number" id="txAmount" class="form-control" placeholder="0.00" step="0.01" min="1" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-calendar-day"></i> วัน/เวลาที่ทำรายการ</label>
+            <input type="datetime-local" id="txDate" class="form-control" required>
+          </div>
+        </div>
+
+        <div class="form-row-grid">
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-tags"></i> หมวดหมู่บัญชี</label>
+            <select id="txCategory" class="form-control">
+              <!-- Injected via JS -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-credit-card"></i> วิธีการชำระเงิน</label>
+            <select id="txPaymentMethod" class="form-control">
+              <option value="โอนเงิน/สแกน QR">โอนเงิน / สแกน QR</option>
+              <option value="เงินสด">เงินสด (Cash)</option>
+              <option value="บัตรเครดิต">บัตรเครดิต (Credit Card)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label"><i class="fa-solid fa-pen"></i> รายการ / หมายเหตุ / เลขที่ใบเสร็จ</label>
+          <input type="text" id="txNote" class="form-control" placeholder="เช่น ยอดขายประจำวัน, ค่าวัตถุดิบกาแฟ, ค่าน้ำไฟ" required>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('transactionModal')">ยกเลิก</button>
+          <button type="submit" class="btn-submit" id="txSubmitBtn"><i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Receipt & Voucher Print Modal -->
+  <div class="modal-overlay" id="receiptModal">
+    <div class="modal-box" style="max-width: 480px; background: transparent; padding: 0;">
+      <div class="printable-receipt" id="printableReceiptContent">
+        <!-- Injected via JS -->
+      </div>
+      <div style="display: flex; gap: 1rem; margin-top: 1rem; justify-content: center;">
+        <button class="btn-secondary" onclick="closeModal('receiptModal')">ปิดหน้าต่าง</button>
+        <button class="btn-submit" onclick="window.print()"><i class="fa-solid fa-print"></i> พิมพ์ใบเสร็จ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification element -->
+  <div class="toast-box" id="toastBox">
+    <i class="fa-solid fa-circle-check" style="font-size: 1.2rem;"></i>
+    <span id="toastText">บันทึกข้อมูลเรียบร้อยแล้ว</span>
+  </div>
+
+  <!-- Application Logic JS -->
+  <script>
+    // State Management
+    let currentUser = null; // { username, name, role, assignedStoreId }
+    let stores = [];
+    let transactions = [];
+    let users = [];
+    let currentSelectedStoreId = 'ALL'; // 'ALL' or store.id
+    let trendChartInstance = null;
+    let categoryChartInstance = null;
+
+    // Default Seed Data Fallback for Local Development
+    const initialStores = [
+      {
+        id: 'store-1',
+        name: 'MB Coffee & Bakery',
+        code: 'ST-001',
+        category: 'ร้านอาหาร/เครื่องดื่ม',
+        color: '#f59e0b',
+        initialBalance: 50000,
+        taxId: '0105565000011',
+        address: '123/4 ถนนสุขุมวิท กรุงเทพมหานคร โทร 081-111-2222'
+      },
+      {
+        id: 'store-2',
+        name: 'MB Fresh Minimart',
+        code: 'ST-002',
+        category: 'ร้านค้าปลีก/มินิมาร์ท',
+        color: '#10b981',
+        initialBalance: 120000,
+        taxId: '0105565000022',
+        address: '55/9 ถนนพหลโยธิน ปทุมธานี โทร 082-333-4444'
+      },
+      {
+        id: 'store-3',
+        name: 'MB Auto Detailing',
+        code: 'ST-003',
+        category: 'ศูนย์บริการ/คาร์แคร์',
+        color: '#0ea5e9',
+        initialBalance: 85000,
+        taxId: '0105565000033',
+        address: '88/1 ถนนราชพฤกษ์ นนทบุรี โทร 089-555-6666'
+      }
+    ];
+
+    const initialTransactions = [
+      {
+        id: 'tx-101',
+        storeId: 'store-1',
+        type: 'income',
+        category: 'ยอดขายหน้าร้าน',
+        amount: 14500,
+        date: '2026-07-25T09:30',
+        paymentMethod: 'โอนเงิน/สแกน QR',
+        note: 'ยอดขายกาแฟและเบเกอรี่ประจำวัน'
+      },
+      {
+        id: 'tx-102',
+        storeId: 'store-1',
+        type: 'expense',
+        category: 'วัตถุดิบและสต็อก',
+        amount: 4200,
+        date: '2026-07-24T14:15',
+        paymentMethod: 'โอนเงิน/สแกน QR',
+        note: 'สั่งซื้อเมล็ดกาแฟอาราบิก้าเกรดพรีเมียม'
+      },
+      {
+        id: 'tx-103',
+        storeId: 'store-2',
+        type: 'income',
+        category: 'ยอดขายหน้าร้าน',
+        amount: 28900,
+        date: '2026-07-25T11:00',
+        paymentMethod: 'เงินสด',
+        note: 'ยอดขายสินค้าอุปโภคบริโภคประจำวัน'
+      },
+      {
+        id: 'tx-104',
+        storeId: 'store-2',
+        type: 'expense',
+        category: 'ค่าเช่าและสาธารณูปโภค',
+        amount: 8500,
+        date: '2026-07-23T16:00',
+        paymentMethod: 'โอนเงิน/สแกน QR',
+        note: 'ชำระค่าน้ำค่าไฟมินิมาร์ทประจำเดือน'
+      },
+      {
+        id: 'tx-105',
+        storeId: 'store-3',
+        type: 'income',
+        category: 'ค่าบริการคาร์แคร์',
+        amount: 19500,
+        date: '2026-07-25T12:00',
+        paymentMethod: 'บัตรเครดิต',
+        note: 'บริการเคลือบแก้วและล้างรถยนต์ 5 คัน'
+      },
+      {
+        id: 'tx-106',
+        storeId: 'store-3',
+        type: 'expense',
+        category: 'เงินเดือนและค่าแรง',
+        amount: 6000,
+        date: '2026-07-22T17:30',
+        paymentMethod: 'โอนเงิน/สแกน QR',
+        note: 'ค่าแรงทีมช่างล้างรถล่วงเวลา'
+      }
+    ];
+
+    // Auth & Login System
+    function checkAuthSession() {
+      const savedUser = localStorage.getItem('acc_logged_user');
+      if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        document.getElementById('loginOverlay').classList.add('hidden');
+        updateUserProfileDisplay();
+        applyRolePermissions();
+      } else {
+        document.getElementById('loginOverlay').classList.remove('hidden');
+      }
+    }
+
+    function handleLoginSubmit(event) {
+      event.preventDefault();
+      const username = document.getElementById('loginUsername').value;
+      const password = document.getElementById('loginPassword').value;
+
+      showLoginLoading();
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(async function(res) {
+            if (res && res.success) {
+              currentUser = res.user;
+              localStorage.setItem('acc_logged_user', JSON.stringify(currentUser));
+              document.getElementById('loginOverlay').classList.add('hidden');
+              updateUserProfileDisplay();
+              applyRolePermissions();
+              loadData();
+              await hideLoginLoading();
+            } else {
+              await hideLoginLoading();
+              showSweetAlert(res.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error', 'เข้าสู่ระบบไม่สำเร็จ');
+            }
+          })
+          .withFailureHandler(function(err) {
+            fallbackLocalLogin(username, password);
+          })
+          .loginUser(username, password);
+      } else {
+        fallbackLocalLogin(username, password);
+      }
+    }
+
+    async function fallbackLocalLogin(username, password) {
+      const mockUsers = [
+        { username: 'admin', password: 'admin123', name: 'ผู้ดูแลระบบ (Admin)', role: 'admin', assignedStoreId: 'ALL' },
+        { username: 'editor', password: 'editor123', name: 'เจ้าหน้าที่บัญชี (Editor)', role: 'editor', assignedStoreId: 'ALL' },
+        { username: 'viewer', password: 'viewer123', name: 'ผู้ตรวจการ (Viewer)', role: 'viewer', assignedStoreId: 'ALL' }
+      ];
+
+      const user = mockUsers.find(u => u.username === username && u.password === password);
+      if (user) {
+        currentUser = user;
+        localStorage.setItem('acc_logged_user', JSON.stringify(currentUser));
+        document.getElementById('loginOverlay').classList.add('hidden');
+        updateUserProfileDisplay();
+        applyRolePermissions();
+        loadData();
+        await hideLoginLoading();
+      } else {
+        await hideLoginLoading();
+        showSweetAlert('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!', 'error', 'เข้าสู่ระบบไม่สำเร็จ');
+      }
+    }
+
+    let loginLoadingStartedAt = 0;
+
+    function showLoginLoading() {
+      const overlay = document.getElementById('loginLoadingOverlay');
+      loginLoadingStartedAt = Date.now();
+      overlay.classList.add('active');
+      overlay.setAttribute('aria-hidden', 'false');
+    }
+
+    async function hideLoginLoading() {
+      const overlay = document.getElementById('loginLoadingOverlay');
+      const minimumChargeTime = 1600;
+      const remainingTime = Math.max(0, minimumChargeTime - (Date.now() - loginLoadingStartedAt));
+
+      if (remainingTime > 0) {
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
+      }
+
+      overlay.classList.remove('active');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    async function logout() {
+      const confirmed = await showSweetConfirm(
+        'คุณต้องการออกจากระบบใช่หรือไม่',
+        'ออกจากระบบ?',
+        'ออกจากระบบ'
+      );
+
+      if (confirmed) {
+        currentUser = null;
+        localStorage.removeItem('acc_logged_user');
+        document.getElementById('loginOverlay').classList.remove('hidden');
+        document.getElementById('loginForm').reset();
+
+        await showSweetAlert('', 'success', 'ออกจากระบบแล้ว', { timer: 1300, showConfirmButton: false });
+      }
+    }
+
+    function updateUserProfileDisplay() {
+      if (!currentUser) return;
+      document.getElementById('userAvatarCircle').innerText = currentUser.name.slice(0, 1).toUpperCase();
+      document.getElementById('userNameText').innerText = currentUser.name;
+      
+      const badge = document.getElementById('userRoleBadge');
+      badge.innerText = currentUser.role.toUpperCase();
+      badge.className = `role-badge ${currentUser.role}`;
+    }
+
+    // Role Permissions Engine
+    function applyRolePermissions() {
+      if (!currentUser) return;
+      const role = currentUser.role; // 'admin' | 'editor' | 'viewer'
+
+      // Admin Only Controls
+      document.querySelectorAll('.role-admin-only').forEach(el => {
+        el.style.display = (role === 'admin') ? '' : 'none';
+      });
+
+      // Editor Allowed Controls (Admin + Editor)
+      document.querySelectorAll('.role-editor-allowed').forEach(el => {
+        el.style.display = (role === 'admin' || role === 'editor') ? '' : 'none';
+      });
+
+      // Viewer restrictions (Hide delete buttons, disable edit buttons)
+      if (role === 'viewer') {
+        document.querySelectorAll('.btn-action-income, .btn-action-expense, .btn-add-store-nav').forEach(el => {
+          el.style.display = 'none';
+        });
+      }
+    }
+
+    // Load Data: Sync with Google Sheets Backend if available, else LocalStorage
+    function loadData() {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        showToast('กำลังเชื่อมต่อข้อมูลจาก Google Sheets...');
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res && res.success) {
+              stores = res.stores || [];
+              transactions = res.transactions || [];
+              users = res.users || [];
+              renderAllViews();
+              showToast('ดึงข้อมูลจาก Google Sheets สำเร็จ!');
+            } else {
+              loadFromLocalStorage();
+            }
+          })
+          .withFailureHandler(function(err) {
+            console.error('Apps Script Error:', err);
+            loadFromLocalStorage();
+          })
+          .getAppData();
+      } else {
+        loadFromLocalStorage();
+      }
+    }
+
+    function loadFromLocalStorage() {
+      const storedStores = localStorage.getItem('acc_stores');
+      const storedTx = localStorage.getItem('acc_transactions');
+
+      if (storedStores) {
+        stores = JSON.parse(storedStores);
+      } else {
+        stores = [...initialStores];
+        saveStoresToStorage();
+      }
+
+      if (storedTx) {
+        transactions = JSON.parse(storedTx);
+      } else {
+        transactions = [...initialTransactions];
+        saveTxToStorage();
+      }
+
+      renderAllViews();
+    }
+
+    function saveStoresToStorage() {
+      localStorage.setItem('acc_stores', JSON.stringify(stores));
+    }
+
+    function saveTxToStorage() {
+      localStorage.setItem('acc_transactions', JSON.stringify(transactions));
+    }
+
+    function renderAllViews() {
+      renderStoreSelector();
+      renderStoreGrid();
+      populateStoreDropdowns();
+      filterTransactions();
+      updateDashboard();
+      applyRolePermissions();
+    }
+
+    // App Initialization
+    document.addEventListener('DOMContentLoaded', () => {
+      checkAuthSession();
+
+      // Set default transaction date to now
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      document.getElementById('txDate').value = now.toISOString().slice(0, 16);
+    });
+
+    // Initialize Database Structure in Google Sheets
+    async function initDatabaseFromUI() {
+      if (currentUser && currentUser.role !== 'admin') {
+        showSweetAlert('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถตั้งค่าตารางฐานข้อมูลได้', 'warning');
+        return;
+      }
+
+      if (await showSweetConfirm('คุณต้องการสั่งสร้างตาราง Stores, Transactions และ Users ใน Google Sheet ใช่หรือไม่?', 'ยืนยันการตั้งค่าฐานข้อมูล', 'ดำเนินการ')) {
+        showToast('กำลังตั้งค่าโครงสร้าง Google Sheet...');
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              if (res && res.success) {
+                showToast(res.message);
+                loadData();
+              } else {
+                showSweetAlert(res.message || 'ไม่สามารถสร้างตารางได้', 'error', 'ข้อผิดพลาด');
+              }
+            })
+            .withFailureHandler(function(err) {
+              showSweetAlert(err.toString(), 'error', 'ข้อผิดพลาดระบบ');
+            })
+            .initDatabase();
+        } else {
+          showToast('คุณกำลังรันบน Local Server — รีเซ็ต LocalStorage เรียบร้อย!');
+          localStorage.removeItem('acc_stores');
+          localStorage.removeItem('acc_transactions');
+          loadData();
+        }
+      }
+    }
+
+    // Tab Navigation
+    function switchTab(viewId) {
+      document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+      const targetView = document.getElementById(viewId);
+      if (targetView) targetView.classList.add('active');
+
+      if (viewId === 'dashboardView') {
+        document.getElementById('nav-dashboard').classList.add('active');
+        document.getElementById('pageTitle').innerHTML = '<i class="fa-solid fa-chart-line" style="color: var(--accent-green);"></i> แดชบอร์ดการเงิน';
+        document.getElementById('pageSubtitle').innerText = 'สรุปรายรับ-รายจ่าย กราฟการเงิน และผลประกอบการร้านค้า';
+        updateDashboard();
+      } else if (viewId === 'storesView') {
+        document.getElementById('nav-stores').classList.add('active');
+        document.getElementById('pageTitle').innerHTML = '<i class="fa-solid fa-shop" style="color: var(--accent-gold);"></i> จัดการร้านค้าในระบบ';
+        document.getElementById('pageSubtitle').innerText = 'เพิ่ม แก้ไข และดูผลประกอบการแยกตามสาขาร้านค้า';
+        renderStoreGrid();
+      } else if (viewId === 'transactionsView') {
+        document.getElementById('nav-transactions').classList.add('active');
+        document.getElementById('pageTitle').innerHTML = '<i class="fa-solid fa-receipt" style="color: var(--accent-blue);"></i> สมุดบัญชีรายรับ-รายจ่าย';
+        document.getElementById('pageSubtitle').innerText = 'รายการบันทึกบัญชีทั้งหมด ค้นหา กรอง และออกใบเสร็จ';
+        filterTransactions();
+      } else if (viewId === 'reportsView') {
+        document.getElementById('nav-reports').classList.add('active');
+        document.getElementById('pageTitle').innerHTML = '<i class="fa-solid fa-file-invoice-dollar" style="color: var(--accent-purple);"></i> รายงานงบการเงิน';
+        document.getElementById('pageSubtitle').innerText = 'สรุปงบกำไรขาดทุน (P&L Statement) ประจำร้านค้า';
+        renderReportView();
+      }
+    }
+
+    // Render Current Selected Store Display in Sidebar
+    function renderStoreSelector() {
+      const currentStoreAvatar = document.getElementById('currentStoreAvatar');
+      const currentStoreName = document.getElementById('currentStoreName');
+      const currentStoreSub = document.getElementById('currentStoreSub');
+
+      if (currentSelectedStoreId === 'ALL') {
+        currentStoreAvatar.innerText = 'ALL';
+        currentStoreAvatar.style.background = 'var(--accent-gold)';
+        currentStoreName.innerText = 'ทุกร้านค้า (รวมทั้งหมด)';
+        currentStoreSub.innerText = `ภาพรวม ${stores.length} สาขาในระบบ`;
+      } else {
+        const store = stores.find(s => s.id === currentSelectedStoreId);
+        if (store) {
+          currentStoreAvatar.innerText = store.name.slice(0, 2).toUpperCase();
+          currentStoreAvatar.style.background = store.color || 'var(--accent-green)';
+          currentStoreName.innerText = store.name;
+          currentStoreSub.innerText = `${store.code} • ${store.category}`;
+        }
+      }
+    }
+
+    // Populate Select Options for Stores
+    function populateStoreDropdowns() {
+      const filterStoreSelect = document.getElementById('filterStoreSelect');
+      const txStoreId = document.getElementById('txStoreId');
+
+      let filterHTML = '<option value="ALL">ทุกร้านค้า (รวมทั้งหมด)</option>';
+      let txHTML = '';
+
+      stores.forEach(s => {
+        filterHTML += `<option value="${s.id}">${s.name} (${s.code})</option>`;
+        txHTML += `<option value="${s.id}">${s.name} (${s.code})</option>`;
+      });
+
+      if (filterStoreSelect) filterStoreSelect.innerHTML = filterHTML;
+      if (txStoreId) txStoreId.innerHTML = txHTML;
+    }
+
+    // Render Stores Grid (Stores Management View)
+    function renderStoreGrid() {
+      const container = document.getElementById('storesGridContainer');
+      document.getElementById('storeListCount').innerText = stores.length;
+
+      if (!container) return;
+      let html = '';
+
+      const isAdmin = currentUser && currentUser.role === 'admin';
+
+      stores.forEach(s => {
+        const storeTx = transactions.filter(t => t.storeId === s.id);
+        const income = storeTx.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+        const expense = storeTx.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+        const netProfit = income - expense;
+
+        html += `
+          <div class="store-card">
+            <div class="store-card-header">
+              <div style="display: flex; align-items: center; gap: 0.8rem;">
+                <div class="store-avatar" style="background: ${s.color}; font-size: 1.1rem; width: 42px; height: 42px;">
+                  ${s.name.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <h3 style="font-size: 1.15rem; font-weight: 700;">${s.name}</h3>
+                  <p style="font-size: 0.78rem; color: var(--text-muted);">${s.code} • ${s.category}</p>
+                </div>
+              </div>
+              <span class="store-card-badge">เปิดบริการ</span>
+            </div>
+
+            <div class="store-card-body">
+              <p style="font-size: 0.84rem; color: var(--text-sub); margin-bottom: 0.5rem;">
+                <i class="fa-solid fa-id-card" style="color: var(--accent-gold);"></i> Tax ID: ${s.taxId || '-'}
+              </p>
+              <p style="font-size: 0.84rem; color: var(--text-muted); line-height: 1.4;">
+                <i class="fa-solid fa-location-dot"></i> ${s.address || 'ไม่มีข้อมูลที่อยู่'}
+              </p>
+
+              <div class="store-metrics">
+                <div>
+                  <div class="metric-item-label">รายรับร้านนี้</div>
+                  <div class="metric-item-val" style="color: var(--accent-green);">฿${income.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div class="metric-item-label">กำไรสุทธิ</div>
+                  <div class="metric-item-val" style="color: ${netProfit >= 0 ? 'var(--accent-gold)' : 'var(--accent-red)'};">
+                    ฿${netProfit.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="store-card-footer">
+              <button class="btn-sm-action" onclick="selectStoreToView('${s.id}')">
+                <i class="fa-solid fa-eye"></i> เลือกดูร้านนี้
+              </button>
+              ${isAdmin ? `
+                <button class="btn-sm-action" onclick="openEditStoreModal('${s.id}')">
+                  <i class="fa-solid fa-pen"></i> แก้ไข
+                </button>
+                <button class="btn-sm-action btn-sm-danger" onclick="deleteStore('${s.id}')">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Select Store to view exclusively
+    function selectStoreToView(storeId) {
+      currentSelectedStoreId = storeId;
+      renderStoreSelector();
+      switchTab('dashboardView');
+      showToast('สลับไปยังร้านค้าที่เลือกเรียบร้อยแล้ว');
+    }
+
+    // Modal Store Add / Edit
+    function openAddStoreModal() {
+      if (currentUser && currentUser.role !== 'admin') {
+        showSweetAlert('เฉพาะ Admin เท่านั้นที่สามารถเพิ่มร้านค้าได้', 'warning');
+        return;
+      }
+
+      document.getElementById('storeForm').reset();
+      document.getElementById('storeFormId').value = '';
+      document.getElementById('storeFormCode').value = 'ST-00' + (stores.length + 1);
+      document.getElementById('storeModalTitle').innerText = 'เพิ่มร้านค้าใหม่ในระบบ';
+      openModal('storeModal');
+    }
+
+    function openEditStoreModal(storeId) {
+      if (currentUser && currentUser.role !== 'admin') {
+        showSweetAlert('เฉพาะ Admin เท่านั้นที่สามารถแก้ไขร้านค้าได้', 'warning');
+        return;
+      }
+
+      const store = stores.find(s => s.id === storeId);
+      if (!store) return;
+
+      document.getElementById('storeFormId').value = store.id;
+      document.getElementById('storeFormName').value = store.name;
+      document.getElementById('storeFormCode').value = store.code;
+      document.getElementById('storeFormCategory').value = store.category;
+      document.getElementById('storeFormBalance').value = store.initialBalance || 0;
+      document.getElementById('storeFormColor').value = store.color || '#f59e0b';
+      document.getElementById('storeFormTaxId').value = store.taxId || '';
+      document.getElementById('storeFormAddress').value = store.address || '';
+
+      document.getElementById('storeModalTitle').innerText = 'แก้ไขข้อมูลร้านค้า';
+      openModal('storeModal');
+    }
+
+    function saveStore(event) {
+      event.preventDefault();
+
+      if (currentUser && currentUser.role !== 'admin') {
+        showSweetAlert('คุณไม่มีสิทธิ์ในการบันทึกหรือแก้ไขร้านค้า', 'warning');
+        return;
+      }
+
+      const id = document.getElementById('storeFormId').value || ('store-' + Date.now());
+      const name = document.getElementById('storeFormName').value;
+      const code = document.getElementById('storeFormCode').value;
+      const category = document.getElementById('storeFormCategory').value;
+      const balance = Number(document.getElementById('storeFormBalance').value);
+      const color = document.getElementById('storeFormColor').value;
+      const taxId = document.getElementById('storeFormTaxId').value;
+      const address = document.getElementById('storeFormAddress').value;
+
+      const storeObj = { id, name, code, category, initialBalance: balance, color, taxId, address };
+
+      // 1. Optimistic Real-Time UI Render (0ms latency)
+      const existingIndex = stores.findIndex(s => s.id === id);
+      if (existingIndex !== -1) {
+        stores[existingIndex] = storeObj;
+      } else {
+        stores.push(storeObj);
+      }
+      renderAllViews();
+      closeModal('storeModal');
+      showToast('บันทึกร้านค้าสำเร็จ!');
+
+      // 2. Background Sync to Google Sheet
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res && res.success) {
+              showToast(res.message);
+            } else {
+              showSweetAlert(res.message || 'ไม่สามารถบันทึกลง Sheet ได้', 'warning', 'คำเตือนจาก Sheet');
+            }
+          })
+          .withFailureHandler(function(err) {
+            showSweetAlert(err.toString(), 'error', 'เกิดข้อผิดพลาดเชื่อมต่อ Sheet');
+          })
+          .saveStoreData(storeObj);
+      } else {
+        saveStoresToStorage();
+      }
+    }
+
+    async function deleteStore(storeId) {
+      if (currentUser && currentUser.role !== 'admin') {
+        showSweetAlert('เฉพาะ Admin เท่านั้นที่สามารถลบร้านค้าได้', 'warning');
+        return;
+      }
+
+      if (stores.length <= 1) {
+        showSweetAlert('ต้องมีร้านค้าอย่างน้อย 1 ร้านในระบบ', 'warning');
+        return;
+      }
+
+      if (await showSweetConfirm('รายการบัญชีของร้านนี้จะถูกลบไปด้วยและไม่สามารถย้อนกลับได้', 'ยืนยันการลบร้านค้า?', 'ลบร้านค้า')) {
+        // 1. Optimistic Real-Time UI Render
+        stores = stores.filter(s => s.id !== storeId);
+        transactions = transactions.filter(t => t.storeId !== storeId);
+        if (currentSelectedStoreId === storeId) currentSelectedStoreId = 'ALL';
+        renderAllViews();
+        showToast('ลบร้านค้าสำเร็จ!');
+
+        // 2. Background Sync to Google Sheet
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              if (res && res.success) {
+                showToast(res.message);
+              }
+            })
+            .withFailureHandler(function(err) {
+              showSweetAlert(err.toString(), 'error', 'เกิดข้อผิดพลาดลบข้อมูลใน Sheet');
+            })
+            .deleteStoreData(storeId);
+        } else {
+          saveStoresToStorage();
+          saveTxToStorage();
+        }
+      }
+    }
+
+    // Modal Transactions Add (Income / Expense)
+    function openAddTransactionModal(type) {
+      if (currentUser && currentUser.role === 'viewer') {
+        showSweetAlert('คุณมีสิทธิ์ Viewer (ผู้ตรวจการ) ไม่สามารถบันทึกรายการบัญชีได้', 'warning');
+        return;
+      }
+
+      if (stores.length === 0) {
+        showSweetAlert('กรุณาเพิ่มร้านค้าในระบบอย่างน้อย 1 ร้านก่อนบันทึกรายการบัญชี', 'warning');
+        return;
+      }
+
+      document.getElementById('transactionForm').reset();
+      document.getElementById('txType').value = type;
+
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      document.getElementById('txDate').value = now.toISOString().slice(0, 16);
+
+      const titleEl = document.getElementById('transactionModalTitle');
+      const iconEl = document.getElementById('transactionModalIcon');
+      const submitBtn = document.getElementById('txSubmitBtn');
+      const catSelect = document.getElementById('txCategory');
+
+      let catHTML = '';
+
+      if (type === 'income') {
+        titleEl.innerText = 'บันทึกรายรับใหม่ (Income)';
+        iconEl.className = 'fa-solid fa-circle-plus';
+        iconEl.style.color = 'var(--accent-green)';
+        submitBtn.style.background = 'linear-gradient(135deg, var(--accent-green), #059669)';
+
+        const categories = ['ยอดขายหน้าร้าน', 'ยอดขายออนไลน์', 'ค่าบริการ', 'รายได้อื่นๆ', 'ดอกเบี้ย/เงินปันผล'];
+        categories.forEach(c => catHTML += `<option value="${c}">${c}</option>`);
+      } else {
+        titleEl.innerText = 'บันทึกรายจ่ายใหม่ (Expense)';
+        iconEl.className = 'fa-solid fa-circle-minus';
+        iconEl.style.color = 'var(--accent-red)';
+        submitBtn.style.background = 'linear-gradient(135deg, var(--accent-red), #dc2626)';
+
+        const categories = ['วัตถุดิบและสต็อก', 'ค่าเช่าและสาธารณูปโภค', 'เงินเดือนและค่าแรง', 'ค่าการตลาดและโฆษณา', 'อุปกรณ์และซ่อมบำรุง', 'ค่าใช้จ่ายเบ็ดเตล็ด'];
+        categories.forEach(c => catHTML += `<option value="${c}">${c}</option>`);
+      }
+
+      catSelect.innerHTML = catHTML;
+
+      // Select active store if specific store is selected
+      if (currentSelectedStoreId !== 'ALL') {
+        document.getElementById('txStoreId').value = currentSelectedStoreId;
+      }
+
+      openModal('transactionModal');
+    }
+
+    function saveTransaction(event) {
+      event.preventDefault();
+
+      if (currentUser && currentUser.role === 'viewer') {
+        showSweetAlert('สิทธิ์ Viewer ไม่สามารถเพิ่มรายการบัญชีได้', 'warning');
+        return;
+      }
+
+      const storeId = document.getElementById('txStoreId').value;
+      const type = document.getElementById('txType').value;
+      const amount = Number(document.getElementById('txAmount').value);
+      const date = document.getElementById('txDate').value;
+      const category = document.getElementById('txCategory').value;
+      const paymentMethod = document.getElementById('txPaymentMethod').value;
+      const note = document.getElementById('txNote').value;
+
+      const newTx = {
+        id: 'tx-' + Date.now(),
+        storeId,
+        type,
+        amount,
+        date,
+        category,
+        paymentMethod,
+        note
+      };
+
+      // 1. Optimistic Real-Time UI Render
+      transactions.unshift(newTx);
+      renderAllViews();
+      closeModal('transactionModal');
+      showToast(type === 'income' ? 'บันทึกรายรับเรียบร้อยแล้ว!' : 'บันทึกรายจ่ายเรียบร้อยแล้ว!');
+
+      // 2. Background Sync to Google Sheet
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res && res.success) {
+              showToast('ซิงค์ลง Google Sheet เรียบร้อยแล้ว');
+            } else {
+              showSweetAlert(res.message || 'ไม่สามารถซิงค์ได้', 'warning', 'คำเตือนซิงค์ Sheet');
+            }
+          })
+          .withFailureHandler(function(err) {
+            showSweetAlert(err.toString(), 'error', 'เกิดข้อผิดพลาดซิงค์ Sheet');
+          })
+          .saveTransactionData(newTx);
+      } else {
+        saveTxToStorage();
+      }
+    }
+
+    async function deleteTransaction(id) {
+      if (currentUser && (currentUser.role === 'viewer' || currentUser.role === 'editor')) {
+        showSweetAlert('เฉพาะ Admin เท่านั้นที่สามารถลบรายการบัญชีได้', 'warning');
+        return;
+      }
+
+      if (await showSweetConfirm('รายการที่ลบแล้วจะไม่สามารถย้อนกลับได้', 'ยืนยันการลบรายการบัญชี?', 'ลบรายการ')) {
+        // 1. Optimistic Real-Time UI Render
+        transactions = transactions.filter(t => t.id !== id);
+        renderAllViews();
+        showToast('ลบรายการเรียบร้อยแล้ว');
+
+        // 2. Background Sync to Google Sheet
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              if (res && res.success) {
+                showToast(res.message);
+              }
+            })
+            .withFailureHandler(function(err) {
+              showSweetAlert(err.toString(), 'error', 'เกิดข้อผิดพลาดลบรายการใน Sheet');
+            })
+            .deleteTransactionData(id);
+        } else {
+          saveTxToStorage();
+        }
+      }
+    }
+
+    // Filter Transactions Table
+    function filterTransactions() {
+      const storeFilter = document.getElementById('filterStoreSelect').value;
+      const typeFilter = document.getElementById('filterTypeSelect').value;
+      const searchFilter = document.getElementById('filterSearchInput').value.toLowerCase();
+      const tbody = document.getElementById('transactionTableBody');
+
+      if (!tbody) return;
+
+      let filtered = transactions.filter(t => {
+        const matchesStore = storeFilter === 'ALL' || t.storeId === storeFilter;
+        const matchesType = typeFilter === 'ALL' || t.type === typeFilter;
+        const matchesSearch = t.note.toLowerCase().includes(searchFilter) || t.category.toLowerCase().includes(searchFilter);
+        return matchesStore && matchesType && matchesSearch;
+      });
+
+      let html = '';
+      if (filtered.length === 0) {
+        html = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">ไม่พบรายการบัญชีที่ตรงตามเงื่อนไข</td></tr>`;
+      } else {
+        const isAdmin = currentUser && currentUser.role === 'admin';
+
+        filtered.forEach(t => {
+          const store = stores.find(s => s.id === t.storeId);
+          const storeName = store ? store.name : 'ร้านค้าทั่วไป';
+          const formattedDate = new Date(t.date).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+
+          html += `
+            <tr>
+              <td>${formattedDate}</td>
+              <td><span style="font-weight: 600; color: var(--text-main);">${storeName}</span></td>
+              <td>
+                <span class="${t.type === 'income' ? 'badge-type-income' : 'badge-type-expense'}">
+                  <i class="fa-solid ${t.type === 'income' ? 'fa-arrow-down' : 'fa-arrow-up'}"></i>
+                  ${t.type === 'income' ? 'รายรับ' : 'รายจ่าย'}
+                </span>
+              </td>
+              <td>${t.category}</td>
+              <td>${t.note}</td>
+              <td style="font-weight: 700; color: ${t.type === 'income' ? 'var(--accent-green)' : 'var(--accent-red)'};">
+                ${t.type === 'income' ? '+' : '-'}฿${Number(t.amount).toLocaleString()}
+              </td>
+              <td><span style="font-size: 0.8rem; color: var(--text-muted);"><i class="fa-solid fa-wallet"></i> ${t.paymentMethod}</span></td>
+              <td>
+                <button class="btn-sm-action" onclick="printReceipt('${t.id}')" title="ออกใบเสร็จ">
+                  <i class="fa-solid fa-receipt"></i>
+                </button>
+                ${isAdmin ? `
+                  <button class="btn-sm-action btn-sm-danger" onclick="deleteTransaction('${t.id}')" title="ลบ">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                ` : ''}
+              </td>
+            </tr>
+          `;
+        });
+      }
+
+      tbody.innerHTML = html;
+    }
+
+    // Update Dashboard Metrics & Charts
+    function updateDashboard() {
+      let filteredTx = transactions;
+      if (currentSelectedStoreId !== 'ALL') {
+        filteredTx = transactions.filter(t => t.storeId === currentSelectedStoreId);
+      }
+
+      const totalIncome = filteredTx.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+      const totalExpense = filteredTx.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+      const netProfit = totalIncome - totalExpense;
+      const profitMargin = totalIncome > 0 ? ((netProfit / totalIncome) * 100).toFixed(1) : 0;
+
+      document.getElementById('kpiTotalIncome').innerText = `฿${totalIncome.toLocaleString()}`;
+      document.getElementById('kpiTotalExpense').innerText = `฿${totalExpense.toLocaleString()}`;
+      document.getElementById('kpiNetProfit').innerText = `฿${netProfit.toLocaleString()}`;
+      document.getElementById('kpiMarginSub').innerHTML = `<i class="fa-solid fa-chart-line"></i> อัตรากำไรสุทธิ ${profitMargin}%`;
+      document.getElementById('kpiStoreCount').innerText = stores.length;
+
+      renderCharts(filteredTx);
+    }
+
+    // Render Chart.js Visual Analytics
+    function renderCharts(txData) {
+      // 1. Trend Line Chart
+      const trendCtx = document.getElementById('trendChart');
+      if (trendCtx) {
+        if (trendChartInstance) trendChartInstance.destroy();
+
+        // Group transactions by date
+        const dateMap = {};
+        txData.forEach(t => {
+          const d = t.date.slice(0, 10);
+          if (!dateMap[d]) dateMap[d] = { income: 0, expense: 0 };
+          if (t.type === 'income') dateMap[d].income += Number(t.amount);
+          else dateMap[d].expense += Number(t.amount);
+        });
+
+        const labels = Object.keys(dateMap).sort();
+        const incomeData = labels.map(l => dateMap[l].income);
+        const expenseData = labels.map(l => dateMap[l].expense);
+
+        trendChartInstance = new Chart(trendCtx, {
+          type: 'line',
+          data: {
+            labels: labels.length > 0 ? labels : ['วันนี้'],
+            datasets: [
+              {
+                label: 'รายรับ (Income)',
+                data: incomeData.length > 0 ? incomeData : [0],
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                fill: true,
+                tension: 0.35
+              },
+              {
+                label: 'รายจ่าย (Expense)',
+                data: expenseData.length > 0 ? expenseData : [0],
+                borderColor: '#ef4444',
+                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                fill: true,
+                tension: 0.35
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#d1d5db' } }
+            },
+            scales: {
+              x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+              y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            }
+          }
+        });
+      }
+
+      // 2. Category Pie Chart
+      const categoryCtx = document.getElementById('categoryChart');
+      if (categoryCtx) {
+        if (categoryChartInstance) categoryChartInstance.destroy();
+
+        const catMap = {};
+        txData.filter(t => t.type === 'expense').forEach(t => {
+          catMap[t.category] = (catMap[t.category] || 0) + Number(t.amount);
+        });
+
+        const labels = Object.keys(catMap);
+        const values = Object.values(catMap);
+
+        categoryChartInstance = new Chart(categoryCtx, {
+          type: 'doughnut',
+          data: {
+            labels: labels.length > 0 ? labels : ['ไม่มีค่าใช้จ่าย'],
+            datasets: [{
+              data: values.length > 0 ? values : [1],
+              backgroundColor: ['#ef4444', '#f59e0b', '#0ea5e9', '#8b5cf6', '#ec4899', '#64748b']
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { color: '#d1d5db', font: { size: 11 } } }
+            }
+          }
+        });
+      }
+    }
+
+    // Render Financial Statement Report
+    function renderReportView() {
+      let filteredTx = transactions;
+      let titleName = 'งบการเงินรวมทุกสาขา';
+
+      if (currentSelectedStoreId !== 'ALL') {
+        const store = stores.find(s => s.id === currentSelectedStoreId);
+        if (store) {
+          filteredTx = transactions.filter(t => t.storeId === currentSelectedStoreId);
+          titleName = `งบการเงินเฉพาะสาขา: ${store.name} (${store.code})`;
+        }
+      }
+
+      const totalRevenue = filteredTx.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+      const totalExpense = filteredTx.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+      const netProfit = totalRevenue - totalExpense;
+
+      const expensePct = totalRevenue > 0 ? ((totalExpense / totalRevenue) * 100).toFixed(1) : '0.0';
+      const profitPct = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0.0';
+
+      document.getElementById('reportStoreName').innerText = titleName;
+      document.getElementById('reportRevenue').innerText = `฿${totalRevenue.toLocaleString()}`;
+      document.getElementById('reportExpense').innerText = `฿${totalExpense.toLocaleString()}`;
+      document.getElementById('reportExpensePct').innerText = `${expensePct}%`;
+      document.getElementById('reportNetProfit').innerText = `฿${netProfit.toLocaleString()}`;
+      document.getElementById('reportProfitPct').innerText = `${profitPct}%`;
+    }
+
+    // Print Receipt Modal
+    function printReceipt(txId) {
+      const tx = transactions.find(t => t.id === txId);
+      if (!tx) return;
+
+      const store = stores.find(s => s.id === tx.storeId) || { name: 'AccStore Enterprise', taxId: '-', address: '-' };
+      const formattedDate = new Date(tx.date).toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short' });
+
+      const content = `
+        <div class="receipt-header">
+          <div class="receipt-store-title">${store.name}</div>
+          <p style="font-size: 0.8rem; color: #6b7280; margin-top: 0.2rem;">${store.address}</p>
+          <p style="font-size: 0.8rem; color: #6b7280;">เลขประจำตัวผู้เสียภาษี: ${store.taxId}</p>
+          <div style="margin-top: 0.8rem; font-weight: 700; font-size: 1.1rem; color: #111827;">
+            ${tx.type === 'income' ? 'ใบเสร็จรับเงิน / RECEIPT' : 'ใบสำคัญจ่าย / PAYMENT VOUCHER'}
+          </div>
+        </div>
+
+        <div class="receipt-info-row">
+          <span>เลขที่เอกสาร: <strong>${tx.id.toUpperCase()}</strong></span>
+          <span>วันที่: <strong>${formattedDate}</strong></span>
+        </div>
+        <div class="receipt-info-row">
+          <span>วิธีการชำระ: <strong>${tx.paymentMethod}</strong></span>
+          <span>หมวดหมู่: <strong>${tx.category}</strong></span>
+        </div>
+
+        <table class="receipt-table">
+          <thead>
+            <tr>
+              <th>รายการ / รายรายละเอียด</th>
+              <th style="text-align: right;">จำนวนเงิน</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${tx.note}</td>
+              <td style="text-align: right; font-weight: 600;">฿${Number(tx.amount).toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="receipt-total-box">
+          <span>จำนวนเงินรวมสุทธิ</span>
+          <span>฿${Number(tx.amount).toLocaleString()}</span>
+        </div>
+
+        <div style="margin-top: 2rem; display: flex; justify-content: space-between; text-align: center; font-size: 0.8rem; color: #6b7280;">
+          <div>
+            <div style="border-bottom: 1px solid #9ca3af; width: 120px; margin-bottom: 0.3rem;"></div>
+            <span>ผู้รับเงิน / ผู้ทำรายการ</span>
+          </div>
+          <div>
+            <div style="border-bottom: 1px solid #9ca3af; width: 120px; margin-bottom: 0.3rem;"></div>
+            <span>ผู้อนุมัติเอกสาร</span>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('printableReceiptContent').innerHTML = content;
+      openModal('receiptModal');
+    }
+
+    // Export Data to CSV
+    function exportDataCSV() {
+      let csv = '\uFEFF'; // UTF-8 BOM
+      csv += 'Transaction ID,Store Name,Type,Category,Amount,Date,Payment Method,Note\n';
+
+      transactions.forEach(t => {
+        const store = stores.find(s => s.id === t.storeId);
+        const storeName = store ? store.name.replace(/,/g, '') : 'Unknown';
+        const noteClean = t.note.replace(/,/g, ' ');
+        csv += `${t.id},${storeName},${t.type},${t.category},${t.amount},${t.date},${t.paymentMethod},${noteClean}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `AccStore_Accounting_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showToast('ส่งออกไฟล์ CSV เรียบร้อยแล้ว!');
+    }
+
+    // Modal Helpers
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.classList.add('active');
+    }
+
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.classList.remove('active');
+    }
+
+    // SweetAlert Helpers — ศูนย์กลางสำหรับข้อความแจ้งเตือนและกล่องยืนยัน
+    function showSweetAlert(message, icon = 'info', title = '', options = {}) {
+      return Swal.fire({
+        title,
+        text: message,
+        icon,
+        confirmButtonText: 'ตกลง',
+        confirmButtonColor: '#facc15',
+        background: '#101010',
+        color: '#f9fafb',
+        ...options
+      });
+    }
+
+    async function showSweetConfirm(message, title = 'ยืนยันการดำเนินการ?', confirmText = 'ยืนยัน') {
+      const result = await Swal.fire({
+        title,
+        text: message,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: confirmText,
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#facc15',
+        cancelButtonColor: '#4b5563',
+        background: '#101010',
+        color: '#f9fafb',
+        reverseButtons: true,
+        focusCancel: true
+      });
+
+      return result.isConfirmed;
+    }
+
+    // Toast Helper
+    function showToast(msg) {
+      const toast = document.getElementById('toastBox');
+      const text = document.getElementById('toastText');
+      if (toast && text) {
+        text.innerText = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3500);
+      }
+    }
+  </script>
+</body>
+</html>
