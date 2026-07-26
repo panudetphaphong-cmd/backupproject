@@ -1,12 +1,12 @@
 /**
- * AccStore Enterprise - Google Apps Script Backend
+ * XBUSSINESS - Google Apps Script Backend
  * 
  * doGet(e) handles HTTP GET requests and renders index.html
  */
 
 function doGet(e) {
   return HtmlService.createHtmlOutputFromFile('index')
-      .setTitle('AccStore Enterprise | ระบบบัญชีและบริหารจัดการหลายร้านค้า')
+      .setTitle('XBUSSINESS | Holding Intelligence System')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
 }
@@ -20,22 +20,23 @@ function initDatabase() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. Setup 'Stores' Sheet
+    // 1. Setup 'Stores' Sheet (Companies)
     var storesSheet = ss.getSheetByName('Stores');
     if (!storesSheet) {
       storesSheet = ss.insertSheet('Stores');
-      storesSheet.appendRow(['id', 'name', 'code', 'category', 'initialBalance', 'color', 'taxId', 'address']);
+      storesSheet.appendRow(['id', 'name', 'code', 'category', 'initialBalance', 'color', 'taxId', 'address', 'ownershipPercent', 'coInvestors']);
       
       // Format Header Row
-      var headerRange = storesSheet.getRange(1, 1, 1, 8);
+      var headerRange = storesSheet.getRange(1, 1, 1, 10);
       headerRange.setBackground('#0f172a').setFontColor('#10b981').setFontWeight('bold');
       storesSheet.setFrozenRows(1);
 
-      // Seed Initial Default Stores
+      // Seed Initial Default Companies (including EV Charger Enterprise)
       var seedStores = [
-        ['store-1', 'MB Coffee & Bakery', 'ST-001', 'ร้านอาหาร/เครื่องดื่ม', 50000, '#f59e0b', '0105565000011', '123/4 ถนนสุขุมวิท กรุงเทพมหานคร โทร 081-111-2222'],
-        ['store-2', 'MB Fresh Minimart', 'ST-002', 'ร้านค้าปลีก/มินิมาร์ท', 120000, '#10b981', '0105565000022', '55/9 ถนนพหลโยธิน ปทุมธานี โทร 082-333-4444'],
-        ['store-3', 'MB Auto Detailing', 'ST-003', 'ศูนย์บริการ/คาร์แคร์', 85000, '#0ea5e9', '0105565000033', '88/1 ถนนราชพฤกษ์ นนทบุรี โทร 089-555-6666']
+        ['store-ev', 'EV Charge Station Enterprise', 'EV-001', 'EV Charge', 500000, '', '0105566001111', '88/9 อาคารนวัตกรรมพลังงาน ถนนวิภาวดี กรุงเทพฯ โทร 02-999-8888', 100, 'ถือหุ้นเองทั้งหมด'],
+        ['store-1', 'Solar Energy One', 'SOL-001', 'Solar Cell', 150000, '', '0105565000011', '123/4 ถนนสุขุมวิท กรุงเทพมหานคร โทร 081-111-2222', 75, 'บริษัท ABC จำกัด'],
+        ['store-2', 'Smart Laundry', 'LD-001', 'Laundry', 250000, '', '0105565000022', '55/9 ถนนพหลโยธิน ปทุมธานี โทร 082-333-4444', 60, 'คุณสมชาย'],
+        ['store-3', 'EV Solar Hybrid', 'HYB-001', 'EV Charge / Solar Cell', 200000, '', '0105565000033', '88/1 ถนนราชพฤกษ์ นนทบุรี โทร 089-555-6666', 80, 'บริษัท Energy Partner จำกัด']
       ];
       seedStores.forEach(function(row) { storesSheet.appendRow(row); });
     }
@@ -53,6 +54,9 @@ function initDatabase() {
 
       // Seed Initial Default Transactions
       var seedTx = [
+        ['tx-ev-1', 'store-ev', 'income', 68500, '2026-07-25T08:00', 'รายได้ค่าชาร์จไฟฟ้า EV', 'โอนเงิน/สแกน QR', 'ยอดรวมชาร์จไฟฟ้าประจำสัปดาห์ ตู้ DC Fast Charger'],
+        ['tx-ev-2', 'store-ev', 'expense', 22000, '2026-07-24T16:00', 'ค่าไฟฟ้า กฟน./กฟภ.', 'โอนเงิน/สแกน QR', 'ชำระค่ากระแสไฟฟ้าสถานีชาร์จ'],
+        ['tx-ev-3', 'store-ev', 'income', 35000, '2026-07-26T10:30', 'ค่าสมาชิก EV Fleet', 'โอนเงิน/สแกน QR', 'ค่าบริการสมาชิกรายเดือน Fleet รถตู้ไฟฟ้า'],
         ['tx-101', 'store-1', 'income', 14500, '2026-07-25T09:30', 'ยอดขายหน้าร้าน', 'โอนเงิน/สแกน QR', 'ยอดขายกาแฟและเบเกอรี่ประจำวัน'],
         ['tx-102', 'store-1', 'expense', 4200, '2026-07-24T14:15', 'วัตถุดิบและสต็อก', 'โอนเงิน/สแกน QR', 'สั่งซื้อเมล็ดกาแฟอาราบิก้าเกรดพรีเมียม'],
         ['tx-103', 'store-2', 'income', 28900, '2026-07-25T11:00', 'ยอดขายหน้าร้าน', 'เงินสด', 'ยอดขายสินค้าอุปโภคบริโภคประจำวัน'],
@@ -74,9 +78,10 @@ function initDatabase() {
       usersSheet.setFrozenRows(1);
 
       var seedUsers = [
-        ['admin', 'admin123', 'ผู้ดูแลระบบ (Admin)', 'admin', 'ALL'],
-        ['editor', 'editor123', 'เจ้าหน้าที่บัญชี (Editor)', 'editor', 'ALL'],
-        ['viewer', 'viewer123', 'ผู้ตรวจการ (Viewer)', 'viewer', 'ALL']
+        ['admin', 'admin123', 'ประธานกรรมการบริหาร (Group CEO)', 'admin', 'ALL'],
+        ['ev_mgr', 'ev123', 'ผู้จัดการ EV Charger Station', 'editor', 'store-ev'],
+        ['editor', 'editor123', 'เจ้าหน้าที่บัญชีกลุ่มธุรกิจ', 'editor', 'ALL'],
+        ['viewer', 'viewer123', 'ผู้ตรวจการ/นักลงทุน', 'viewer', 'ALL']
       ];
       seedUsers.forEach(function(row) { usersSheet.appendRow(row); });
     }
@@ -157,6 +162,7 @@ function getAppData() {
     var storesSheet = ss.getSheetByName('Stores');
     var txSheet = ss.getSheetByName('Transactions');
     var usersSheet = ss.getSheetByName('Users');
+    ensureStoreOwnershipSchema(storesSheet);
 
     var stores = parseSheetToObjects(storesSheet);
     var transactions = parseSheetToObjects(txSheet);
@@ -188,6 +194,7 @@ function saveStoreData(storeObj) {
       initDatabase();
       sheet = ss.getSheetByName('Stores');
     }
+    ensureStoreOwnershipSchema(sheet);
 
     var data = sheet.getDataRange().getValues();
     var rowIndex = -1;
@@ -205,9 +212,11 @@ function saveStoreData(storeObj) {
       String(storeObj.code || ''),
       String(storeObj.category || ''),
       Number(storeObj.initialBalance) || 0,
-      String(storeObj.color || '#10b981'),
+      '',
       String(storeObj.taxId || ''),
-      String(storeObj.address || '')
+      String(storeObj.address || ''),
+      Math.min(100, Math.max(0, Number(storeObj.ownershipPercent) || 0)),
+      String(storeObj.coInvestors || '')
     ];
 
     if (rowIndex > 0) {
@@ -310,6 +319,24 @@ function deleteTransactionData(txId) {
 }
 
 /**
+ * Add holding-company ownership columns to existing Stores sheets.
+ * Keeps the legacy color column in place so existing spreadsheets remain compatible.
+ */
+function ensureStoreOwnershipSchema(sheet) {
+  if (!sheet) return;
+  var requiredHeaders = ['id', 'name', 'code', 'category', 'initialBalance', 'color', 'taxId', 'address', 'ownershipPercent', 'coInvestors'];
+  var currentColumns = Math.max(sheet.getLastColumn(), 1);
+  var currentHeaders = sheet.getRange(1, 1, 1, currentColumns).getValues()[0];
+
+  requiredHeaders.forEach(function(header) {
+    if (currentHeaders.indexOf(header) === -1) {
+      sheet.getRange(1, currentHeaders.length + 1).setValue(header);
+      currentHeaders.push(header);
+    }
+  });
+}
+
+/**
  * Helper: Convert 2D Sheet array to Object Array using Row 1 Headers with clean type parsing
  */
 function parseSheetToObjects(sheet) {
@@ -330,7 +357,7 @@ function parseSheetToObjects(sheet) {
       var key = String(headers[j]).trim();
       var val = row[j];
 
-      if (key === 'amount' || key === 'initialBalance') {
+      if (key === 'amount' || key === 'initialBalance' || key === 'ownershipPercent') {
         val = Number(val) || 0;
       } else if (val instanceof Date) {
         val = dispRow[j] || val.toISOString();
