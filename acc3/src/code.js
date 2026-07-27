@@ -106,86 +106,52 @@ function getData() {
       { id: 'sp999', label: 'SP999' },
       { id: 'withdraw', label: 'ยอดเบิก' }
     ],
-    customers: [
-      { id: 1, name: 'คุณสมชาย', values: { eday: 1500, sm: 500, sp999: -200, withdraw: -300 }, status: 'ชำระแล้ว', invoiceSent: false, invoiceHistory: [{ id: 101, total: 1500, date: '25/07/2026', paidAt: '26/07/2026 15:30:00' }], banks: [{ id: 101, bankName: 'กสิกรไทย', accNo: '555-2-12345-6', accName: 'คุณสมชาย ใจดี' }] },
-      { id: 2, name: 'คุณวิภา', values: { eday: 3000, sm: -1000, sp999: 0, withdraw: -500 }, status: 'รอชำระ', invoiceSent: true, invoiceDate: '27/07/2026', invoiceHistory: [], banks: [{ id: 102, bankName: 'ไทยพาณิชย์', accNo: '999-8-76543-2', accName: 'คุณวิภา สุขสันต์' }] }
-    ],
+    customers: [],
     banks: [
       { id: 1, bankName: 'กสิกรไทย (KBANK)', accNo: '123-4-56789-0', accName: 'นายบัญชี รับเงิน', promptpay: '0812345678' },
       { id: 2, bankName: 'ไทยพาณิชย์ (SCB)', accNo: '987-6-54321-0', accName: 'นายบัญชี รับเงิน', promptpay: '0812345678' }
     ],
     notifications: [],
-    announcements: [
-      {
-        id: 1,
-        title: '📢 ประกาศแจ้งปิดปรับปรุงระบบชั่วคราว',
-        content: 'ระบบจะทำการปิดปรับปรุงประจำสัปดาห์ในวันอาทิตย์นี้ เวลา 02:00 - 04:00 น.',
-        type: 'urgent',
-        createdAt: '27/07/2026 10:00:00',
-        expireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-      }
-    ],
+    announcements: [],
     users: [
-      { username: 'admin', password: 'admin123', role: 'admin', name: 'แอดมิน' },
-      { username: 'member', password: 'member123', role: 'member', name: 'เมมเบอร์' },
-      { username: 'somchai', password: '1234', role: 'customer', name: 'คุณสมชาย', customerId: 1 },
-      { username: 'wipa', password: '1234', role: 'customer', name: 'คุณวิภา', customerId: 2 }
+      { username: 'admin', password: 'admin123', role: 'admin', name: 'แอดมิน' }
     ],
-    transactions: [
-      {
-        id: 1,
-        colLabel: 'EDAY',
-        type: 'income',
-        amount: 50000,
-        startDate: '2026-07-01',
-        endDate: '2026-07-27',
-        note: 'รายได้การให้บริการ EDAY ครึ่งเดือนแรก',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 2,
-        colLabel: 'EDAY',
-        type: 'expense',
-        amount: 12000,
-        startDate: '2026-07-01',
-        endDate: '2026-07-27',
-        note: 'ค่าใช้จ่ายและค่าธรรมเนียม EDAY',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 3,
-        colLabel: 'SM',
-        type: 'income',
-        amount: 35000,
-        startDate: '2026-07-01',
-        endDate: '2026-07-27',
-        note: 'รายได้หมวด SM',
-        createdAt: new Date().toISOString()
-      }
-    ],
-    chatMessages: [
-      {
-        id: 1,
-        customerName: 'คุณสมชาย',
-        senderName: 'คุณสมชาย',
-        senderRole: 'customer',
-        text: 'สวัสดีครับแอดมิน สอบถามเรื่องการส่งสลิปโอนเงินครับ',
-        image: '',
-        isRead: true,
-        createdAt: '18:30'
-      },
-      {
-        id: 2,
-        customerName: 'คุณสมชาย',
-        senderName: 'แอดมิน',
-        senderRole: 'admin',
-        text: 'สวัสดีครับ สามารถกดปุ่ม "💳 ชำระยอดเงิน & แนบสลิปโอน" ในใบแจ้งหนี้เพื่อส่งสลิปได้เลยครับ',
-        image: '',
-        isRead: true,
-        createdAt: '18:31'
-      }
-    ]
+    transactions: [],
+    chatMessages: []
   };
+}
+
+// One-time production cleanup. Preserve system structure, banks, columns and
+// non-customer staff accounts while removing all trial/customer activity.
+function resetProductionCustomerData() {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const data = getData();
+    data.customers = [];
+    data.users = (data.users || []).filter(function (user) {
+      return String(user.role || '').toLowerCase() !== 'customer';
+    });
+    data.notifications = [];
+    data.chatMessages = [];
+    data.transactions = [];
+    data.announcements = [];
+    writeSharedData_(data);
+    return {
+      success: true,
+      customers: data.customers.length,
+      customerUsers: data.users.filter(function (user) {
+        return String(user.role || '').toLowerCase() === 'customer';
+      }).length,
+      notifications: data.notifications.length,
+      chatMessages: data.chatMessages.length,
+      transactions: data.transactions.length
+    };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
 }
 
 // Older customer clients could save a filtered snapshot containing only their
@@ -223,12 +189,7 @@ function repairCustomerRecords_(data) {
 // ตรวจสอบการเข้าสู่ระบบ
 function authenticateUser(username, password) {
   const data = getData();
-  const users = (data && data.users && data.users.length > 0) ? data.users : [
-    { username: 'admin', password: 'admin123', role: 'admin', name: 'แอดมิน' },
-    { username: 'member', password: 'member123', role: 'member', name: 'เมมเบอร์' },
-    { username: 'somchai', password: '1234', role: 'customer', name: 'คุณสมชาย', customerId: 1 },
-    { username: 'wipa', password: '1234', role: 'customer', name: 'คุณวิภา', customerId: 2 }
-  ];
+  const users = (data && Array.isArray(data.users)) ? data.users : [];
 
   const found = users.find(u => u.username.toLowerCase() === String(username).toLowerCase().trim() && u.password === password);
   if (found) {
@@ -243,6 +204,44 @@ function authenticateUser(username, password) {
     };
   } else {
     return { success: false, message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
+  }
+}
+
+// Delete an account atomically from the Sheet-backed database. Customer
+// accounts also remove their linked customer row so realtime sync cannot bring
+// a deleted member back.
+function deleteUserAccountRecord(username) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const target = String(username || '').trim().toLowerCase();
+    if (!target) throw new Error('กรุณาระบุบัญชีที่ต้องการลบ');
+    if (target === 'admin') throw new Error('ไม่สามารถลบบัญชี Admin หลักได้');
+
+    const data = getData();
+    const existingUser = (data.users || []).find(function (user) {
+      return String(user.username || '').trim().toLowerCase() === target;
+    });
+    if (!existingUser) return { success: true, alreadyDeleted: true };
+
+    data.users = (data.users || []).filter(function (user) {
+      return String(user.username || '').trim().toLowerCase() !== target;
+    });
+    if (existingUser.customerId !== null && existingUser.customerId !== undefined) {
+      data.customers = (data.customers || []).filter(function (customer) {
+        return String(customer.id) !== String(existingUser.customerId);
+      });
+    }
+    writeSharedData_(data);
+    return {
+      success: true,
+      username: existingUser.username,
+      customerId: existingUser.customerId || null
+    };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
   }
 }
 

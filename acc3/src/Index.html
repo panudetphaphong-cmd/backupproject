@@ -138,52 +138,6 @@
           </button>
         </form>
 
-        <!-- Quick Fill Demo Accounts -->
-        <div class="mt-6 sm:mt-8 pt-5 border-t border-slate-200/80 relative z-10">
-          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center mb-3">ทดสอบเข้าสู่ระบบด้วยบัญชีสาธิต</div>
-          <div class="grid grid-cols-2 gap-2">
-            <button 
-              type="button"
-              @click="fillDemo('admin', 'admin123')"
-              onclick="window.quickLogin('admin', 'admin123')"
-              class="p-2.5 rounded-2xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-indigo-700 text-xs font-medium transition text-left shadow-sm cursor-pointer"
-            >
-              <div class="font-bold flex items-center gap-1">👑 Admin</div>
-              <div class="text-[10px] text-indigo-500 mt-0.5">สิทธิ์จัดการเต็มรูปแบบ</div>
-            </button>
-
-            <button 
-              type="button"
-              @click="fillDemo('member', 'member123')"
-              onclick="window.quickLogin('member', 'member123')"
-              class="p-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium transition text-left shadow-sm cursor-pointer"
-            >
-              <div class="font-bold flex items-center gap-1">👤 Member</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">ดูตารางอย่างเดียว</div>
-            </button>
-
-            <button 
-              type="button"
-              @click="fillDemo('somchai', '1234')"
-              onclick="window.quickLogin('somchai', '1234')"
-              class="p-2.5 rounded-2xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 text-emerald-800 text-xs font-medium transition text-left shadow-sm cursor-pointer"
-            >
-              <div class="font-bold flex items-center gap-1">💳 คุณสมชาย</div>
-              <div class="text-[10px] text-emerald-600 mt-0.5">ยอดบวก +1,500 ฿</div>
-            </button>
-
-            <button 
-              type="button"
-              @click="fillDemo('wipa', '1234')"
-              onclick="window.quickLogin('wipa', '1234')"
-              class="p-2.5 rounded-2xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-800 text-xs font-medium transition text-left shadow-sm cursor-pointer"
-            >
-              <div class="font-bold flex items-center gap-1">💸 คุณวิภา</div>
-              <div class="text-[10px] text-purple-600 mt-0.5">ยอดติดลบ -1,500 ฿</div>
-            </button>
-          </div>
-        </div>
-
       </div>
     </div>
 
@@ -561,39 +515,44 @@
 
           <!-- ด้านขวา: กลุ่มเมนูหลัก (แสดงใน Desktop View) -->
           <div class="hidden lg:flex items-center gap-2 flex-wrap justify-end">
-            <button @click="openAdminChat" class="relative bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-3.5 py-2 rounded-2xl transition text-xs sm:text-sm flex items-center gap-1.5 border border-blue-200 shadow-sm">
-              💬 แชทลูกค้า
+            <button @click="openAdminChat" class="relative bg-white hover:bg-slate-50 text-slate-700 font-semibold px-3 py-2 rounded-xl transition text-xs sm:text-sm flex items-center gap-2 border border-slate-200">
+              <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12h.008m3.367 0h.008m3.367 0h.008M21 12c0 4.142-4.03 7.5-9 7.5a10.4 10.4 0 0 1-3.56-.62L3 21l1.7-4.02A7.02 7.02 0 0 1 3 12c0-4.142 4.03-7.5 9-7.5s9 3.358 9 7.5Z"/></svg>
+              แชทลูกค้า
               <span v-if="totalUnreadChatCountForAdmin > 0" class="bg-rose-600 text-white text-[11px] font-black px-2 py-0.5 rounded-full animate-bounce">
                 {{ totalUnreadChatCountForAdmin }}
               </span>
             </button>
 
-            <button v-if="isAdmin" @click="showUserMgmtModal = true" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3.5 py-2 rounded-2xl transition text-xs sm:text-sm flex items-center gap-1.5 border border-indigo-200 shadow-sm">
-              👥 บัญชีสมาชิก ({{ users.length }})
+            <button v-if="isAdmin" @click="showUserMgmtModal = true" class="bg-white hover:bg-slate-50 text-slate-700 font-semibold px-3 py-2 rounded-xl transition text-xs sm:text-sm flex items-center gap-2 border border-slate-200">
+              <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.1a9.4 9.4 0 0 0 6-.2 4.5 4.5 0 0 0-7.5-3.4M15 19.1A12.3 12.3 0 0 1 4.5 19v-.1a5.25 5.25 0 0 1 9.7-3M12.75 7.9a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6.75 1.5a2.6 2.6 0 1 1-5.25 0 2.6 2.6 0 0 1 5.25 0Z"/></svg>
+              สมาชิก ({{ users.length }})
             </button>
 
-            <button v-if="isAdmin" @click="showAnnounceModal = true" class="bg-orange-50 hover:bg-orange-100 text-orange-800 font-bold px-3.5 py-2 rounded-2xl transition text-xs sm:text-sm flex items-center gap-1.5 border border-orange-200 shadow-sm">
-              📢 ประกาศข่าวสาร ({{ announcements.length }})
+            <button v-if="isAdmin" @click="showAnnounceModal = true" class="bg-white hover:bg-slate-50 text-slate-700 font-semibold px-3 py-2 rounded-xl transition text-xs sm:text-sm flex items-center gap-2 border border-slate-200">
+              <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.3 15.8 8.5 21.2m1.8-5.4 8.6-5.3a2.25 2.25 0 0 0 0-3.8L4.8 1.9A2.25 2.25 0 0 0 1.5 3.9v10.2a2.25 2.25 0 0 0 3.3 2l5.5-.3Z"/></svg>
+              ประกาศ ({{ announcements.length }})
             </button>
 
-            <button @click="showNotiModal = true" class="relative bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-2xl transition text-xs sm:text-sm flex items-center gap-1.5 border border-amber-400 shadow-md">
-              🔔 ศูนย์แจ้งเตือน
+            <button @click="showNotiModal = true" class="relative bg-white hover:bg-slate-50 text-slate-700 font-semibold px-3 py-2 rounded-xl transition text-xs sm:text-sm flex items-center gap-2 border border-slate-200">
+              <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.9 17.1A24 24 0 0 0 18 16.5a9 9 0 0 1-2.1-6.3V9a3.9 3.9 0 1 0-7.8 0v1.2A9 9 0 0 1 6 16.5c1 .3 2.1.5 3.1.6m5.8 0a24 24 0 0 1-5.8 0m5.8 0a3 3 0 1 1-5.8 0"/></svg>
+              แจ้งเตือน
               <span v-if="pendingNotiCount > 0" class="bg-rose-600 text-white text-[11px] font-black px-2 py-0.5 rounded-full animate-bounce">
                 {{ pendingNotiCount }}
               </span>
             </button>
 
-            <button @click="openBankModal" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-2xl transition text-xs sm:text-sm flex items-center gap-1.5 border border-slate-300 shadow-sm">
-              🏦 ธนาคาร ({{ banks.length }})
+            <button @click="openBankModal" class="bg-white hover:bg-slate-50 text-slate-700 font-semibold px-3 py-2 rounded-xl transition text-xs sm:text-sm flex items-center gap-2 border border-slate-200">
+              <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.8 7.5h16.5M5.3 7.5V18m4.5-10.5V18m4.5-10.5V18m4.5-10.5V18M3 18h18v3H3v-3ZM4.5 3h15l.8 4.5H3.8L4.5 3Z"/></svg>
+              ธนาคาร ({{ banks.length }})
             </button>
 
-            <button v-if="isAdmin" @click="saveAllData" :disabled="isSaving" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-2xl transition text-xs sm:text-sm flex items-center gap-1.5 shadow-md shadow-emerald-600/20">
-              <span v-if="isSaving">⏳ บันทึก...</span>
-              <span v-else>💾 บันทึก</span>
+            <button v-if="isAdmin" @click="saveAllData" :disabled="isSaving" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold px-3 py-2 rounded-xl transition text-xs sm:text-sm flex items-center gap-2 disabled:opacity-50">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.8 3h9.9L21 7.3V21H3V3h3.8Zm0 0v6h10V3M7 21v-7h10v7"/></svg>
+              <span>{{ isSaving ? 'บันทึก...' : 'บันทึก' }}</span>
             </button>
 
-            <button @click="handleLogout" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-3.5 py-2 rounded-2xl transition text-xs sm:text-sm flex items-center gap-1.5 border border-rose-200">
-              🚪 ออก
+            <button @click="handleLogout" class="bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-semibold p-2 rounded-xl transition border border-slate-200" title="ออกจากระบบ">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-3m3-7 3 3-3 3m3-3H9"/></svg>
             </button>
           </div>
 
@@ -673,53 +632,33 @@
 
         <!-- ================= TAB 1: ตารางสรุปยอดลูกค้า ================= -->
         <div v-if="activeAdminTab === 'table'" class="space-y-4 sm:space-y-6">
-          <!-- Control Bar (เพิ่มคอลัมน์ & เพิ่มลูกค้า - ปรับปรุงปุ่มและฟอร์มใหม่) -->
-          <div v-if="isAdmin" class="grid grid-cols-2 gap-2 sm:gap-4">
-            <!-- เพิ่มคอลัมน์ -->
-            <div class="bg-white p-2 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-1.5 sm:gap-2 min-w-0">
-              <input v-model="newColLabel" @keyup.enter="addColumn" type="text" placeholder="ชื่อคอลัมน์" class="min-w-0 flex-1 px-2.5 sm:px-3.5 py-2 border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 font-medium">
-              <button @click="addColumn" class="bg-blue-600 hover:bg-blue-700 text-white w-9 h-9 sm:w-auto sm:h-auto sm:px-4 sm:py-2 rounded-xl text-sm font-black transition whitespace-nowrap shadow-sm flex items-center justify-center">
-                <span class="sm:hidden">＋</span><span class="hidden sm:inline">+ เพิ่มคอลัมน์</span>
-              </button>
-            </div>
-
-            <!-- เพิ่มลูกค้า (ปรับปรุงปุ่มและฟอร์มให้ทำงานสมบูรณ์ 100%) -->
-            <div class="bg-white p-2 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-1.5 sm:gap-2 min-w-0">
-              <input v-model="newCustomerName" @keyup.enter="addCustomer" type="text" placeholder="ชื่อลูกค้า" class="min-w-0 flex-1 px-2.5 sm:px-3.5 py-2 border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-medium">
-              <button @click="addCustomer" class="bg-emerald-600 hover:bg-emerald-700 text-white w-9 h-9 sm:w-auto sm:h-auto sm:px-4 sm:py-2 rounded-xl text-sm font-black transition whitespace-nowrap shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1">
-                <span class="sm:hidden">＋</span>
-                <span class="hidden sm:inline">เพิ่มลูกค้าใหม่</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- 📊 MAIN DATA TABLE (สะอาด เรียบหรู ใช้งานง่าย) -->
-          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <!-- Minimal modern data table -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgba(15,23,42,0.05)] overflow-hidden">
             <div class="overflow-x-auto">
               <table class="w-full text-xs sm:text-sm text-left border-collapse">
-                <thead class="bg-slate-900 border-b border-slate-800 text-white font-bold uppercase tracking-wider">
+                <thead class="bg-slate-700 border-b border-slate-600 text-slate-200 font-semibold uppercase tracking-[0.08em]">
                   <tr>
                     <!-- ชื่อลูกค้า Sticky Column -->
-                    <th scope="col" class="sticky left-0 bg-slate-900 z-20 px-3 sm:px-4 py-3.5 min-w-[130px] sm:min-w-[170px] sticky-col-shadow border-r border-slate-800">
+                    <th scope="col" class="sticky left-0 bg-slate-700 z-20 px-3 sm:px-4 py-3.5 min-w-[130px] sm:min-w-[170px] sticky-col-shadow border-r border-slate-600 text-white">
                       ชื่อลูกค้า
                     </th>
                     <!-- คอลัมน์พลวัต -->
-                    <th scope="col" v-for="col in columns" :key="col.id" class="px-2.5 sm:px-3.5 py-3.5 min-w-[95px] sm:min-w-[125px] border-r border-slate-800 text-center">
+                    <th scope="col" v-for="(col, colIndex) in columns" :key="col.id" class="px-2.5 sm:px-3.5 py-3.5 min-w-[105px] sm:min-w-[135px] border-r border-slate-600 text-center">
                       <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-1 group">
-                        <span></span>
-                        <span class="truncate text-center">{{ col.label }}</span>
+                        <button v-if="isAdmin" @click="addColumnAt(colIndex)" class="justify-self-start w-5 h-5 rounded-md border border-indigo-400/60 bg-indigo-500/10 hover:bg-indigo-500/25 text-indigo-200 font-black flex items-center justify-center transition" :title="'แทรกหัวข้อก่อน ' + col.label">+</button>
+                        <span class="truncate text-center text-slate-100">{{ col.label }}</span>
                         <button v-if="isAdmin" @click="deleteColumn(col.id)" class="text-slate-400 hover:text-rose-400 transition opacity-0 group-hover:opacity-100 p-0.5" title="ลบคอลัมน์นี้">
                           ✕
                         </button>
                       </div>
                     </th>
                     <!-- สรุปยอด -->
-                    <th scope="col" class="px-3 sm:px-4 py-3.5 min-w-[120px] sm:min-w-[140px] text-right bg-slate-800 text-amber-300 font-extrabold whitespace-nowrap border-r border-slate-700">
+                    <th scope="col" class="px-3 sm:px-4 py-3.5 min-w-[120px] sm:min-w-[140px] text-right bg-indigo-800 text-indigo-100 font-bold whitespace-nowrap border-r border-slate-600">
                       สรุปยอด
                     </th>
                     
                     <!-- แถบสถานะการชำระเงิน (มีแค่ ชำระแล้ว และ รอชำระ) -->
-                    <th scope="col" class="px-3 sm:px-4 py-3.5 min-w-[110px] sm:min-w-[130px] text-center font-extrabold bg-slate-800 text-white whitespace-nowrap border-r border-slate-700">
+                    <th scope="col" class="px-3 sm:px-4 py-3.5 min-w-[110px] sm:min-w-[130px] text-center font-bold bg-slate-700 text-slate-200 whitespace-nowrap border-r border-slate-600">
                       แถบสถานะ
                     </th>
 
@@ -727,7 +666,7 @@
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-200 font-medium">
-                  <tr v-for="customer in customers" :key="customer.id" class="hover:bg-slate-50/90 transition group">
+                  <tr v-for="customer in customers" :key="customer.id" class="hover:bg-indigo-50/30 transition group">
                     
                     <!-- ชื่อลูกค้า (Sticky Column for Mobile) - บันทึกอัตโนมัติเมื่อเปลี่ยน -->
                     <td class="sticky left-0 bg-white group-hover:bg-slate-50 z-10 px-3 sm:px-4 py-2.5 sm:py-3 sticky-col-shadow border-r border-slate-100">
@@ -812,6 +751,27 @@
                     </td>
                   </tr>
                 </tbody>
+                <tfoot class="bg-slate-700 text-white border-t-2 border-indigo-400">
+                  <tr>
+                    <th scope="row" class="sticky left-0 z-20 bg-slate-700 px-3 sm:px-4 py-3.5 text-left font-black text-indigo-100 whitespace-nowrap sticky-col-shadow border-r border-slate-600">
+                      ยอดรวมทั้งหมด
+                    </th>
+                    <td v-for="col in columns" :key="'total-' + col.id" class="px-2.5 sm:px-3.5 py-3.5 text-center font-black border-r border-slate-600 whitespace-nowrap" :class="calculateColumnTotal(col.id) > 0 ? 'text-emerald-200' : calculateColumnTotal(col.id) < 0 ? 'text-rose-200' : 'text-slate-300'">
+                      {{ formatNumber(calculateColumnTotal(col.id)) }} ฿
+                    </td>
+                    <td class="px-3 sm:px-4 py-3.5 text-right font-black text-amber-200 bg-indigo-800 border-r border-slate-600 whitespace-nowrap">
+                      {{ formatNumber(allCustomersGrandTotal) }} ฿
+                    </td>
+                    <td class="px-3 py-3.5 text-center text-slate-200 border-r border-slate-600">
+                      {{ customers.length }} ราย
+                    </td>
+                    <td class="px-2 py-3.5 text-center">
+                      <button v-if="isAdmin" @click="addColumnAt(columns.length)" class="mx-auto px-3 py-1.5 rounded-lg border border-indigo-400/60 bg-indigo-500/10 hover:bg-indigo-500/25 text-indigo-200 font-bold transition whitespace-nowrap" title="เพิ่มหัวข้อต่อท้าย">
+                        + หัวข้อ
+                      </button>
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -897,6 +857,27 @@
               </div>
             </div>
 
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">รายรับ · สัปดาห์ที่แล้ว</div>
+                <div class="text-xl font-black text-emerald-600 mt-1">+{{ formatNumber(lastWeekIncome) }} ฿</div>
+              </div>
+              <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l5-5 4 4 7-8m0 0h-5m5 0v5"/></svg>
+              </div>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">รายจ่าย · สัปดาห์ที่แล้ว</div>
+                <div class="text-xl font-black text-rose-600 mt-1">-{{ formatNumber(lastWeekExpense) }} ฿</div>
+              </div>
+              <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m4 8 5 5 4-4 7 8m0 0h-5m5 0v-5"/></svg>
+              </div>
+            </div>
           </div>
 
           <!-- 📊 BREAKDOWN CARDS BY CATEGORY (ปรับปรุง Layout ให้ได้สัดส่วนสวยงาม คลีนเป็นระเบียบ) -->
@@ -1670,6 +1651,38 @@
           <div class="space-y-2">
             <div class="text-xs font-extrabold text-slate-400 uppercase tracking-wider">รายการบัญชีเข้าสู่ระบบ ({{ users.length }})</div>
 
+            <div v-if="editingUser" class="p-4 rounded-2xl border-2 border-amber-300 bg-amber-50 space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="text-xs font-extrabold text-amber-900 uppercase tracking-wider">✏️ แก้ไขบัญชีสมาชิก</div>
+                <button @click="cancelEditUser" class="text-slate-500 hover:text-slate-800 text-xs font-bold">ยกเลิก</button>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">ชื่อที่แสดง</label>
+                  <input v-model="editingUser.name" type="text" class="w-full px-3.5 py-2 border rounded-xl text-xs sm:text-sm font-medium">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Username</label>
+                  <input v-model="editingUser.username" :disabled="editingUser.originalUsername === 'admin'" type="text" class="w-full px-3.5 py-2 border rounded-xl text-xs sm:text-sm font-medium disabled:bg-slate-100">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                  <input v-model="editingUser.password" type="text" class="w-full px-3.5 py-2 border rounded-xl text-xs sm:text-sm font-medium">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">ระดับสิทธิ์</label>
+                  <select v-model="editingUser.role" :disabled="editingUser.originalUsername === 'admin'" class="w-full px-3.5 py-2 border rounded-xl text-xs sm:text-sm font-bold disabled:bg-slate-100">
+                    <option value="customer">💳 ลูกค้า</option>
+                    <option value="member">👤 เมมเบอร์</option>
+                    <option value="admin">👑 แอดมิน</option>
+                  </select>
+                </div>
+              </div>
+              <button @click="updateUserAccount" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm transition">
+                💾 บันทึกการแก้ไข
+              </button>
+            </div>
+
             <div v-for="u in users" :key="u.username" class="p-3.5 border border-slate-200 rounded-2xl flex justify-between items-center bg-white shadow-sm">
               <div>
                 <div class="flex items-center gap-2">
@@ -1681,9 +1694,14 @@
                 <div class="text-xs text-slate-500 font-medium mt-0.5">Username: <strong>{{ u.username }}</strong> | Password: <strong>{{ u.password }}</strong></div>
               </div>
 
-              <button v-if="u.username !== 'admin'" @click="deleteUserAccount(u.username)" class="text-rose-500 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition text-xs font-bold whitespace-nowrap">
-                ลบ
-              </button>
+              <div class="flex items-center gap-1">
+                <button @click="startEditUser(u)" class="text-amber-700 hover:bg-amber-50 px-2.5 py-1 rounded-lg transition text-xs font-bold whitespace-nowrap">
+                  แก้ไข
+                </button>
+                <button v-if="u.username !== 'admin'" @click="deleteUserAccount(u.username)" class="text-rose-500 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition text-xs font-bold whitespace-nowrap">
+                  ลบ
+                </button>
+              </div>
             </div>
           </div>
 
@@ -2208,14 +2226,28 @@
           </div>
 
           <div class="space-y-2">
+            <div v-if="editingBank" class="p-4 rounded-2xl border-2 border-amber-300 bg-amber-50 space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="text-xs font-extrabold text-amber-900 uppercase tracking-wider">แก้ไขบัญชีธนาคาร</div>
+                <button @click="cancelEditBank" class="text-xs font-bold text-slate-500 hover:text-slate-800">ยกเลิก</button>
+              </div>
+              <input v-model="editingBank.bankName" type="text" placeholder="ชื่อธนาคาร" class="w-full px-3.5 py-2 border rounded-xl text-xs sm:text-sm font-medium">
+              <input v-model="editingBank.accNo" type="text" placeholder="เลขที่บัญชี" class="w-full px-3.5 py-2 border rounded-xl text-xs sm:text-sm font-medium">
+              <input v-model="editingBank.accName" type="text" placeholder="ชื่อบัญชี" class="w-full px-3.5 py-2 border rounded-xl text-xs sm:text-sm font-medium">
+              <button @click="updateBank" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition">
+                บันทึกการแก้ไข
+              </button>
+            </div>
+
             <div v-for="bank in banks" :key="bank.id" class="p-3.5 border border-slate-200 rounded-2xl flex justify-between items-center bg-white shadow-sm">
               <div>
                 <div class="font-bold text-xs sm:text-sm text-slate-800">{{ bank.bankName }}</div>
                 <div class="text-xs text-indigo-600 font-bold mt-0.5">{{ bank.accNo }} | {{ bank.accName }}</div>
               </div>
-              <button v-if="isAdmin" @click="deleteBank(bank.id)" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition text-xs font-bold">
-                ลบ
-              </button>
+              <div v-if="isAdmin" class="flex items-center gap-1">
+                <button @click="startEditBank(bank)" class="text-amber-700 hover:bg-amber-50 px-2.5 py-1.5 rounded-lg transition text-xs font-bold">แก้ไข</button>
+                <button @click="deleteBank(bank.id)" class="text-rose-500 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition text-xs font-bold">ลบ</button>
+              </div>
             </div>
             <div v-if="banks.length === 0" class="text-center py-4 text-slate-400 text-xs sm:text-sm">
               ยังไม่มีข้อมูลบัญชีธนาคาร
@@ -2270,19 +2302,6 @@
   </div>
 
   <script>
-    window.quickLogin = function(username, password) {
-      if (window.vueAppRef) {
-        window.vueAppRef.fillDemo(username, password);
-      } else {
-        const userInput = document.querySelector('input[placeholder="ระบุชื่อผู้ใช้งาน"]');
-        const passInput = document.querySelector('input[placeholder="ระบุรหัสผ่าน"]');
-        if (userInput) userInput.value = username;
-        if (passInput) passInput.value = password;
-        const submitBtn = document.querySelector('button[type="submit"]');
-        if (submitBtn) submitBtn.click();
-      }
-    };
-
     const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue;
 
     const memoryCache = {};
@@ -2326,14 +2345,10 @@
         const activeAdminTab = ref('table');
 
         // System User Accounts State
-        const users = ref([
-          { username: 'admin', password: 'admin123', role: 'admin', name: 'แอดมิน' },
-          { username: 'member', password: 'member123', role: 'member', name: 'เมมเบอร์' },
-          { username: 'somchai', password: '1234', role: 'customer', name: 'คุณสมชาย', customerId: 1 },
-          { username: 'wipa', password: '1234', role: 'customer', name: 'คุณวิภา', customerId: 2 }
-        ]);
+        const users = ref([]);
 
         const newUser = ref({ username: '', password: '', role: 'customer', name: '' });
+        const editingUser = ref(null);
 
         // Auth State
         const isLoggedIn = ref(false);
@@ -2435,6 +2450,7 @@
         const newColLabel = ref('');
         const newCustomerName = ref('');
         const newBank = ref({ bankName: '', accNo: '', accName: '' });
+        const editingBank = ref(null);
 
         const currentDate = computed(() => {
           return new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -2483,6 +2499,18 @@
           if (!currentUser.value) return [];
           const myName = (currentUser.value.name || '').trim().toLowerCase();
           return notifications.value.filter(n => (n.customerName || '').trim().toLowerCase() === myName);
+        });
+
+        const calculateColumnTotal = (columnId) => {
+          return customers.value.reduce((sum, customer) => {
+            return sum + (Number(customer?.values?.[columnId]) || 0);
+          }, 0);
+        };
+
+        const allCustomersGrandTotal = computed(() => {
+          return columns.value.reduce((sum, column) => {
+            return sum + calculateColumnTotal(column.id);
+          }, 0);
         });
 
         const pendingNotiCount = computed(() => {
@@ -2570,7 +2598,7 @@
         };
 
         const syncDataRealtime = () => {
-          if (realtimeSyncInFlight) return;
+          if (realtimeSyncInFlight || isSaving.value) return;
           if (typeof google !== 'undefined' && google.script && google.script.run) {
             realtimeSyncInFlight = true;
             google.script.run
@@ -3302,6 +3330,40 @@
           return financeTotalIncome.value - financeTotalExpense.value;
         });
 
+        const getLastWeekRange = () => {
+          const now = new Date();
+          const day = now.getDay() === 0 ? 7 : now.getDay();
+          const monday = new Date(now);
+          monday.setHours(12, 0, 0, 0);
+          monday.setDate(now.getDate() - (day - 1) - 7);
+          const sunday = new Date(monday);
+          sunday.setDate(monday.getDate() + 6);
+          return {
+            start: monday.toISOString().split('T')[0],
+            end: sunday.toISOString().split('T')[0]
+          };
+        };
+
+        const lastWeekTransactions = computed(() => {
+          const range = getLastWeekRange();
+          return transactions.value.filter(transaction =>
+            (!transaction.endDate || transaction.endDate >= range.start) &&
+            (!transaction.startDate || transaction.startDate <= range.end)
+          );
+        });
+
+        const lastWeekIncome = computed(() => {
+          return lastWeekTransactions.value
+            .filter(transaction => transaction.type === 'income')
+            .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+        });
+
+        const lastWeekExpense = computed(() => {
+          return lastWeekTransactions.value
+            .filter(transaction => transaction.type === 'expense')
+            .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+        });
+
         const categoryFinanceSummary = computed(() => {
           return availableCategories.value.map(col => {
             const colTrans = filteredTransactions.value.filter(t => t.colLabel === col.label);
@@ -3626,12 +3688,116 @@
             cancelButtonText: 'ยกเลิก'
           }).then((res) => {
             if (res.isConfirmed) {
-              users.value = users.value.filter(u => u.username !== username);
-              saveAllData(true);
-              syncDataRealtime();
-              showToast(`ลบบัญชี ${username} เรียบร้อยแล้ว`);
+              if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run
+                  .withSuccessHandler((result) => {
+                    if (!result || !result.success) {
+                      Swal.fire({ icon: 'error', title: 'ลบบัญชีไม่สำเร็จ', text: result?.message || 'เกิดข้อผิดพลาด' });
+                      return;
+                    }
+                    const removedUser = users.value.find(u => u.username === username);
+                    users.value = users.value.filter(u => u.username !== username);
+                    if (removedUser?.customerId != null) {
+                      customers.value = customers.value.filter(c =>
+                        String(c.id) !== String(removedUser.customerId)
+                      );
+                    }
+                    editingUser.value = null;
+                    syncDataRealtime();
+                    showToast(`ลบบัญชี ${username} ออกจากระบบถาวรแล้ว`);
+                  })
+                  .withFailureHandler((error) => {
+                    Swal.fire({ icon: 'error', title: 'ลบบัญชีไม่สำเร็จ', text: error?.message || 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' });
+                  })
+                  .deleteUserAccountRecord(username);
+              } else {
+                const removedUser = users.value.find(u => u.username === username);
+                users.value = users.value.filter(u => u.username !== username);
+                if (removedUser?.customerId != null) {
+                  customers.value = customers.value.filter(c =>
+                    String(c.id) !== String(removedUser.customerId)
+                  );
+                }
+                saveAllData(true);
+              }
             }
           });
+        };
+
+        const startEditUser = (user) => {
+          if (!isAdmin.value || !user) return;
+          editingUser.value = {
+            originalUsername: user.username,
+            username: user.username,
+            password: user.password,
+            role: user.role,
+            name: user.name,
+            customerId: user.customerId || null
+          };
+        };
+
+        const cancelEditUser = () => {
+          editingUser.value = null;
+        };
+
+        const updateUserAccount = () => {
+          if (!isAdmin.value || !editingUser.value) return;
+          const form = editingUser.value;
+          const username = String(form.username || '').trim();
+          const password = String(form.password || '');
+          const name = String(form.name || '').trim();
+          if (!username || !password || !name) {
+            Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่สมบูรณ์', text: 'กรุณากรอกชื่อ Username และ Password ให้ครบถ้วน' });
+            return;
+          }
+          const duplicate = users.value.some(user =>
+            user.username.toLowerCase() === username.toLowerCase() &&
+            user.username !== form.originalUsername
+          );
+          if (duplicate) {
+            Swal.fire({ icon: 'error', title: 'Username ซ้ำ', text: 'กรุณาใช้ Username อื่น' });
+            return;
+          }
+
+          const userIndex = users.value.findIndex(user => user.username === form.originalUsername);
+          if (userIndex < 0) {
+            Swal.fire({ icon: 'error', title: 'ไม่พบบัญชีสมาชิก', text: 'กรุณาปิดหน้าต่างแล้วลองใหม่' });
+            return;
+          }
+          const oldUser = users.value[userIndex];
+          const role = form.originalUsername === 'admin' ? 'admin' : form.role;
+          const updatedUser = {
+            ...oldUser,
+            username: form.originalUsername === 'admin' ? 'admin' : username,
+            password,
+            role,
+            name
+          };
+
+          if (role === 'customer') {
+            updatedUser.customerId = oldUser.customerId || Date.now();
+            const customer = customers.value.find(item =>
+              String(item.id) === String(updatedUser.customerId)
+            );
+            if (customer) {
+              customer.name = name;
+            } else {
+              customers.value.push({
+                id: updatedUser.customerId,
+                name,
+                values: {},
+                status: 'รอชำระ',
+                invoiceSent: false,
+                invoiceHistory: [],
+                banks: []
+              });
+            }
+          }
+
+          users.value.splice(userIndex, 1, updatedUser);
+          editingUser.value = null;
+          saveAllData(true);
+          showToast('แก้ไขบัญชีสมาชิกและบันทึกลงระบบแล้ว');
         };
 
         // --- CUSTOMER BANK MANAGEMENT ---
@@ -3670,13 +3836,6 @@
         };
 
         // --- AUTH SYSTEM ---
-        const fillDemo = (username, password) => {
-          loginForm.value.username = username;
-          loginForm.value.password = password;
-          loginError.value = '';
-          handleLogin();
-        };
-
         const handleLogin = () => {
           loginError.value = '';
           const username = (loginForm.value.username || '').trim();
@@ -3689,56 +3848,26 @@
 
           isLoggingIn.value = true;
 
-          let serverResponded = false;
           if (typeof google !== 'undefined' && google.script && google.script.run) {
-            // Instant fallback if server call takes > 1.2 seconds
-            const fallbackTimer = setTimeout(() => {
-              if (!serverResponded && isLoggingIn.value) {
-                isLoggingIn.value = false;
-                localAuthCheck(username, password);
-              }
-            }, 1200);
-
             google.script.run
               .withSuccessHandler((res) => {
-                serverResponded = true;
-                clearTimeout(fallbackTimer);
                 isLoggingIn.value = false;
                 if (res && res.success) {
                   loginSuccess(res.user);
                 } else {
-                  localAuthCheck(username, password);
+                  loginError.value = res?.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+                  Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบไม่สำเร็จ', text: loginError.value, confirmButtonColor: '#4f46e5' });
                 }
               })
               .withFailureHandler((err) => {
-                serverResponded = true;
-                clearTimeout(fallbackTimer);
                 isLoggingIn.value = false;
-                localAuthCheck(username, password);
+                loginError.value = err?.message || 'ไม่สามารถเชื่อมต่อระบบได้';
+                Swal.fire({ icon: 'error', title: 'เชื่อมต่อระบบไม่สำเร็จ', text: loginError.value, confirmButtonColor: '#4f46e5' });
               })
               .authenticateUser(username, password);
           } else {
-            setTimeout(() => {
-              isLoggingIn.value = false;
-              localAuthCheck(username, password);
-            }, 100);
-          }
-        };
-
-        const localAuthCheck = (username, password) => {
-          const lowerUser = username.toLowerCase();
-          const matchedUser = users.value.find(u => u.username.toLowerCase() === lowerUser && u.password === password);
-
-          if (matchedUser) {
-            loginSuccess(matchedUser);
-          } else {
-            loginError.value = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
-            Swal.fire({
-              icon: 'error',
-              title: 'เข้าสู่ระบบไม่สำเร็จ',
-              text: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
-              confirmButtonColor: '#4f46e5'
-            });
+            isLoggingIn.value = false;
+            loginError.value = 'กรุณาเปิดใช้งานผ่านลิงก์ Google Apps Script';
           }
         };
 
@@ -4198,6 +4327,36 @@
           showToast('เพิ่มคอลัมน์เรียบร้อย');
         };
 
+        const addColumnAt = async (index) => {
+          if (!isAdmin.value) return;
+          const result = await Swal.fire({
+            title: 'แทรกหัวข้อใหม่',
+            text: index < columns.value.length
+              ? `หัวข้อใหม่จะอยู่ก่อน "${columns.value[index].label}"`
+              : 'หัวข้อใหม่จะอยู่ท้ายตาราง',
+            input: 'text',
+            inputPlaceholder: 'ระบุชื่อหัวข้อ',
+            showCancelButton: true,
+            confirmButtonText: 'เพิ่มหัวข้อ',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#2563eb',
+            inputValidator: value => {
+              const label = String(value || '').trim();
+              if (!label) return 'กรุณาระบุชื่อหัวข้อ';
+              if (columns.value.some(column => column.label.trim().toLowerCase() === label.toLowerCase())) {
+                return 'มีหัวข้อนี้อยู่แล้ว';
+              }
+              return null;
+            }
+          });
+          if (!result.isConfirmed) return;
+          const label = String(result.value || '').trim();
+          const insertIndex = Math.max(0, Math.min(Number(index) || 0, columns.value.length));
+          columns.value.splice(insertIndex, 0, { id: `col_${Date.now()}`, label });
+          saveAllData(true);
+          showToast(`เพิ่มหัวข้อ "${label}" แล้ว`);
+        };
+
         const deleteColumn = (colId) => {
           if (!isAdmin.value) return;
           Swal.fire({
@@ -4297,6 +4456,38 @@
           saveAllData(true);
           syncDataRealtime();
           showToast('เพิ่มบัญชีธนาคารสำเร็จ');
+        };
+
+        const startEditBank = (bank) => {
+          if (!isAdmin.value || !bank) return;
+          editingBank.value = { ...bank };
+        };
+
+        const cancelEditBank = () => {
+          editingBank.value = null;
+        };
+
+        const updateBank = () => {
+          if (!isAdmin.value || !editingBank.value) return;
+          const form = editingBank.value;
+          if (!String(form.bankName || '').trim() || !String(form.accNo || '').trim()) {
+            Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่สมบูรณ์', text: 'กรุณากรอกชื่อธนาคารและเลขที่บัญชี' });
+            return;
+          }
+          const index = banks.value.findIndex(bank => String(bank.id) === String(form.id));
+          if (index < 0) {
+            Swal.fire({ icon: 'error', title: 'ไม่พบบัญชีธนาคาร', text: 'กรุณาปิดหน้าต่างแล้วลองใหม่' });
+            return;
+          }
+          banks.value.splice(index, 1, {
+            ...banks.value[index],
+            bankName: String(form.bankName).trim(),
+            accNo: String(form.accNo).trim(),
+            accName: String(form.accName || '').trim()
+          });
+          editingBank.value = null;
+          saveAllData(true);
+          showToast('แก้ไขบัญชีธนาคารแล้ว');
         };
 
         const deleteBank = (id) => {
@@ -4457,7 +4648,11 @@
 
           users,
           newUser,
+          editingUser,
           addUserAccount,
+          startEditUser,
+          cancelEditUser,
+          updateUserAccount,
           deleteUserAccount,
           showUserMgmtModal,
           showMobileSideDrawer,
@@ -4469,7 +4664,6 @@
           isLoggingIn,
           isAdmin,
           isCustomer,
-          fillDemo,
           handleLogin,
           handleLogout,
 
@@ -4550,6 +4744,8 @@
           financeTotalIncome,
           financeTotalExpense,
           financeNetProfit,
+          lastWeekIncome,
+          lastWeekExpense,
           categoryFinanceSummary,
           setPresetFilter,
           addTransaction,
@@ -4567,6 +4763,7 @@
           newColLabel,
           newCustomerName,
           newBank,
+          editingBank,
           isSaving,
           isConfirmingInvoice,
           activeSummary,
@@ -4581,6 +4778,8 @@
           selectedBankIds,
           currentDate,
           calculateTotal,
+          calculateColumnTotal,
+          allCustomersGrandTotal,
           getValueColorClass,
           getStatusBadgeClass,
           getColValue,
@@ -4610,11 +4809,15 @@
           clearAllNotis,
 
           addColumn,
+          addColumnAt,
           deleteColumn,
           addCustomer,
           deleteCustomer,
           openBankModal,
           addBank,
+          startEditBank,
+          cancelEditBank,
+          updateBank,
           deleteBank,
           openSummaryModal,
           copySummaryText,
