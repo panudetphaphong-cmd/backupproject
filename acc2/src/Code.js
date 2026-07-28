@@ -21,6 +21,7 @@ const APP = Object.freeze({
   timezone: 'Asia/Bangkok',
   cacheKey: 'PROJECT_ACCOUNTING_INITIAL_DATA_V20',
   authUsersCacheKey: 'PROJECT_ACCOUNTING_AUTH_USERS_V1',
+  authVersionCachePrefix: 'AUTH_VERSION_CACHE_',
   cacheSeconds: 1800,
   sessionSeconds: 21600,
   stages: ['รอเริ่มงาน', 'สำรวจและออกแบบ', 'เตรียมอุปกรณ์', 'กำลังติดตั้ง', 'ตรวจสอบและส่งมอบ', 'เสร็จสิ้น'],
@@ -1029,9 +1030,10 @@ function requireSession_(authToken) {
 }
 
 function readAppUsers_(spreadsheet) {
+  const properties = PropertiesService.getScriptProperties().getProperties();
   return rowsWithoutHeader_(spreadsheet.getSheetByName(APP.appUsersSheet)).map(function (row) {
     const username = String(row[0]);
-    const fastLastLogin = PropertiesService.getScriptProperties().getProperty('LAST_LOGIN_' + digestText_(username.toLowerCase()).slice(0, 24));
+    const fastLastLogin = properties['LAST_LOGIN_' + digestText_(username.toLowerCase()).slice(0, 24)];
     return { email: username, username: username, name: String(row[1] || row[0]), role: String(row[4] || 'viewer'), status: String(row[5] || 'active'), lastActive: fastLastLogin || serializeDate_(row[6]) };
   });
 }
@@ -1046,8 +1048,21 @@ function digestText_(text) {
 }
 
 function authVersionKey_(username) { return 'AUTH_VERSION_' + digestText_(String(username).toLowerCase()).slice(0, 24); }
-function getAuthVersion_(username) { return Number(PropertiesService.getScriptProperties().getProperty(authVersionKey_(username)) || 1); }
-function setAuthVersion_(username, version) { PropertiesService.getScriptProperties().setProperty(authVersionKey_(username), String(version)); }
+function authVersionCacheKey_(username) { return APP.authVersionCachePrefix + digestText_(String(username).toLowerCase()).slice(0, 24); }
+function getAuthVersion_(username) {
+  const cache = CacheService.getScriptCache();
+  const cacheKey = authVersionCacheKey_(username);
+  const cached = cache.get(cacheKey);
+  if (cached !== null) return Number(cached || 1);
+  const version = Number(PropertiesService.getScriptProperties().getProperty(authVersionKey_(username)) || 1);
+  cache.put(cacheKey, String(version), APP.sessionSeconds);
+  return version;
+}
+function setAuthVersion_(username, version) {
+  const normalized = Number(version || 1);
+  PropertiesService.getScriptProperties().setProperty(authVersionKey_(username), String(normalized));
+  CacheService.getScriptCache().put(authVersionCacheKey_(username), String(normalized), APP.sessionSeconds);
+}
 
 function readAuditLogs_(spreadsheet, limit) {
   const rows = rowsWithoutHeader_(spreadsheet.getSheetByName(APP.auditSheet));

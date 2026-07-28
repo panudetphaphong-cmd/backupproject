@@ -3564,7 +3564,7 @@
     const CENTRAL_DONUT_COLORS = ['#f2c94c','#55c994','#ef8a83','#68a9df','#d79a52','#9b8ad7','#6fc5c9','#aeb7bf'];
     const CENTRAL_DONUT_COLORS_LIGHT = ['#f0b900','#00a979','#ed5571','#168fc2','#ff8a47','#7959f6','#00b7c8','#788892'];
     const DOCUMENT_TYPE_FALLBACK = ['บิลเงินสด','ใบกำกับภาษี','เงินโอน','ใบเสร็จรับเงิน','ไม่มีเอกสาร'].map((name,index)=>({id:`default-${index}`,name,status:'active'}));
-    const state = { projects: [], transactions: [], subprojects: [], categories: [], centralTransactions: [], centralCategories: [], documentTypes: [], employees: [], userDirectory: {}, summary: {}, centralSummary: {}, currentUser: {}, users: [], auditLogs: [], adminDataLoaded: false, projectTotals: Object.create(null), subprojectTotals: Object.create(null), subprojectsByProject: Object.create(null) };
+    const state = { projects: [], transactions: [], subprojects: [], categories: [], centralTransactions: [], centralCategories: [], documentTypes: [], employees: [], userDirectory: {}, summary: {}, centralSummary: {}, currentUser: {}, users: [], auditLogs: [], adminDataLoaded: false, projectTotals: Object.create(null), subprojectTotals: Object.create(null), subprojectsByProject: Object.create(null), projectsById: Object.create(null), subprojectsById: Object.create(null) };
     let DOCUMENT_TYPE_TARGET = '';
     let DASHBOARD_PROJECT_FILTER = 'all';
     let PROJECT_LEDGER_CONTEXT = {projectId:'',subprojectId:''};
@@ -3573,7 +3573,8 @@
     const el = (id) => document.getElementById(id);
     const money = (value) => new Intl.NumberFormat('th-TH',{style:'currency',currency:'THB',maximumFractionDigits:2}).format(Number(value)||0);
     const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
-    const projectById = (id) => state.projects.find(project => project.id === id);
+    const projectById = (id) => state.projectsById[id] || null;
+    const subprojectById = (id) => state.subprojectsById[id] || null;
 
     document.addEventListener('DOMContentLoaded', () => {
       installModernActionIcons();
@@ -3974,7 +3975,7 @@
     }
 
     function openEditSubproject(id) {
-      const item=state.subprojects.find(sub=>sub.id===id); if(!item)return;
+      const item=subprojectById(id); if(!item)return;
       el('subprojectForm').reset(); el('subprojectId').value=item.id; el('subprojectProjectId').value=item.projectId;
       el('subprojectName').value=item.name; el('subprojectBudget').value=item.budget; el('subprojectStatus').value=item.status;el('subprojectStage').value=item.stage||'รอเริ่มงาน';el('subprojectProgress').value=item.progress||0; el('subprojectDescription').value=item.description||'';
       el('subprojectProjectType').value=item.projectType||projectById(item.projectId)?.projectType||'solar';
@@ -4043,7 +4044,7 @@
 
     function openSubprojectTransactionDialog(subprojectId,type='income'){
       if(!canEdit())return;
-      const subproject=state.subprojects.find(item=>item.id===subprojectId);if(!subproject)return;
+      const subproject=subprojectById(subprojectId);if(!subproject)return;
       if(el('projectDetailDialog').open)el('projectDetailDialog').close();
       openTransactionDialog();
       el('transactionProject').value=subproject.projectId;
@@ -4068,7 +4069,7 @@
 
     function showProjectTransactions(projectId,subprojectId=''){
       PROJECT_LEDGER_CONTEXT={projectId,subprojectId};
-      const subproject=subprojectId?state.subprojects.find(item=>item.id===subprojectId):null;
+      const subproject=subprojectId?subprojectById(subprojectId):null;
       el('projectLedgerTitle').textContent=subproject?`รายรับ–รายจ่าย · ${subproject.name}`:'รายรับ–รายจ่ายของโปรเจกต์';
       renderProjectLedger();
       el('projectLedgerSection').scrollIntoView({behavior:'smooth',block:'start'});
@@ -4096,7 +4097,7 @@
     }
 
     function viewSubprojectTransactions(subprojectId){
-      const subproject=state.subprojects.find(item=>item.id===subprojectId);if(!subproject)return;
+      const subproject=subprojectById(subprojectId);if(!subproject)return;
       if(el('projectDetailDialog').open)el('projectDetailDialog').close();
       openProjectDetail(subproject.projectId);
       showProjectTransactions(subproject.projectId,subproject.id);
@@ -4475,7 +4476,7 @@
     function transactionTable(rows, allowDelete) {
       if (!rows.length) return '<div class="empty">ยังไม่มีรายการรับ–จ่าย</div>';
       const showActions=allowDelete&&canEdit();
-      return `<div class="table-wrap"><table class="transaction-table"><thead><tr><th>วันที่</th><th>โปรเจกต์</th><th>รายการ</th><th>ประเภท</th><th>จำนวนเงิน</th>${showActions?'<th>จัดการ</th>':''}</tr></thead><tbody>${rows.map(item => { const project=projectById(item.projectId),sub=state.subprojects.find(s=>s.id===item.subprojectId); return `<tr><td data-label="วันที่">${formatDate(item.date)}</td><td data-label="โปรเจกต์">${esc(project?.name || '-')}${sub?`<br><small>↳ ${esc(sub.name)}</small>`:''}</td><td data-label="รายการ"><b>${esc(item.category)}</b><br><small>${esc(item.description)}</small><br><span class="document-type-chip">▤ ${esc(item.documentType||'ไม่มีเอกสาร')}</span>${isAdmin()?`<br><small class="admin-actor-meta">ผู้บันทึก: ${esc(actorName(item.updatedBy||item.createdBy))}</small>`:''}</td><td data-label="ประเภท" class="${item.type==='income'?'positive':'negative'}">${item.type==='income'?'รายรับ':'รายจ่าย'}</td><td data-label="จำนวนเงิน"><b>${money(item.amount)}</b></td>${showActions?`<td data-label="จัดการ"><button type="button" class="btn ghost" onclick="openEditTransaction('${item.id}')">แก้ไข</button>${isAdmin()?` <button type="button" class="btn danger" onclick="removeTransaction('${item.id}')">ลบ</button>`:''}</td>`:''}</tr>`; }).join('')}</tbody></table></div>`;
+      return `<div class="table-wrap"><table class="transaction-table"><thead><tr><th>วันที่</th><th>โปรเจกต์</th><th>รายการ</th><th>ประเภท</th><th>จำนวนเงิน</th>${showActions?'<th>จัดการ</th>':''}</tr></thead><tbody>${rows.map(item => { const project=projectById(item.projectId),sub=subprojectById(item.subprojectId); return `<tr><td data-label="วันที่">${formatDate(item.date)}</td><td data-label="โปรเจกต์">${esc(project?.name || '-')}${sub?`<br><small>↳ ${esc(sub.name)}</small>`:''}</td><td data-label="รายการ"><b>${esc(item.category)}</b><br><small>${esc(item.description)}</small><br><span class="document-type-chip">▤ ${esc(item.documentType||'ไม่มีเอกสาร')}</span>${isAdmin()?`<br><small class="admin-actor-meta">ผู้บันทึก: ${esc(actorName(item.updatedBy||item.createdBy))}</small>`:''}</td><td data-label="ประเภท" class="${item.type==='income'?'positive':'negative'}">${item.type==='income'?'รายรับ':'รายจ่าย'}</td><td data-label="จำนวนเงิน"><b>${money(item.amount)}</b></td>${showActions?`<td data-label="จัดการ"><button type="button" class="btn ghost" onclick="openEditTransaction('${item.id}')">แก้ไข</button>${isAdmin()?` <button type="button" class="btn danger" onclick="removeTransaction('${item.id}')">ลบ</button>`:''}</td>`:''}</tr>`; }).join('')}</tbody></table></div>`;
     }
 
     function centralBusinessNet(){return (Number(state.summary?.profit)||0)+(Number(state.centralSummary?.balance)||0)}
@@ -4660,8 +4661,9 @@
     }
 
     function rebuildTotalsIndexes(){
-      state.projectTotals=Object.create(null);state.subprojectTotals=Object.create(null);state.subprojectsByProject=Object.create(null);
-      state.subprojects.forEach(item=>{if(!state.subprojectsByProject[item.projectId])state.subprojectsByProject[item.projectId]=[];state.subprojectsByProject[item.projectId].push(item);});
+      state.projectTotals=Object.create(null);state.subprojectTotals=Object.create(null);state.subprojectsByProject=Object.create(null);state.projectsById=Object.create(null);state.subprojectsById=Object.create(null);
+      state.projects.forEach(item=>{state.projectsById[item.id]=item;});
+      state.subprojects.forEach(item=>{state.subprojectsById[item.id]=item;if(!state.subprojectsByProject[item.projectId])state.subprojectsByProject[item.projectId]=[];state.subprojectsByProject[item.projectId].push(item);});
       state.transactions.forEach(item=>{
         if(!state.projectTotals[item.projectId])state.projectTotals[item.projectId]={income:0,expense:0};
         if(['income','expense'].includes(item.type))state.projectTotals[item.projectId][item.type]+=Number(item.amount)||0;
