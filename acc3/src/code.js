@@ -166,6 +166,15 @@ function repairCustomerRecords_(data) {
     customer.values = customer.values || {};
     customer.invoiceHistory = customer.invoiceHistory || [];
     customer.banks = customer.banks || [];
+    const hasTableValue = (data.columns || []).some(function (column) {
+      const numericValue = Number(customer.values[column.id]);
+      return Number.isFinite(numericValue) && numericValue !== 0;
+    });
+    if (!hasTableValue) {
+      customer.status = 'ยังไม่ดำเนินการ';
+    } else if (hasTableValue && customer.status !== 'ชำระแล้ว') {
+      customer.status = 'รอชำระ';
+    }
   });
   (data.users || []).forEach(function (user) {
     if (String(user.role || '').toLowerCase() !== 'customer' || !user.customerId) return;
@@ -611,8 +620,84 @@ function updateCustomerCell(customerId, columnId, value) {
     if (!customer) throw new Error('ไม่พบข้อมูลลูกค้า');
     customer.values = customer.values || {};
     customer.values[columnId] = Number(value) || 0;
+    const hasValue = (data.columns || []).some(function (column) {
+      const numericValue = Number(customer.values[column.id]);
+      return Number.isFinite(numericValue) && numericValue !== 0;
+    });
+    customer.status = hasValue ? 'รอชำระ' : 'ยังไม่ดำเนินการ';
+    customer.adminConfirmed = false;
+    customer.customerConfirmed = false;
+    customer.pendingPaymentAmount = 0;
+    if (!hasValue) {
+      customer.invoiceSent = false;
+      customer.attachedInvoiceImg = '';
+      customer.selectedRefundBank = null;
+    }
     writeSharedData_(data);
-    return { success: true, customerId: customerId, columnId: columnId, value: customer.values[columnId] };
+    return {
+      success: true,
+      customerId: customerId,
+      columnId: columnId,
+      value: customer.values[columnId],
+      status: customer.status,
+      customer: customer
+    };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
+function clearCustomerValues(customerId) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const data = getData();
+    const customer = (data.customers || []).find(function (item) {
+      return String(item.id) === String(customerId);
+    });
+    if (!customer) throw new Error('ไม่พบข้อมูลลูกค้า');
+    customer.values = customer.values || {};
+    (data.columns || []).forEach(function (column) {
+      customer.values[column.id] = 0;
+    });
+    customer.status = 'ยังไม่ดำเนินการ';
+    customer.invoiceSent = false;
+    customer.adminConfirmed = false;
+    customer.customerConfirmed = false;
+    customer.pendingPaymentAmount = 0;
+    customer.attachedInvoiceImg = '';
+    customer.selectedRefundBank = null;
+    writeSharedData_(data);
+    return { success: true, customer: customer };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
+function clearAllCustomerValues() {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const data = getData();
+    (data.customers || []).forEach(function (customer) {
+      customer.values = customer.values || {};
+      (data.columns || []).forEach(function (column) {
+        customer.values[column.id] = 0;
+      });
+      customer.status = 'ยังไม่ดำเนินการ';
+      customer.invoiceSent = false;
+      customer.adminConfirmed = false;
+      customer.customerConfirmed = false;
+      customer.pendingPaymentAmount = 0;
+      customer.attachedInvoiceImg = '';
+      customer.selectedRefundBank = null;
+    });
+    writeSharedData_(data);
+    return { success: true, customers: data.customers || [] };
   } catch (error) {
     return { success: false, message: error.toString() };
   } finally {
@@ -633,8 +718,14 @@ function dispatchInvoiceToCustomer(customerId, invoice) {
     customer.invoiceSent = true;
     customer.invoiceDate = invoice.invoiceDate;
     customer.status = 'รอชำระ';
+    customer.adminConfirmed = false;
+    customer.customerConfirmed = false;
+    customer.pendingPaymentAmount = 0;
     customer.attachedInvoiceImg = invoice.attachedInvoiceImg || '';
     customer.selectedRefundBank = invoice.selectedRefundBank || null;
+    customer.selectedPaymentBanks = Array.isArray(invoice.selectedPaymentBanks)
+      ? invoice.selectedPaymentBanks.slice(0, 1)
+      : [];
     writeSharedData_(data);
     return { success: true, customer: customer };
   } catch (error) {
@@ -657,20 +748,181 @@ function confirmCustomerInvoice(customerId, confirmation) {
     const total = columns.reduce(function (sum, col) {
       return sum + (Number((customer.values || {})[col.id]) || 0);
     }, 0);
-    customer.status = 'ชำระแล้ว';
-    customer.invoiceSent = false;
+    customer.customerConfirmed = true;
+    if (!customer.adminConfirmed) {
+      customer.status = 'รอชำระ';
+      writeSharedData_(data);
+      return {
+        success: true,
+        completed: false,
+        message: 'บันทึกการยืนยันของลูกค้าแล้ว รอแอดมินตรวจสอบข้อมูล',
+        customer: customer
+      };
+    }
+
+    const requestedPayment = Number(customer.pendingPaymentAmount) || 0;
+    const isPartialPayment = total > 0 && requestedPayment > 0 && requestedPayment < total;
+    const paidAmount = total > 0 && requestedPayment > 0
+      ? Math.min(requestedPayment, total)
+      : Math.abs(total);
+
     customer.invoiceHistory = customer.invoiceHistory || [];
     customer.invoiceHistory.unshift({
       id: new Date().getTime(),
       total: total,
+      paidAmount: paidAmount,
+      remainingAmount: isPartialPayment ? total - paidAmount : 0,
       date: customer.invoiceDate || confirmation.date,
       paidAt: confirmation.paidAt,
-      note: confirmation.note,
+      note: isPartialPayment
+        ? 'ชำระบางส่วน ' + paidAmount + ' บาท ยอดคงค้าง ' + (total - paidAmount) + ' บาท'
+        : confirmation.note,
       attachedInvoiceImg: customer.attachedInvoiceImg || ''
     });
+
+    if (isPartialPayment) {
+      let unappliedPayment = paidAmount;
+      customer.values = customer.values || {};
+      columns.forEach(function (col) {
+        if (unappliedPayment <= 0) return;
+        const currentValue = Number(customer.values[col.id]) || 0;
+        if (currentValue <= 0) return;
+        const deduction = Math.min(currentValue, unappliedPayment);
+        customer.values[col.id] = currentValue - deduction;
+        unappliedPayment -= deduction;
+      });
+      customer.status = 'รอชำระ';
+      customer.invoiceSent = true;
+      customer.adminConfirmed = false;
+      customer.customerConfirmed = false;
+      customer.pendingPaymentAmount = 0;
+      customer.attachedInvoiceImg = '';
+      writeSharedData_(data);
+      return {
+        success: true,
+        completed: false,
+        partial: true,
+        paidAmount: paidAmount,
+        remainingAmount: total - paidAmount,
+        message: 'รับชำระบางส่วนแล้ว คงเหลือ ' + (total - paidAmount) + ' บาท',
+        customer: customer
+      };
+    }
+
+    customer.status = 'ชำระแล้ว';
+    customer.invoiceSent = false;
     customer.attachedInvoiceImg = '';
+    customer.selectedRefundBank = null;
+    customer.pendingPaymentAmount = 0;
+    customer.values = customer.values || {};
+    columns.forEach(function (col) {
+      customer.values[col.id] = 0;
+    });
     writeSharedData_(data);
-    return { success: true, customer: customer };
+    return { success: true, completed: true, customer: customer };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
+function approveCustomerPayment(customerId, paymentAmount, approval, notificationId) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const data = getData();
+    const customer = (data.customers || []).find(function (item) {
+      return String(item.id) === String(customerId);
+    });
+    if (!customer) throw new Error('ไม่พบข้อมูลลูกค้า');
+
+    const columns = data.columns || [];
+    const total = columns.reduce(function (sum, column) {
+      return sum + (Number((customer.values || {})[column.id]) || 0);
+    }, 0);
+    if (total <= 0) throw new Error('ลูกค้ารายนี้ไม่มียอดค้างชำระ');
+
+    const paidAmount = Math.min(Math.max(0, Number(paymentAmount) || 0), total);
+    if (paidAmount <= 0) throw new Error('ยอดชำระไม่ถูกต้อง');
+    const remainingAmount = Math.max(0, total - paidAmount);
+
+    customer.invoiceHistory = customer.invoiceHistory || [];
+    customer.invoiceHistory.unshift({
+      id: new Date().getTime(),
+      total: total,
+      paidAmount: paidAmount,
+      remainingAmount: remainingAmount,
+      date: customer.invoiceDate || (approval && approval.date),
+      paidAt: (approval && approval.paidAt) || new Date().toLocaleString('th-TH'),
+      note: remainingAmount > 0
+        ? 'แอดมินยืนยันชำระบางส่วน ' + paidAmount + ' บาท ยอดคงค้าง ' + remainingAmount + ' บาท'
+        : 'แอดมินตรวจสอบและยืนยันยอดชำระครบแล้ว',
+      attachedInvoiceImg: customer.attachedInvoiceImg || ''
+    });
+
+    customer.values = customer.values || {};
+    if (remainingAmount > 0) {
+      let unappliedPayment = paidAmount;
+      columns.forEach(function (column) {
+        if (unappliedPayment <= 0) return;
+        const currentValue = Number(customer.values[column.id]) || 0;
+        if (currentValue <= 0) return;
+        const deduction = Math.min(currentValue, unappliedPayment);
+        customer.values[column.id] = currentValue - deduction;
+        unappliedPayment -= deduction;
+      });
+      customer.status = 'รอชำระ';
+      customer.invoiceSent = true;
+    } else {
+      columns.forEach(function (column) {
+        customer.values[column.id] = 0;
+      });
+      customer.status = 'ชำระแล้ว';
+      customer.invoiceSent = false;
+      customer.attachedInvoiceImg = '';
+      customer.selectedRefundBank = null;
+    }
+    customer.adminConfirmed = false;
+    customer.customerConfirmed = false;
+    customer.pendingPaymentAmount = 0;
+
+    const targetNotification = (data.notifications || []).find(function (item) {
+      return String(item.id) === String(notificationId);
+    });
+    if (targetNotification) {
+      targetNotification.paymentApplied = true;
+      targetNotification.processing = false;
+      targetNotification.approvedAt = (approval && approval.paidAt) || new Date().toLocaleString('th-TH');
+      targetNotification.remainingAfterPayment = remainingAmount;
+      targetNotification.keepUntilPaid = remainingAmount > 0;
+      targetNotification.status = remainingAmount > 0 ? 'pending_followup' : 'approved';
+    }
+
+    if (remainingAmount === 0) {
+      const targetName = String(customer.name || '').trim().toLowerCase();
+      (data.notifications || []).forEach(function (item) {
+        if (
+          item.status === 'pending_followup' &&
+          String(item.customerName || '').trim().toLowerCase() === targetName
+        ) {
+          item.status = 'approved';
+          item.closedAt = (approval && approval.paidAt) || new Date().toLocaleString('th-TH');
+        }
+      });
+    }
+
+    writeSharedData_(data);
+    return {
+      success: true,
+      completed: remainingAmount === 0,
+      partial: remainingAmount > 0,
+      paidAmount: paidAmount,
+      remainingAmount: remainingAmount,
+      customer: customer,
+      notification: targetNotification || null,
+      notifications: data.notifications || []
+    };
   } catch (error) {
     return { success: false, message: error.toString() };
   } finally {

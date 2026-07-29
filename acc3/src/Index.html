@@ -295,14 +295,14 @@
                 {{ myCustomerTotal < 0 ? 'กรุณาเปิดดูสลิปโอนคืนและตรวจสอบยอดก่อนยืนยัน' : 'โอนเงินแล้ว? คลิกปุ่มเพื่อส่งสลิปให้แอดมินตรวจสอบ' }}
               </div>
               <div class="hidden sm:block text-xs text-emerald-700 font-medium">
-                {{ myCustomerTotal < 0 ? 'เมื่อท่านกดยืนยัน ใบแจ้งหนี้จะถูกเคลียร์และเก็บเข้าประวัติทันที' : 'แอดมินจะตรวจสอบจำนวนเงินคงเหลือ หากตรงตามยอดใบแจ้งหนี้จะปรับเป็นชำระแล้วทันที' }}
+                {{ myCustomerTotal < 0 ? 'ระบบจะเคลียร์ยอดเมื่อแอดมินและลูกค้ายืนยันครบทั้งสองฝ่าย' : 'หลังแอดมินตรวจสอบแล้ว กรุณากดยืนยันยอดอีกครั้ง ระบบจึงจะเคลียร์รายการ' }}
               </div>
             </div>
 
             <div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
               <!-- ปุ่ม 1: ถ้าเป็นยอดติดลบ หรือค่า - มีปุ่มกดยืนยันใบแจ้งหนี้ให้ลบและเก็บประวัติทันที -->
               <button 
-                v-if="myCustomerTotal < 0 || myCustomerData.attachedInvoiceImg"
+                v-if="myCustomerTotal < 0 || myCustomerData.adminConfirmed"
                 @click="customerConfirmInvoice" 
                 :disabled="isConfirmingInvoice"
                 class="w-full sm:w-auto bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/25 text-xs sm:text-sm flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-wait"
@@ -326,7 +326,7 @@
           <div v-if="myCustomerTotal >= 0" class="px-4 py-3 bg-slate-50/60 border-b border-slate-100">
             <div class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">ช่องทางชำระเงิน</div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div v-for="bank in banks" :key="bank.id" class="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center">
+              <div v-for="bank in myInvoiceBanks" :key="bank.id" class="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center">
                 <div>
                   <div class="font-bold text-sm text-slate-800">{{ bank.bankName }}</div>
                   <div class="text-xs text-indigo-600 font-bold mt-0.5">{{ bank.accNo }}</div>
@@ -368,7 +368,7 @@
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-3">
           <div class="flex justify-between items-center">
             <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-              <span>🧾 ประวัติใบแจ้งหนี้ที่ชำระเงินเสร็จสมบูรณ์</span>
+              <span>🧾 ประวัติการชำระเงิน</span>
             </h3>
             <span class="text-xs text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
               ชำระแล้ว {{ myCustomerHistoryList.length }} รายการ
@@ -379,15 +379,17 @@
             <div v-for="inv in myCustomerHistoryList" :key="inv.id" class="p-3.5 rounded-2xl border border-slate-200 bg-emerald-50/40 flex justify-between items-center text-xs">
               <div>
                 <div class="font-bold text-slate-900">📄 ใบแจ้งหนี้วันที่ {{ inv.date || '-' }}</div>
-                <div class="text-slate-500 mt-0.5">ชำระเสร็จสิ้นเมื่อ: {{ inv.paidAt }}</div>
+                <div class="text-slate-500 mt-0.5">รับชำระเมื่อ: {{ inv.paidAt }}</div>
                 <div v-if="inv.note" class="text-purple-700 font-semibold mt-0.5">{{ inv.note }}</div>
                 <button v-if="inv.attachedInvoiceImg" @click="viewFullImage(inv.attachedInvoiceImg)" class="text-indigo-600 text-[11px] font-bold underline mt-0.5">
                   🖼️ ดูรูปใบแจ้งหนี้แนบ
                 </button>
               </div>
               <div class="text-right">
-                <div class="font-black text-emerald-600 text-sm">ยอดชำระ: {{ formatNumber(inv.total) }} ฿</div>
-                <span class="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-extrabold text-[10px]">🟢 ชำระแล้วเรียบร้อย</span>
+                <div class="font-black text-emerald-600 text-sm">ยอดชำระ: {{ formatNumber(inv.paidAmount ?? inv.total) }} ฿</div>
+                <div v-if="Number(inv.remainingAmount) > 0" class="font-bold text-amber-700 text-[11px]">คงค้าง: {{ formatNumber(inv.remainingAmount) }} ฿</div>
+                <span v-if="Number(inv.remainingAmount) > 0" class="bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full font-extrabold text-[10px]">🟡 ชำระบางส่วน</span>
+                <span v-else class="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-extrabold text-[10px]">🟢 ชำระครบแล้ว</span>
               </div>
             </div>
           </div>
@@ -657,7 +659,7 @@
                       สรุปยอด
                     </th>
                     
-                    <!-- แถบสถานะการชำระเงิน (มีแค่ ชำระแล้ว และ รอชำระ) -->
+                    <!-- แถบสถานะการดำเนินการ -->
                     <th scope="col" class="px-3 sm:px-4 py-3.5 min-w-[110px] sm:min-w-[130px] text-center font-bold bg-slate-700 text-slate-200 whitespace-nowrap border-r border-slate-600">
                       แถบสถานะ
                     </th>
@@ -691,6 +693,8 @@
                         inputmode="decimal"
                         step="any"
                         v-model.number="customer.values[col.id]" 
+                        :data-customer-id="customer.id"
+                        :data-column-id="col.id"
                         @input="handleCellValueChange(customer, col)"
                         @change="handleCellValueChange(customer, col, true)"
                         placeholder="0"
@@ -713,21 +717,31 @@
                       </div>
                     </td>
 
-                    <!-- แถบสถานะ (Dropdown / Badge มีแค่ ชำระแล้ว และ รอชำระ) -->
+                    <!-- แถบสถานะ -->
                     <td class="px-2 sm:px-3 py-2.5 sm:py-3 text-center bg-slate-50/50 border-r border-slate-100">
                       <select 
                         v-if="isAdmin" 
-                        v-model="customer.status" 
-                        @change="handleStatusChange(customer)"
-                        :class="getStatusBadgeClass(customer.status)"
-                        class="px-2 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold outline-none cursor-pointer border shadow-sm transition"
+                        :key="'admin-status-' + customer.id + '-' + getCustomerDisplayStatus(customer)"
+                        :value="getCustomerDisplayStatus(customer)"
+                        @change="customer.status = $event.target.value; handleStatusChange(customer)"
+                        :class="getStatusBadgeClass(getCustomerDisplayStatus(customer))"
+                        class="mx-auto px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-bold outline-none cursor-pointer border shadow-sm transition"
+                        aria-label="เปลี่ยนสถานะ"
                       >
+                        <option value="ยังไม่ดำเนินการ">⚪ ยังไม่ดำเนินการ</option>
+                        <option value="รอลูกค้ายืนยัน" disabled>🔵 รอลูกค้ายืนยัน</option>
+                        <option value="รอแอดมินตรวจสอบ" disabled>🟣 รอแอดมินตรวจสอบ</option>
                         <option value="ชำระแล้ว">🟢 ชำระแล้ว</option>
                         <option value="รอชำระ">🟡 รอชำระ</option>
                       </select>
-                      
-                      <span v-else :class="getStatusBadgeClass(customer.status)" class="px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-bold inline-block whitespace-nowrap">
-                        {{ customer.status === 'ชำระแล้ว' ? '🟢 ชำระแล้ว' : '🟡 รอชำระ' }}
+
+                      <span
+                        v-else
+                        :key="'customer-status-' + customer.id + '-' + getCustomerDisplayStatus(customer)"
+                        :class="getStatusBadgeClass(getCustomerDisplayStatus(customer))"
+                        class="px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-bold inline-flex items-center whitespace-nowrap border shadow-sm"
+                      >
+                        {{ getCustomerStatusLabel(customer) }}
                       </span>
                     </td>
 
@@ -737,6 +751,12 @@
                         <button @click="openSummaryModal(customer)" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl transition text-xs font-extrabold border border-indigo-200 flex items-center gap-1 shadow-xs" title="สรุปยอดส่งลูกค้า">
                           <span>📲</span>
                           <span>สรุปยอด</span>
+                        </button>
+
+                        <button v-if="isAdmin" @click="clearCustomerValues(customer)" class="bg-amber-50 hover:bg-amber-100 text-amber-700 p-1.5 rounded-xl transition border border-amber-200" title="ล้างค่าของลูกค้ารายนี้">
+                          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m7 21-4-4L15 5l4 4L7 21Zm-2-6 4 4m4-2h8"/>
+                          </svg>
                         </button>
                         
                         <button v-if="isAdmin" @click="deleteCustomer(customer.id)" class="bg-rose-50 hover:bg-rose-100 text-rose-600 p-1.5 rounded-xl transition text-xs sm:text-sm font-bold shadow-xs" title="ลบลูกค้า">
@@ -766,8 +786,11 @@
                       {{ customers.length }} ราย
                     </td>
                     <td class="px-2 py-3.5 text-center">
-                      <button v-if="isAdmin" @click="addColumnAt(columns.length)" class="mx-auto px-3 py-1.5 rounded-lg border border-indigo-400/60 bg-indigo-500/10 hover:bg-indigo-500/25 text-indigo-200 font-bold transition whitespace-nowrap" title="เพิ่มหัวข้อต่อท้าย">
-                        + หัวข้อ
+                      <button v-if="isAdmin" @click="clearEntireTable" class="mx-auto px-3 py-1.5 rounded-lg border border-rose-300/70 bg-rose-500/15 hover:bg-rose-500/30 text-rose-100 font-bold transition whitespace-nowrap inline-flex items-center gap-1.5" title="ล้างค่าตัวเลขทั้งหมดในตาราง">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 10v6m4-6v6"/>
+                        </svg>
+                        <span>ล้างตารางทั้งหมด</span>
                       </button>
                     </td>
                   </tr>
@@ -1246,7 +1269,7 @@
               @click="adminExecuteRefund(dispatchTargetCustomer)"
               class="w-full bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white font-extrabold py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 mt-2"
             >
-              <span>💸 ยืนยันแอดมินโอนเงินคืนเรียบร้อยแล้ว (เคลียร์ยอดติดลบเป็น 0)</span>
+              <span>💸 ยืนยันแอดมินโอนเงินคืนแล้ว (รอลูกค้าตรวจสอบ)</span>
             </button>
           </div>
 
@@ -1285,15 +1308,55 @@
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">เลือกธนาคารของแอดมินที่โอนเข้า</label>
             <select v-model="payForm.targetBank" class="w-full px-3.5 py-2.5 border rounded-xl text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500">
               <option value="">-- เลือกธนาคารที่โอนเข้า --</option>
-              <option v-for="bank in banks" :key="bank.id" :value="bank.bankName + ' (' + bank.accNo + ')'">
+              <option v-for="bank in myInvoiceBanks" :key="bank.id" :value="bank.bankName + ' (' + bank.accNo + ')'">
                 {{ bank.bankName }} - {{ bank.accNo }} ({{ bank.accName }})
               </option>
             </select>
           </div>
 
           <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-2">รูปแบบการชำระ</label>
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <button
+                type="button"
+                @click="payForm.mode = 'full'; payForm.amount = myCustomerTotal"
+                :class="payForm.mode === 'full' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'"
+                class="py-2.5 px-2 rounded-xl border text-xs font-extrabold transition"
+              >
+                ✓ ชำระเต็มจำนวน
+              </button>
+              <button
+                type="button"
+                @click="payForm.mode = 'partial'; payForm.amount = ''"
+                :class="payForm.mode === 'partial' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-300'"
+                class="py-2.5 px-2 rounded-xl border text-xs font-extrabold transition"
+              >
+                ◐ ชำระบางส่วน
+              </button>
+            </div>
+
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">จำนวนเงินที่โอนชำระ (บาท)</label>
-            <input type="number" inputmode="decimal" step="any" v-model.number="payForm.amount" placeholder="0" class="w-full px-3.5 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500">
+            <input
+              type="number"
+              inputmode="decimal"
+              step="any"
+              min="0"
+              :max="myCustomerTotal"
+              v-model.number="payForm.amount"
+              :readonly="payForm.mode === 'full'"
+              placeholder="กรอกยอดที่ชำระบางส่วน"
+              class="w-full px-3.5 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500 read-only:bg-slate-100"
+            >
+            <div v-if="payForm.mode === 'partial' && Number(payForm.amount) > 0" class="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs">
+              <div class="flex justify-between font-bold text-amber-900">
+                <span>ยอดที่ชำระครั้งนี้</span>
+                <span>{{ formatNumber(Math.min(Number(payForm.amount) || 0, myCustomerTotal)) }} บาท</span>
+              </div>
+              <div class="flex justify-between font-black text-rose-700 mt-1">
+                <span>ยอดคงค้างหลังชำระ</span>
+                <span>{{ formatNumber(Math.max(0, myCustomerTotal - (Number(payForm.amount) || 0))) }} บาท</span>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -1311,8 +1374,8 @@
             <input type="text" v-model="payForm.note" placeholder="เช่น โอนจาก KBANK เวลา 18:30 น." class="w-full px-3.5 py-2 border rounded-xl text-sm outline-none font-medium">
           </div>
 
-          <button @click="submitPayInvoice" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-sm transition shadow-lg shadow-emerald-600/20">
-            🚀 ยืนยันส่งสลิปโอนเงินให้แอดมินตรวจสอบ
+          <button @click="submitPayInvoice" :class="payForm.mode === 'partial' ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'" class="w-full text-white py-3 rounded-xl font-bold text-sm transition shadow-lg">
+            {{ payForm.mode === 'partial' ? '◐ ยืนยันชำระบางส่วนและส่งสลิป' : '🚀 ยืนยันชำระเต็มจำนวนและส่งสลิป' }}
           </button>
         </div>
       </div>
@@ -1351,6 +1414,9 @@
             <div class="max-w-[90%] sm:max-w-[80%] p-3 rounded-2xl text-sm sm:text-xs leading-relaxed font-medium shadow-xs break-words" :class="msg.senderRole === 'customer' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'">
               <div v-if="msg.text">{{ msg.text }}</div>
               <img v-if="msg.image" :src="normalizeImageUrl(msg.image)" @error="handleImageError($event, msg.image)" @click="viewFullImage(msg.image)" class="mt-2 rounded-xl max-h-48 object-cover border cursor-pointer">
+            </div>
+            <div v-if="msg.senderRole === 'customer'" class="mt-0.5 px-1 text-[10px] font-bold" :class="msg.isRead ? 'text-blue-600' : 'text-slate-400'">
+              {{ msg.isRead ? '✓✓ อ่านแล้ว' : '✓ ส่งแล้ว' }}
             </div>
           </div>
         </div>
@@ -1537,6 +1603,9 @@
               <div class="max-w-[90%] sm:max-w-[78%] p-3 rounded-2xl text-sm sm:text-xs leading-relaxed font-medium shadow-xs break-words" :class="msg.senderRole === 'admin' ? 'bg-indigo-900 text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'">
                 <div v-if="msg.text">{{ msg.text }}</div>
                 <img v-if="msg.image" :src="normalizeImageUrl(msg.image)" @error="handleImageError($event, msg.image)" @click="viewFullImage(msg.image)" class="mt-2 rounded-xl max-h-48 object-cover border cursor-pointer">
+              </div>
+              <div v-if="msg.senderRole === 'admin'" class="mt-0.5 px-1 text-[10px] font-bold" :class="msg.isRead ? 'text-indigo-600' : 'text-slate-400'">
+                {{ msg.isRead ? '✓✓ อ่านแล้ว' : '✓ ส่งแล้ว' }}
               </div>
             </div>
           </div>
@@ -1837,11 +1906,11 @@
           <div class="flex items-center gap-2">
             <!-- ปุ่ม ⚡ อนุมัติทั้งหมดแบบ Fast Action -->
             <button 
-              v-if="isAdmin && pendingNotiList.length > 0" 
+              v-if="isAdmin && pendingNotiList.some(item => !item.paymentApplied)" 
               @click="approveAllPendingNotis" 
               class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black px-3.5 py-1.5 rounded-xl transition flex items-center gap-1 shadow"
             >
-              <span>⚡ อนุมัติทั้งหมด ({{ pendingNotiList.length }})</span>
+              <span>⚡ อนุมัติทั้งหมด ({{ pendingNotiList.filter(item => !item.paymentApplied).length }})</span>
             </button>
 
             <button v-if="isAdmin && notifications.length > 0" @click="clearAllNotis" class="bg-rose-600/90 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1">
@@ -1874,6 +1943,17 @@
               {{ processedNotiList.length }}
             </span>
           </button>
+
+          <button
+            @click="notiTab = 'outstanding'"
+            :class="notiTab === 'outstanding' ? 'bg-rose-600 text-white font-black shadow' : 'text-rose-700 hover:text-rose-900 font-bold'"
+            class="flex-1 py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+          >
+            <span>📌 ยอดค้างชำระ</span>
+            <span v-if="outstandingNotiList.length > 0" class="bg-white text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-full">
+              {{ outstandingNotiList.length }}
+            </span>
+          </button>
         </div>
 
         <!-- Search Box (เฉพาะ Tab ประวัติย้อนหลัง) -->
@@ -1902,6 +1982,7 @@
                       <span v-else-if="item.type === 'withdraw'" class="bg-purple-100 text-purple-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💸 แจ้งถอนเงิน ({{ item.targetCol }})</span>
                       <span v-else-if="item.type === 'slip'" class="bg-emerald-600 text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold">💳 โอนชำระใบแจ้งหนี้</span>
                       <span v-else class="bg-blue-100 text-blue-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💬 แชทสอบถาม</span>
+                      <span v-if="isPartialPaymentNotification(item)" class="bg-rose-600 text-white text-[11px] px-2.5 py-0.5 rounded-full font-black animate-pulse">⚠️ ชำระไม่ครบ</span>
                     </div>
                     <div class="text-xs text-slate-400 mt-0.5 font-medium">{{ item.createdAt }}</div>
                   </div>
@@ -1909,6 +1990,24 @@
                   <div class="text-right">
                     <div class="text-xs text-slate-500 font-medium">จำนวนเงินที่แจ้ง</div>
                     <div class="text-lg font-black text-slate-800">{{ item.amount ? formatNumber(item.amount) + ' บาท' : '-' }}</div>
+                  </div>
+                </div>
+
+                <div v-if="item.type === 'slip'" :class="isPartialPaymentNotification(item) ? 'bg-rose-50 border-rose-300' : 'bg-emerald-50 border-emerald-200'" class="grid grid-cols-3 gap-2 p-3 mb-3 rounded-xl border text-center">
+                  <div>
+                    <div class="text-[10px] font-bold text-slate-500">ยอดบิลทั้งหมด</div>
+                    <div class="text-sm font-black text-slate-800">{{ formatNumber(getNotificationInvoiceTotal(item)) }} ฿</div>
+                  </div>
+                  <div class="border-x border-slate-200">
+                    <div class="text-[10px] font-bold text-slate-500">ลูกค้าชำระมา</div>
+                    <div class="text-sm font-black text-emerald-700">{{ formatNumber(Number(item.amount) || 0) }} ฿</div>
+                  </div>
+                  <div>
+                    <div class="text-[10px] font-bold" :class="isPartialPaymentNotification(item) ? 'text-rose-600' : 'text-slate-500'">คงเหลือกับลูกค้า</div>
+                    <div class="text-sm font-black" :class="isPartialPaymentNotification(item) ? 'text-rose-700' : 'text-emerald-700'">{{ formatNumber(getNotificationRemaining(item)) }} ฿</div>
+                  </div>
+                  <div v-if="isPartialPaymentNotification(item)" class="col-span-3 mt-1 pt-2 border-t border-rose-200 text-xs font-extrabold text-rose-700">
+                    คุณ {{ item.customerName }} ยังมียอดค้างชำระ {{ formatNumber(getNotificationRemaining(item)) }} บาท
                   </div>
                 </div>
 
@@ -1939,10 +2038,13 @@
 
                 <!-- Fast Action Buttons for Admin (เพิ่มปุ่มอนุมัติด่วน 1-Click) -->
                 <div v-if="isAdmin" class="mt-4 pt-3 border-t border-amber-200/80 flex items-center justify-between gap-2">
-                  <div class="flex items-center gap-2">
-                    <button @click="approveNotiFast(item)" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold px-4 py-2 rounded-xl text-xs transition shadow flex items-center gap-1.5">
-                      <span>⚡ อนุมัติด่วน (1-Click)</span>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button v-if="!item.paymentApplied" @click="approveNotiFast(item)" :disabled="item.processing" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold px-4 py-2 rounded-xl text-xs transition shadow flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-wait">
+                      <span>{{ item.processing ? 'กำลังยืนยันยอด...' : '⚡ ยืนยันยอดชำระ' }}</span>
                     </button>
+                    <span v-else class="bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-2 rounded-xl text-xs font-extrabold">
+                      ✓ หักยอดชำระครั้งนี้แล้ว
+                    </span>
 
                     <button @click="rejectNoti(item)" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-3 py-2 rounded-xl text-xs transition border border-rose-200">
                       ❌ ปฏิเสธ
@@ -1961,7 +2063,41 @@
             </div>
           </div>
 
-          <!-- TAB 2: PROCESSED NOTIFICATIONS HISTORY -->
+          <!-- TAB 2: OUTSTANDING BALANCES -->
+          <div v-else-if="notiTab === 'outstanding'">
+            <div v-if="outstandingNotiList.length > 0" class="space-y-3">
+              <div v-for="item in outstandingNotiList" :key="'outstanding-' + item.id" class="p-4 rounded-2xl border border-rose-300 bg-rose-50 shadow-sm">
+                <div class="flex justify-between items-start gap-3">
+                  <div>
+                    <div class="font-black text-slate-900">👤 {{ item.customerName }}</div>
+                    <div class="text-xs text-slate-500 mt-0.5">อนุมัติยอดบางส่วนเมื่อ {{ item.approvedAt || item.createdAt }}</div>
+                  </div>
+                  <span class="bg-rose-600 text-white text-[10px] px-2.5 py-1 rounded-full font-black">ยังชำระไม่ครบ</span>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-3">
+                  <div class="bg-white rounded-xl border border-emerald-200 p-3 text-center">
+                    <div class="text-[10px] font-bold text-slate-500">รับชำระแล้วครั้งนี้</div>
+                    <div class="font-black text-emerald-700">{{ formatNumber(Number(item.amount) || 0) }} บาท</div>
+                  </div>
+                  <div class="bg-white rounded-xl border border-rose-200 p-3 text-center">
+                    <div class="text-[10px] font-bold text-slate-500">ยอดคงค้าง</div>
+                    <div class="font-black text-rose-700">{{ formatNumber(getNotificationRemaining(item)) }} บาท</div>
+                  </div>
+                </div>
+                <div class="mt-3 flex justify-between items-center gap-2">
+                  <span class="text-xs font-bold text-rose-700">รายการนี้จะปิดอัตโนมัติเมื่อลูกค้าชำระครบ</span>
+                  <button @click="toggleKeepPartialNotification(item)" class="bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 px-3 py-1.5 rounded-xl text-xs font-bold">
+                    ย้ายไปประวัติ
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center py-10 text-slate-400 text-sm">
+              ไม่มีลูกค้าที่มียอดค้างชำระ
+            </div>
+          </div>
+
+          <!-- TAB 3: PROCESSED NOTIFICATIONS HISTORY -->
           <div v-else-if="notiTab === 'history'">
             <div v-if="filteredProcessedNotis.length > 0" class="space-y-3">
               <div v-for="item in filteredProcessedNotis" :key="item.id" class="p-4 rounded-2xl border bg-white border-slate-200 opacity-90 transition">
@@ -2176,10 +2312,10 @@
           </div>
 
           <div v-if="calculateTotal(activeSummary.values) >= 0" class="space-y-2">
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-400">เลือกระบุบัญชีธนาคารรับเงินระบบ</label>
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-400">เลือกบัญชีรับเงิน 1 บัญชีที่จะส่งให้ลูกค้า</label>
             <div class="space-y-1.5">
-              <div v-for="bank in banks" :key="bank.id" class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50">
-                <input type="checkbox" :value="bank.id" v-model="selectedBankIds" :id="'bank_'+bank.id" class="rounded text-indigo-600 focus:ring-indigo-500">
+              <div v-for="bank in banks" :key="bank.id" @click="selectedBankIds = [bank.id]" :class="selectedBankIds[0] === bank.id ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-200 hover:bg-slate-50'" class="flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition">
+                <input type="radio" name="payment_bank" :value="bank.id" :checked="selectedBankIds[0] === bank.id" @change="selectedBankIds = [bank.id]" :id="'bank_'+bank.id" class="text-indigo-600 focus:ring-indigo-500">
                 <label :for="'bank_'+bank.id" class="text-xs text-slate-700 cursor-pointer flex-1 min-w-0 font-medium break-words [overflow-wrap:anywhere]">
                   <span class="font-bold block">{{ bank.bankName }}</span>
                   <span class="block text-indigo-700 break-all">{{ bank.accNo }}</span>
@@ -2385,6 +2521,9 @@
         // Real-time Sync Timer Reference
         let realtimeTimer = null;
         let realtimeSyncInFlight = false;
+        let customerTableMutationInProgress = false;
+        const pendingCustomerCellKeys = new Set();
+        const protectedCustomerCellsUntil = new Map();
         let notificationsLoaded = false;
         let notificationAlertShownFor = '';
         const cellSaveTimers = new Map();
@@ -2407,7 +2546,7 @@
 
         // Pay Invoice Modal State
         const showPayInvoiceModal = ref(false);
-        const payForm = ref({ targetBank: '', amount: 0, imagePreview: '', note: '' });
+        const payForm = ref({ targetBank: '', mode: 'full', amount: 0, imagePreview: '', note: '' });
 
         // Income & Expense Transactions State
         const transactions = ref([]);
@@ -2476,8 +2615,8 @@
         });
 
         const myCustomerStatus = computed(() => {
-          if (!myCustomerData.value) return 'รอชำระ';
-          return myCustomerData.value.status === 'ชำระแล้ว' ? 'ชำระแล้ว' : 'รอชำระ';
+          if (!myCustomerData.value) return 'ยังไม่ดำเนินการ';
+          return getCustomerDisplayStatus(myCustomerData.value);
         });
 
         const myCustomerTotal = computed(() => {
@@ -2490,6 +2629,14 @@
           return myCustomerData.value.banks || [];
         });
 
+        const myInvoiceBanks = computed(() => {
+          if (!myCustomerData.value) return [];
+          return Array.isArray(myCustomerData.value.selectedPaymentBanks) &&
+            myCustomerData.value.selectedPaymentBanks.length > 0
+            ? myCustomerData.value.selectedPaymentBanks.slice(0, 1)
+            : [];
+        });
+
         const myCustomerHistoryList = computed(() => {
           if (!myCustomerData.value) return [];
           return myCustomerData.value.invoiceHistory || [];
@@ -2498,8 +2645,38 @@
         const myNotifications = computed(() => {
           if (!currentUser.value) return [];
           const myName = (currentUser.value.name || '').trim().toLowerCase();
-          return notifications.value.filter(n => (n.customerName || '').trim().toLowerCase() === myName);
+          return notifications.value.filter(n =>
+            (n.customerName || '').trim().toLowerCase() === myName &&
+            !(n.type === 'slip' && n.paymentApplied && n.status === 'pending_followup')
+          );
         });
+
+        const getNotificationCustomer = (item) => {
+          const targetName = String(item?.customerName || '').trim().toLowerCase();
+          return customers.value.find(customer => {
+            const customerName = String(customer?.name || '').trim().toLowerCase();
+            return customerName === targetName ||
+              customerName.includes(targetName) ||
+              targetName.includes(customerName);
+          }) || null;
+        };
+
+        const getNotificationInvoiceTotal = (item) => {
+          const storedTotal = Number(item?.invoiceTotal);
+          if (Number.isFinite(storedTotal) && storedTotal > 0) return storedTotal;
+          const customer = getNotificationCustomer(item);
+          return customer ? Math.max(0, calculateTotal(customer.values)) : 0;
+        };
+
+        const getNotificationRemaining = (item) => {
+          const storedRemaining = Number(item?.remainingAfterPayment);
+          if (Number.isFinite(storedRemaining) && storedRemaining >= 0) return storedRemaining;
+          return Math.max(0, getNotificationInvoiceTotal(item) - (Number(item?.amount) || 0));
+        };
+
+        const isPartialPaymentNotification = (item) => {
+          return item?.type === 'slip' && getNotificationRemaining(item) > 0;
+        };
 
         const calculateColumnTotal = (columnId) => {
           return customers.value.reduce((sum, customer) => {
@@ -2514,16 +2691,29 @@
         });
 
         const pendingNotiCount = computed(() => {
-          return notifications.value.filter(n => n.status === 'pending').length;
+          return notifications.value.filter(n =>
+            n.status === 'pending' &&
+            !(n.paymentApplied && getNotificationRemaining(n) > 0)
+          ).length;
         });
 
         // Pending VS Processed Notifications List for Admin Notification Center
         const pendingNotiList = computed(() => {
-          return notifications.value.filter(n => n.status === 'pending');
+          return notifications.value.filter(n =>
+            n.status === 'pending' &&
+            !(n.paymentApplied && getNotificationRemaining(n) > 0)
+          );
+        });
+
+        const outstandingNotiList = computed(() => {
+          return notifications.value.filter(n =>
+            n.status === 'pending_followup' ||
+            (n.status === 'pending' && n.paymentApplied && getNotificationRemaining(n) > 0)
+          );
         });
 
         const processedNotiList = computed(() => {
-          return notifications.value.filter(n => n.status !== 'pending');
+          return notifications.value.filter(n => n.status !== 'pending' && n.status !== 'pending_followup');
         });
 
         const filteredProcessedNotis = computed(() => {
@@ -2545,17 +2735,42 @@
         // Auto Save Handler when editing table cells
         const handleCellValueChange = (customer, col, immediate = false) => {
           if (!isAdmin.value || !customer || !col) return;
+          const hasValue = columns.value.some(column => {
+            const numericValue = Number((customer.values || {})[column.id]);
+            return Number.isFinite(numericValue) && numericValue !== 0;
+          });
+          customer.status = hasValue ? 'รอชำระ' : 'ยังไม่ดำเนินการ';
+          customer.adminConfirmed = false;
+          customer.customerConfirmed = false;
+          if (!hasValue) {
+            customer.invoiceSent = false;
+            customer.attachedInvoiceImg = '';
+            customer.selectedRefundBank = null;
+          }
           const key = `${customer.id}:${col.id}`;
+          pendingCustomerCellKeys.add(key);
+          protectedCustomerCellsUntil.set(key, Date.now() + 2500);
           if (cellSaveTimers.has(key)) clearTimeout(cellSaveTimers.get(key));
           const persist = () => {
             cellSaveTimers.delete(key);
             if (typeof google !== 'undefined' && google.script && google.script.run) {
               google.script.run
-                .withSuccessHandler(() => syncDataRealtime())
-                .withFailureHandler((err) => showToast(err?.message || 'บันทึกตัวเลขไม่สำเร็จ', true))
+                .withSuccessHandler((res) => {
+                  pendingCustomerCellKeys.delete(key);
+                  protectedCustomerCellsUntil.set(key, Date.now() + 1500);
+                  if (res?.status) customer.status = res.status;
+                  setTimeout(() => syncDataRealtime(), 100);
+                })
+                .withFailureHandler((err) => {
+                  pendingCustomerCellKeys.delete(key);
+                  protectedCustomerCellsUntil.delete(key);
+                  showToast(err?.message || 'บันทึกตัวเลขไม่สำเร็จ', true);
+                  syncDataRealtime();
+                })
                 .updateCustomerCell(customer.id, col.id, customer.values[col.id]);
             } else {
               saveAllData(true);
+              pendingCustomerCellKeys.delete(key);
             }
           };
           if (immediate) persist();
@@ -2658,9 +2873,42 @@
           // Do not let a malformed/temporary empty snapshot erase a table that is
           // already visible. A genuinely empty customer list is applied on initial
           // load; later deletions are still reflected when the snapshot is valid.
-          if (Array.isArray(data.customers) && !isUserTyping) {
+          if (Array.isArray(data.customers) && !customerTableMutationInProgress) {
             const mayApplyEmpty = customers.value.length === 0 || data.snapshotValid === true;
-            if (data.customers.length > 0 || mayApplyEmpty) customers.value = data.customers;
+            if (data.customers.length > 0 || mayApplyEmpty) {
+              const localCustomerMap = new Map(
+                customers.value.map(customer => [String(customer.id), customer])
+              );
+              const activeElement = document.activeElement;
+              const activeCellKey = activeElement?.dataset?.customerId && activeElement?.dataset?.columnId
+                ? `${activeElement.dataset.customerId}:${activeElement.dataset.columnId}`
+                : '';
+              const now = Date.now();
+
+              if (!(isUserTyping && !activeCellKey)) {
+                customers.value = data.customers.map(serverCustomer => {
+                  const localCustomer = localCustomerMap.get(String(serverCustomer.id));
+                  if (!localCustomer) return serverCustomer;
+                  const mergedCustomer = {
+                    ...serverCustomer,
+                    values: { ...(serverCustomer.values || {}) }
+                  };
+                  columns.value.forEach(column => {
+                    const key = `${serverCustomer.id}:${column.id}`;
+                    const protectionUntil = protectedCustomerCellsUntil.get(key) || 0;
+                    const shouldProtect = key === activeCellKey ||
+                      pendingCustomerCellKeys.has(key) ||
+                      protectionUntil > now;
+                    if (shouldProtect) {
+                      mergedCustomer.values[column.id] = (localCustomer.values || {})[column.id];
+                    } else if (protectionUntil > 0) {
+                      protectedCustomerCellsUntil.delete(key);
+                    }
+                  });
+                  return mergedCustomer;
+                });
+              }
+            }
           }
           if (Array.isArray(data.banks)) banks.value = data.banks;
           if (Array.isArray(data.notifications)) notifications.value = data.notifications;
@@ -3014,7 +3262,8 @@
         // --- PAY INVOICE SYSTEM ---
         const openPayInvoiceModal = () => {
           payForm.value = {
-            targetBank: banks.value.length > 0 ? `${banks.value[0].bankName} (${banks.value[0].accNo})` : '',
+            targetBank: myInvoiceBanks.value.length > 0 ? `${myInvoiceBanks.value[0].bankName} (${myInvoiceBanks.value[0].accNo})` : '',
+            mode: 'full',
             amount: myCustomerTotal.value,
             imagePreview: '',
             note: ''
@@ -3031,6 +3280,24 @@
             Swal.fire({ icon: 'warning', title: 'กรุณาระบุจำนวนเงินโอน', confirmButtonColor: '#059669' });
             return;
           }
+          if (Number(payForm.value.amount) > Number(myCustomerTotal.value)) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'ยอดชำระมากกว่ายอดค้าง',
+              text: `กรุณาระบุยอดไม่เกิน ${formatNumber(myCustomerTotal.value)} บาท`,
+              confirmButtonColor: '#d97706'
+            });
+            return;
+          }
+          if (payForm.value.mode === 'partial' && Number(payForm.value.amount) >= Number(myCustomerTotal.value)) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'ยอดนี้เป็นการชำระเต็มจำนวน',
+              text: 'หากต้องการชำระบางส่วน กรุณาระบุยอดให้น้อยกว่ายอดค้างชำระ',
+              confirmButtonColor: '#d97706'
+            });
+            return;
+          }
           if (!payForm.value.imagePreview) {
             Swal.fire({ icon: 'warning', title: 'กรุณาแนบสลิปโอนเงิน', text: 'ต้องแนบไฟล์รูปภาพสลิปเพื่อให้แอดมินตรวจสอบยอดเงิน', confirmButtonColor: '#059669' });
             return;
@@ -3042,8 +3309,16 @@
             type: 'slip',
             targetBank: payForm.value.targetBank,
             amount: payForm.value.amount,
+            invoiceTotal: myCustomerTotal.value,
+            remainingAfterPayment: Math.max(0, myCustomerTotal.value - Number(payForm.value.amount || 0)),
             slipImage: payForm.value.imagePreview,
-            note: payForm.value.note || `ชำระยอดตามใบแจ้งหนี้ (${formatNumber(payForm.value.amount)} ฿)`,
+            paymentMode: payForm.value.mode || 'full',
+            keepUntilPaid: payForm.value.mode === 'partial',
+            note: payForm.value.note || (
+              payForm.value.mode === 'partial'
+                ? `ชำระบางส่วน ${formatNumber(payForm.value.amount)} บาท จากยอดค้าง ${formatNumber(myCustomerTotal.value)} บาท`
+                : `ชำระเต็มจำนวนตามใบแจ้งหนี้ (${formatNumber(payForm.value.amount)} ฿)`
+            ),
             status: 'pending',
             createdAt: new Date().toLocaleString('th-TH')
           };
@@ -3055,8 +3330,10 @@
 
           Swal.fire({ 
             icon: 'success', 
-            title: 'ส่งสลิปโอนเงินสำเร็จ!', 
-            text: 'ส่งหลักฐานการโอนเงินเข้าสู่กล่องแจ้งเตือนของแอดมินเรียบร้อยแล้ว แอดมินจะทำการตรวจสอบยอดเงินและอัปเดตสถานะให้ท่านครับ', 
+            title: payForm.value.mode === 'partial' ? 'ส่งรายการชำระบางส่วนแล้ว!' : 'ส่งสลิปโอนเงินสำเร็จ!', 
+            text: payForm.value.mode === 'partial'
+              ? `ส่งยอดชำระบางส่วนแล้ว หลังแอดมินและลูกค้ายืนยัน ระบบจะเหลือยอดค้าง ${formatNumber(myCustomerTotal.value - payForm.value.amount)} บาท`
+              : 'ส่งหลักฐานการโอนเงินเข้าสู่กล่องแจ้งเตือนของแอดมินเรียบร้อยแล้ว แอดมินจะทำการตรวจสอบยอดเงินและอัปเดตสถานะให้ท่านครับ', 
             confirmButtonColor: '#059669' 
           });
         };
@@ -3094,6 +3371,18 @@
           const totalVal = calculateTotal(cust.values);
           const isNeg = totalVal < 0;
           let selectedRefundBank = null;
+          const selectedPaymentBanks = isNeg
+            ? []
+            : banks.value.filter(bank => selectedBankIds.value.includes(bank.id)).slice(0, 1);
+          if (!isNeg && selectedPaymentBanks.length === 0) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'กรุณาเลือกบัญชีรับชำระ',
+              text: 'เลือกอย่างน้อย 1 บัญชีที่ต้องการส่งให้ลูกค้า',
+              confirmButtonColor: '#059669'
+            });
+            return;
+          }
           if (isNeg && (!cust.banks || cust.banks.length === 0)) {
             Swal.fire({
               icon: 'warning',
@@ -3118,18 +3407,25 @@
           const invoice = {
             invoiceDate: currentDate.value,
             attachedInvoiceImg: isNeg ? (dispatchInvoiceImgPreview.value || '') : '',
-            selectedRefundBank
+            selectedRefundBank,
+            selectedPaymentBanks
           };
           const previousInvoiceState = {
             invoiceSent: cust.invoiceSent,
             invoiceDate: cust.invoiceDate,
             status: cust.status,
             attachedInvoiceImg: cust.attachedInvoiceImg,
-            selectedRefundBank: cust.selectedRefundBank
+            selectedRefundBank: cust.selectedRefundBank,
+            selectedPaymentBanks: cust.selectedPaymentBanks
           };
 
           // Optimistic UI: ปิดหน้าส่งทันที ระหว่างบันทึกบนเซิร์ฟเวอร์
-          Object.assign(cust, invoice, { invoiceSent: true, status: 'รอชำระ' });
+          Object.assign(cust, invoice, {
+            invoiceSent: true,
+            status: 'รอชำระ',
+            adminConfirmed: false,
+            customerConfirmed: false
+          });
           showDispatchModal.value = false;
           activeSummary.value = null;
           showToast(`กำลังส่งบิลให้คุณ ${cust.name}`);
@@ -3163,7 +3459,7 @@
           }
         };
 
-        // ADMIN DIRECTLY EXECUTES REFUND FOR NEGATIVE BALANCE (CLEAR TO ZERO)
+        // แอดมินยืนยันการโอนคืน แต่รอลูกค้าตรวจสอบก่อนรีเซ็ตยอด
         const adminExecuteRefund = (customer) => {
           if (!isAdmin.value || !customer) return;
           const totalNeg = calculateTotal(customer.values);
@@ -3181,28 +3477,31 @@
             showCancelButton: true,
             confirmButtonColor: '#7c3aed',
             cancelButtonColor: '#64748b',
-            confirmButtonText: 'ใช่, โอนเงินคืนสำเร็จ (เคลียร์ยอดเป็น 0)',
+            confirmButtonText: 'ใช่, โอนเงินคืนแล้ว รอลูกค้ายืนยัน',
             cancelButtonText: 'ยกเลิก'
           }).then((res) => {
             if (res.isConfirmed) {
-              if (customer.values) {
-                Object.keys(customer.values).forEach(k => {
-                  customer.values[k] = 0;
+              customer.adminConfirmed = true;
+              customer.status = 'รอชำระ';
+              customer.invoiceSent = true;
+              if (customer.customerConfirmed) {
+                if (!customer.invoiceHistory) customer.invoiceHistory = [];
+                customer.invoiceHistory.unshift({
+                  id: Date.now(),
+                  total: totalNeg,
+                  date: customer.invoiceDate || currentDate.value,
+                  paidAt: new Date().toLocaleString('th-TH'),
+                  note: `ยืนยันครบทั้งสองฝ่าย โอนคืนเข้าบัญชี: ${bankInfoStr}`,
+                  attachedInvoiceImg: customer.attachedInvoiceImg || ''
                 });
+                columns.value.forEach(col => {
+                  customer.values[col.id] = 0;
+                });
+                customer.status = 'ชำระแล้ว';
+                customer.invoiceSent = false;
+                customer.attachedInvoiceImg = '';
+                customer.selectedRefundBank = null;
               }
-
-              customer.status = 'ชำระแล้ว';
-              customer.invoiceSent = false;
-              customer.attachedInvoiceImg = '';
-
-              if (!customer.invoiceHistory) customer.invoiceHistory = [];
-              customer.invoiceHistory.unshift({
-                id: Date.now(),
-                total: totalNeg,
-                date: customer.invoiceDate || currentDate.value,
-                paidAt: new Date().toLocaleString('th-TH'),
-                note: `แอดมินโอนคืนเงินสำเร็จ เข้าบัญชี: ${bankInfoStr}`
-              });
 
               transactions.value.unshift({
                 id: Date.now(),
@@ -3222,8 +3521,10 @@
 
               Swal.fire({
                 icon: 'success',
-                title: 'โอนเงินคืนสำเร็จ!',
-                text: `ทำการโอนเงินคืนคุณ ${customer.name} จำนวน ${formatNumber(Math.abs(totalNeg))} บาท และเคลียร์ยอดในตารางเป็น 0 ฿ เรียบร้อยแล้ว`,
+                title: customer.customerConfirmed ? 'ยืนยันครบทั้งสองฝ่ายแล้ว' : 'บันทึกการโอนเงินคืนแล้ว',
+                text: customer.customerConfirmed
+                  ? `รีเซ็ตยอดของคุณ ${customer.name} เป็น 0 และเก็บเข้าประวัติเรียบร้อยแล้ว`
+                  : `รอคุณ ${customer.name} ตรวจสอบและกดยืนยัน ระบบจึงจะเคลียร์ยอดในตารางเป็น 0`,
                 confirmButtonColor: '#7c3aed'
               });
             }
@@ -3252,7 +3553,13 @@
                 return;
               }
               Object.assign(cust, res.customer);
-              showToast('ยืนยันและเก็บบิลเข้าประวัติเรียบร้อยแล้ว');
+              if (res.partial) {
+                showToast(`รับชำระ ${formatNumber(res.paidAmount)} บาท เหลือยอดค้าง ${formatNumber(res.remainingAmount)} บาท`);
+              } else {
+                showToast(res.completed
+                  ? 'ยืนยันครบทั้งสองฝ่าย ชำระยอดครบและเก็บบิลเข้าประวัติเรียบร้อยแล้ว'
+                  : (res.message || 'บันทึกการยืนยันแล้ว รอแอดมินตรวจสอบข้อมูล'));
+              }
             })
             .withFailureHandler(err => {
               isConfirmingInvoice.value = false;
@@ -3264,19 +3571,38 @@
         const handleStatusChange = (customer) => {
           if (!isAdmin.value) return;
           if (customer.status === 'ชำระแล้ว') {
-            customer.invoiceSent = false;
-            if (!customer.invoiceHistory) customer.invoiceHistory = [];
-            customer.invoiceHistory.unshift({
-              id: Date.now(),
-              total: calculateTotal(customer.values),
-              date: customer.invoiceDate || currentDate.value,
-              paidAt: new Date().toLocaleString('th-TH'),
-              attachedInvoiceImg: customer.attachedInvoiceImg || ''
-            });
-            showToast(`ปรับสถานะเป็น "ชำระแล้ว" และเคลียร์ใบแจ้งหนี้ออกจากหน้าลูกค้าเรียบร้อยแล้ว`);
+            customer.adminConfirmed = true;
+            if (customer.customerConfirmed) {
+              const confirmedTotal = calculateTotal(customer.values);
+              if (!customer.invoiceHistory) customer.invoiceHistory = [];
+              customer.invoiceHistory.unshift({
+                id: Date.now(),
+                total: confirmedTotal,
+                date: customer.invoiceDate || currentDate.value,
+                paidAt: new Date().toLocaleString('th-TH'),
+                attachedInvoiceImg: customer.attachedInvoiceImg || ''
+              });
+              columns.value.forEach(col => {
+                customer.values[col.id] = 0;
+              });
+              customer.invoiceSent = false;
+              customer.attachedInvoiceImg = '';
+              showToast('ยืนยันครบทั้งสองฝ่าย รีเซ็ตยอดเป็น 0 เรียบร้อยแล้ว');
+            } else {
+              customer.status = 'รอชำระ';
+              customer.invoiceSent = true;
+              showToast('แอดมินยืนยันข้อมูลแล้ว สถานะยังเป็น "รอชำระ" จนกว่าลูกค้าจะกดยืนยัน');
+            }
           } else {
-            customer.invoiceSent = true;
-            showToast(`ปรับสถานะเป็น "รอชำระ" (แสดงยอดค้างชำระที่หน้ารายการลูกค้า)`);
+            customer.adminConfirmed = false;
+            if (customer.status === 'ยังไม่ดำเนินการ') {
+              customer.customerConfirmed = false;
+              customer.invoiceSent = false;
+              showToast('ปรับสถานะเป็น "ยังไม่ดำเนินการ"');
+            } else {
+              customer.invoiceSent = true;
+              showToast(`ปรับสถานะเป็น "รอชำระ" (แสดงยอดค้างชำระที่หน้ารายการลูกค้า)`);
+            }
           }
           saveAllData(true);
           syncDataRealtime();
@@ -3290,9 +3616,11 @@
 
         const approveAllPendingNotis = () => {
           if (!isAdmin.value || pendingNotiList.value.length === 0) return;
-          const count = pendingNotiList.value.length;
+          const actionableItems = pendingNotiList.value.filter(item => !item.paymentApplied);
+          if (actionableItems.length === 0) return;
+          const count = actionableItems.length;
           
-          pendingNotiList.value.forEach(item => {
+          actionableItems.forEach(item => {
             approveNoti(item);
           });
 
@@ -3612,7 +3940,30 @@
 
         const getStatusBadgeClass = (status) => {
           if (status === 'ชำระแล้ว') return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+          if (status === 'ยังไม่ดำเนินการ') return 'bg-slate-100 text-slate-600 border-slate-300';
+          if (status === 'รอลูกค้ายืนยัน') return 'bg-blue-100 text-blue-800 border-blue-300';
+          if (status === 'รอแอดมินตรวจสอบ') return 'bg-purple-100 text-purple-800 border-purple-300';
           return 'bg-amber-100 text-amber-800 border-amber-300';
+        };
+
+        const getCustomerDisplayStatus = (customer) => {
+          if (!customer) return 'ยังไม่ดำเนินการ';
+          const hasValue = columns.value.some(col => {
+            const numericValue = Number((customer.values || {})[col.id]);
+            return Number.isFinite(numericValue) && numericValue !== 0;
+          });
+          if (!hasValue) return 'ยังไม่ดำเนินการ';
+          if (customer.adminConfirmed && !customer.customerConfirmed) return 'รอลูกค้ายืนยัน';
+          if (customer.customerConfirmed && !customer.adminConfirmed) return 'รอแอดมินตรวจสอบ';
+          return 'รอชำระ';
+        };
+
+        const getCustomerStatusLabel = (customer) => {
+          const status = getCustomerDisplayStatus(customer);
+          if (status === 'รอลูกค้ายืนยัน') return '🔵 รอลูกค้ายืนยัน';
+          if (status === 'รอแอดมินตรวจสอบ') return '🟣 รอแอดมินตรวจสอบ';
+          if (status === 'รอชำระ') return '🟡 รอชำระ';
+          return '⚪ ยังไม่ดำเนินการ';
         };
 
         const getColValue = (colId) => {
@@ -4060,7 +4411,6 @@
         // --- ADMIN NOTIFICATION ACTIONS ---
         const approveNoti = (notiItem) => {
           if (!isAdmin.value) return;
-          notiItem.status = 'approved';
 
           const targetName = (notiItem.customerName || '').trim().toLowerCase();
           const cust = customers.value.find(c => {
@@ -4069,6 +4419,45 @@
             return cName === targetName || cName.includes(targetName) || targetName.includes(cName);
           });
 
+          if (notiItem.type === 'slip') {
+            if (!cust) {
+              showToast(`ไม่พบข้อมูลลูกค้า ${notiItem.customerName}`, true);
+              return;
+            }
+            if (notiItem.paymentApplied) {
+              showToast('รายการชำระนี้ถูกหักยอดไปแล้ว', true);
+              return;
+            }
+            notiItem.processing = true;
+            google.script.run
+              .withSuccessHandler((res) => {
+                notiItem.processing = false;
+                if (!res?.success) {
+                  showToast(res?.message || 'อนุมัติยอดชำระไม่สำเร็จ', true);
+                  return;
+                }
+                Object.assign(cust, res.customer);
+                if (Array.isArray(res.notifications)) {
+                  notifications.value = res.notifications;
+                } else if (res.notification) {
+                  Object.assign(notiItem, res.notification);
+                }
+                showToast(res.partial
+                  ? `ยืนยันรับชำระ ${formatNumber(res.paidAmount)} บาท เหลือค้าง ${formatNumber(res.remainingAmount)} บาท`
+                  : `ยืนยันยอดชำระครบของคุณ ${notiItem.customerName} และปิดบิลแล้ว`);
+              })
+              .withFailureHandler((err) => {
+                notiItem.processing = false;
+                showToast(err?.message || 'อนุมัติยอดชำระไม่สำเร็จ', true);
+              })
+              .approveCustomerPayment(cust.id, notiItem.amount, {
+                date: currentDate.value,
+                paidAt: new Date().toLocaleString('th-TH')
+              }, notiItem.id);
+            return;
+          }
+
+          notiItem.status = 'approved';
           if (cust) {
             if (notiItem.targetCol && cust.values) {
               const matchingCol = columns.value.find(col => col.label.trim().toLowerCase() === notiItem.targetCol.trim().toLowerCase());
@@ -4082,21 +4471,46 @@
               }
             }
 
-            cust.status = 'ชำระแล้ว';
-            cust.invoiceSent = false;
-            if (!cust.invoiceHistory) cust.invoiceHistory = [];
-            cust.invoiceHistory.unshift({
-              id: Date.now(),
-              total: calculateTotal(cust.values),
-              date: cust.invoiceDate || currentDate.value,
-              paidAt: new Date().toLocaleString('th-TH'),
-              attachedInvoiceImg: cust.attachedInvoiceImg || ''
-            });
+            cust.adminConfirmed = true;
+            cust.status = 'รอชำระ';
+            cust.invoiceSent = true;
+            if (cust.customerConfirmed) {
+              const confirmedTotal = calculateTotal(cust.values);
+              if (!cust.invoiceHistory) cust.invoiceHistory = [];
+              cust.invoiceHistory.unshift({
+                id: Date.now(),
+                total: confirmedTotal,
+                date: cust.invoiceDate || currentDate.value,
+                paidAt: new Date().toLocaleString('th-TH'),
+                attachedInvoiceImg: cust.attachedInvoiceImg || ''
+              });
+              columns.value.forEach(col => {
+                cust.values[col.id] = 0;
+              });
+              cust.status = 'ชำระแล้ว';
+              cust.invoiceSent = false;
+              cust.attachedInvoiceImg = '';
+              cust.selectedRefundBank = null;
+            }
           }
 
           saveAllData(true);
           syncDataRealtime();
-          showToast(`⚡ อนุมัติและยืนยันรายการของคุณ ${notiItem.customerName} เรียบร้อยแล้ว`);
+          showToast(cust && cust.customerConfirmed
+            ? `ยืนยันครบทั้งสองฝ่ายและรีเซ็ตยอดของคุณ ${notiItem.customerName} แล้ว`
+            : `แอดมินตรวจสอบรายการของคุณ ${notiItem.customerName} แล้ว รอลูกค้ากดยืนยันยอด`);
+        };
+
+        const toggleKeepPartialNotification = (notiItem) => {
+          if (!isAdmin.value || !notiItem) return;
+          notiItem.keepUntilPaid = !notiItem.keepUntilPaid;
+          if (notiItem.paymentApplied) {
+            notiItem.status = notiItem.keepUntilPaid ? 'pending_followup' : 'approved';
+          }
+          saveAllData(true);
+          showToast(notiItem.keepUntilPaid
+            ? `เก็บรายการของคุณ ${notiItem.customerName} ไว้จนกว่าจะชำระครบ`
+            : `ย้ายรายการของคุณ ${notiItem.customerName} ไปยังประวัติแล้ว`);
         };
 
         const rejectNoti = (notiItem) => {
@@ -4167,7 +4581,7 @@
                 transactions.value = Array.isArray(data.transactions) ? data.transactions : [];
                 chatMessages.value = Array.isArray(data.chatMessages) ? data.chatMessages : [];
                 if (Array.isArray(data.users) && data.users.length > 0) users.value = data.users;
-                selectedBankIds.value = banks.value.map(b => b.id);
+                selectedBankIds.value = banks.value.length > 0 ? [banks.value[0].id] : [];
                 if (availableCategories.value.length > 0 && !newTrans.value.colLabel) {
                   newTrans.value.colLabel = availableCategories.value[0].label;
                 }
@@ -4193,7 +4607,7 @@
               transactions.value = data.transactions || [];
               chatMessages.value = data.chatMessages || [];
               if (data.users && data.users.length > 0) users.value = data.users;
-              if (banks.value.length > 0) selectedBankIds.value = banks.value.map(b => b.id);
+              selectedBankIds.value = banks.value.length > 0 ? [banks.value[0].id] : [];
               if (availableCategories.value.length > 0 && !newTrans.value.colLabel) {
                 newTrans.value.colLabel = availableCategories.value[0].label;
               }
@@ -4378,6 +4792,118 @@
           });
         };
 
+        const clearEntireTable = () => {
+          if (!isAdmin.value) return;
+          Swal.fire({
+            title: 'ยืนยันล้างตารางทั้งหมด?',
+            text: 'ค่าตัวเลขของลูกค้าทุกคนในทุกหัวข้อจะถูกรีเซ็ตเป็น 0 โดยยังคงรายชื่อลูกค้าและหัวข้อไว้',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ใช่, ล้างค่าทั้งหมด',
+            cancelButtonText: 'ยกเลิก'
+          }).then((result) => {
+            if (!result.isConfirmed) return;
+            customerTableMutationInProgress = true;
+            const previousCustomers = customers.value.map(customer => ({
+              ...customer,
+              values: { ...(customer.values || {}) }
+            }));
+            customers.value.forEach(customer => {
+              customer.values = customer.values || {};
+              columns.value.forEach(column => {
+                customer.values[column.id] = 0;
+              });
+              customer.status = 'ยังไม่ดำเนินการ';
+              customer.invoiceSent = false;
+              customer.adminConfirmed = false;
+              customer.customerConfirmed = false;
+              customer.attachedInvoiceImg = '';
+              customer.selectedRefundBank = null;
+            });
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+              google.script.run
+                .withSuccessHandler((res) => {
+                  if (!res?.success) {
+                    customers.value = previousCustomers;
+                    customerTableMutationInProgress = false;
+                    showToast(res?.message || 'ล้างตารางไม่สำเร็จ', true);
+                    return;
+                  }
+                  if (Array.isArray(res.customers)) customers.value = res.customers;
+                  customerTableMutationInProgress = false;
+                  showToast('ล้างค่าตัวเลขทั้งหมดในตารางเรียบร้อยแล้ว');
+                })
+                .withFailureHandler((err) => {
+                  customers.value = previousCustomers;
+                  customerTableMutationInProgress = false;
+                  showToast(err?.message || 'ล้างตารางไม่สำเร็จ', true);
+                })
+                .clearAllCustomerValues();
+            } else {
+              saveAllData(true);
+              customerTableMutationInProgress = false;
+              showToast('ล้างค่าตัวเลขทั้งหมดในตารางเรียบร้อยแล้ว');
+            }
+          });
+        };
+
+        const clearCustomerValues = (customer) => {
+          if (!isAdmin.value || !customer) return;
+          Swal.fire({
+            title: `ล้างค่าของคุณ ${customer.name}?`,
+            text: 'ค่าตัวเลขทุกหัวข้อของลูกค้ารายนี้จะถูกรีเซ็ตเป็น 0 และสถานะจะกลับเป็น “ยังไม่ดำเนินการ”',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d97706',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ใช่, ล้างค่ารายนี้',
+            cancelButtonText: 'ยกเลิก'
+          }).then((result) => {
+            if (!result.isConfirmed) return;
+            customerTableMutationInProgress = true;
+            const previousCustomer = {
+              ...customer,
+              values: { ...(customer.values || {}) }
+            };
+            customer.values = customer.values || {};
+            columns.value.forEach(column => {
+              customer.values[column.id] = 0;
+            });
+            customer.status = 'ยังไม่ดำเนินการ';
+            customer.invoiceSent = false;
+            customer.adminConfirmed = false;
+            customer.customerConfirmed = false;
+            customer.attachedInvoiceImg = '';
+            customer.selectedRefundBank = null;
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+              google.script.run
+                .withSuccessHandler((res) => {
+                  if (!res?.success) {
+                    Object.assign(customer, previousCustomer);
+                    customerTableMutationInProgress = false;
+                    showToast(res?.message || 'ล้างข้อมูลไม่สำเร็จ', true);
+                    return;
+                  }
+                  if (res.customer) Object.assign(customer, res.customer);
+                  customerTableMutationInProgress = false;
+                  showToast(`ล้างค่าของคุณ ${customer.name} เรียบร้อยแล้ว`);
+                })
+                .withFailureHandler((err) => {
+                  Object.assign(customer, previousCustomer);
+                  customerTableMutationInProgress = false;
+                  showToast(err?.message || 'ล้างข้อมูลไม่สำเร็จ', true);
+                })
+                .clearCustomerValues(customer.id);
+            } else {
+              saveAllData(true);
+              customerTableMutationInProgress = false;
+              showToast(`ล้างค่าของคุณ ${customer.name} เรียบร้อยแล้ว`);
+            }
+          });
+        };
+
         const addCustomer = () => {
           if (!isAdmin.value) return;
           if (!newCustomerName.value || !newCustomerName.value.trim()) {
@@ -4520,6 +5046,15 @@
           } else {
             selectedTargetCustBankId.value = null;
           }
+          const previouslySelectedBank = Array.isArray(customer.selectedPaymentBanks)
+            ? customer.selectedPaymentBanks[0]
+            : null;
+          const matchingSystemBank = previouslySelectedBank
+            ? banks.value.find(bank => String(bank.id) === String(previouslySelectedBank.id))
+            : null;
+          selectedBankIds.value = matchingSystemBank
+            ? [matchingSystemBank.id]
+            : (banks.value.length > 0 ? [banks.value[0].id] : []);
         };
 
         const copySummaryText = () => {
@@ -4677,13 +5212,18 @@
           myCustomerStatus,
           myCustomerTotal,
           myCustomerBanks,
+          myInvoiceBanks,
           myCustomerHistoryList,
           myNotifications,
+          getNotificationInvoiceTotal,
+          getNotificationRemaining,
+          isPartialPaymentNotification,
           pendingNotiCount,
 
           notiTab,
           notiSearchQuery,
           pendingNotiList,
+          outstandingNotiList,
           processedNotiList,
           filteredProcessedNotis,
 
@@ -4782,6 +5322,8 @@
           allCustomersGrandTotal,
           getValueColorClass,
           getStatusBadgeClass,
+          getCustomerDisplayStatus,
+          getCustomerStatusLabel,
           getColValue,
           formatNumber,
           formatThaiDate,
@@ -4804,12 +5346,15 @@
           deleteAnnouncement,
 
           approveNoti,
+          toggleKeepPartialNotification,
           rejectNoti,
           deleteNoti,
           clearAllNotis,
 
           addColumn,
           addColumnAt,
+          clearEntireTable,
+          clearCustomerValues,
           deleteColumn,
           addCustomer,
           deleteCustomer,
