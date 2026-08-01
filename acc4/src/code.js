@@ -3,15 +3,17 @@ const SHEETS = {
   BUSINESSES: 'Businesses',
   CATEGORIES: 'Categories',
   PAYMENT_METHODS: 'PaymentMethods',
-  USERS: 'Users'
+  USERS: 'Users',
+  BRANCHES: 'Branches'
 };
 
 const HEADERS = {
-  Transactions: ['transaction_id', 'transaction_date', 'business_id', 'transaction_type', 'category', 'description', 'amount', 'payment_method', 'note', 'created_at', 'updated_at', 'status'],
-  Businesses: ['business_id', 'business_name', 'short_name', 'status'],
-  Categories: ['category_id', 'business_id', 'transaction_type', 'category_name', 'status', 'sort_order'],
+  Transactions: ['transaction_id', 'transaction_date', 'business_id', 'transaction_type', 'category', 'description', 'amount', 'payment_method', 'note', 'created_at', 'updated_at', 'status', 'branch_id'],
+  Businesses: ['business_id', 'business_name', 'short_name', 'status', 'branch_id', 'business_type'],
+  Categories: ['category_id', 'business_id', 'transaction_type', 'category_name', 'status', 'sort_order', 'branch_id'],
   PaymentMethods: ['payment_id', 'payment_name', 'status'],
-  Users: ['user_id', 'username', 'password_hash', 'salt', 'display_name', 'role', 'status', 'created_at', 'last_login', 'permissions']
+  Users: ['user_id', 'username', 'password_hash', 'salt', 'display_name', 'role', 'status', 'created_at', 'last_login', 'permissions', 'branch_ids', 'allow_export'],
+  Branches: ['branch_id', 'branch_name', 'short_name', 'location', 'status', 'sort_order']
 };
 
 let SPREADSHEET_CACHE_ = null;
@@ -32,6 +34,8 @@ function getInitialData(sessionToken) {
 }
 
 function buildInitialData_(session) {
+  session.branch_ids = session.branch_ids || (session.role === 'owner' ? 'ALL' : 'BR001');
+  if (session.allow_export === undefined) session.allow_export = !['viewer', 'investor'].includes(session.role);
   const cache = CacheService.getScriptCache();
   const cached = cache.get('INITIAL_DATA_V1');
   let sharedData = null;
@@ -52,13 +56,37 @@ function buildInitialData_(session) {
     const serialized = JSON.stringify(sharedData);
     if (Utilities.newBlob(serialized).getBytes().length < 95000) cache.put('INITIAL_DATA_V1', serialized, 120);
   }
+  const branches = readObjects_(SHEETS.BRANCHES).filter(row => row.status === 'Active');
+  const allowed = allowedBranchIds_(session, branches);
+  const canSee = branchId => allowed.includes(String(branchId || 'BR001'));
   return {
-    transactions: sharedData.transactions,
-    businesses: sharedData.businesses,
-    categories: sharedData.categories,
+    transactions: sharedData.transactions.filter(row => canSee(row.branch_id)),
+    businesses: sharedData.businesses.filter(row => canSee(row.branch_id)),
+    categories: sharedData.categories.filter(row => row.business_id === 'ALL' || canSee(row.branch_id)),
+    branches: branches.filter(row => allowed.includes(String(row.branch_id))),
     timeZone: sharedData.timeZone,
     currentUser: session
   };
+}
+
+function allowedBranchIds_(session, branches) {
+  const allIds = branches.map(row => String(row.branch_id));
+  if (session.role === 'owner' || session.branch_ids === 'ALL') return allIds;
+  const assigned = String(session.branch_ids || 'BR001').split(',').map(value => value.trim()).filter(Boolean);
+  return assigned.filter(id => allIds.includes(id));
+}
+
+function requireBranchAccess_(session, branchId) {
+  const id = String(branchId || 'BR001');
+  const branches = readObjects_(SHEETS.BRANCHES).filter(row => row.status === 'Active');
+  if (!allowedBranchIds_(session, branches).includes(id)) throw new Error('คุณไม่มีสิทธิ์เข้าถึงสาขานี้');
+  return id;
+}
+
+function branchForBusiness_(businessId) {
+  const business = readObjects_(SHEETS.BUSINESSES).find(row => row.business_id === businessId && row.status === 'Active');
+  if (!business) throw new Error('ไม่พบธุรกิจที่เลือก');
+  return String(business.branch_id || 'BR001');
 }
 
 function invalidateDataCache_() {
@@ -66,9 +94,10 @@ function invalidateDataCache_() {
 }
 
 function saveTransaction(payload, sessionToken) {
-  requirePermission_(sessionToken, 'write_transactions');
+  const session = requirePermission_(sessionToken, 'write_transactions');
   setupSheets_();
   validateTransaction_(payload);
+  payload.branch_id = requireBranchAccess_(session, branchForBusiness_(payload.business_id));
   const lock = LockService.getDocumentLock();
   lock.waitLock(10000);
   try {
@@ -80,6 +109,7 @@ function saveTransaction(payload, sessionToken) {
       const rowIndex = findRowById_(sheet, id);
       if (rowIndex < 2) throw new Error('ไม่พบรายการที่ต้องการแก้ไข');
       const current = sheet.getRange(rowIndex, 1, 1, HEADERS.Transactions.length).getValues()[0];
+      requireBranchAccess_(session, current[12] || 'BR001');
       sheet.getRange(rowIndex, 1, 1, HEADERS.Transactions.length).setValues([[
         id,
         parseDate_(payload.transaction_date),
@@ -92,7 +122,8 @@ function saveTransaction(payload, sessionToken) {
         String(payload.note || '').trim(),
         current[9] || now,
         now,
-        'Active'
+        'Active',
+        payload.branch_id
       ]]);
       invalidateDataCache_();
       return { ok: true, id: id, transaction: transactionResponse_(payload, id), message: 'บันทึกการแก้ไขเรียบร้อยแล้ว' };
@@ -111,7 +142,8 @@ function saveTransaction(payload, sessionToken) {
       String(payload.note || '').trim(),
       now,
       now,
-      'Active'
+      'Active',
+      payload.branch_id
     ]);
     invalidateDataCache_();
     return { ok: true, id: newId, transaction: transactionResponse_(payload, newId), message: 'เพิ่มรายการเรียบร้อยแล้ว' };
@@ -121,10 +153,11 @@ function saveTransaction(payload, sessionToken) {
 }
 
 function saveTransactions(payloads, sessionToken) {
-  requirePermission_(sessionToken, 'write_transactions');
+  const session = requirePermission_(sessionToken, 'write_transactions');
   if (!Array.isArray(payloads) || payloads.length === 0) throw new Error('กรุณาเพิ่มอย่างน้อย 1 รายการ');
   if (payloads.length > 100) throw new Error('บันทึกได้สูงสุดครั้งละ 100 รายการ');
   payloads.forEach(validateTransaction_);
+  payloads.forEach(payload => payload.branch_id = requireBranchAccess_(session, branchForBusiness_(payload.business_id)));
   setupSheets_();
   const lock = LockService.getDocumentLock();
   lock.waitLock(15000);
@@ -143,7 +176,8 @@ function saveTransactions(payloads, sessionToken) {
       String(payload.note || '').trim(),
       new Date(now.getTime() + index),
       new Date(now.getTime() + index),
-      'Active'
+      'Active',
+      payload.branch_id
     ]);
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, HEADERS.Transactions.length).setValues(rows);
     const transactions = payloads.map((payload, index) => transactionResponse_(payload, rows[index][0]));
@@ -166,13 +200,15 @@ function transactionResponse_(payload, id) {
     payment_method: '',
     note: String(payload.note || '').trim(),
     status: 'Active'
+    ,branch_id: String(payload.branch_id || 'BR001')
   };
 }
 
 function saveCategory(payload, sessionToken) {
-  requirePermission_(sessionToken, 'manage_categories');
+  const session = requirePermission_(sessionToken, 'manage_categories');
   setupSheets_();
-  if (!payload || !['B001', 'B002', 'ALL'].includes(payload.business_id)) throw new Error('กรุณาเลือกธุรกิจ');
+  if (!payload || !payload.business_id) throw new Error('กรุณาเลือกธุรกิจ');
+  const branchId = payload.business_id === 'ALL' ? requireBranchAccess_(session, payload.branch_id || allowedBranchIds_(session, readObjects_(SHEETS.BRANCHES))[0]) : requireBranchAccess_(session, branchForBusiness_(payload.business_id));
   if (!['income', 'expense'].includes(payload.transaction_type)) throw new Error('กรุณาเลือกประเภทหมวดหมู่');
   const name = String(payload.category_name || '').trim();
   if (!name) throw new Error('กรุณากรอกชื่อหมวดหมู่');
@@ -194,14 +230,14 @@ function saveCategory(payload, sessionToken) {
       const rowIndex = findRowById_(sheet, payload.category_id);
       if (rowIndex < 2) throw new Error('ไม่พบหมวดหมู่ที่ต้องการแก้ไข');
       const currentOrder = sheet.getRange(rowIndex, 6).getValue();
-      sheet.getRange(rowIndex, 2, 1, 5).setValues([[
-        payload.business_id, payload.transaction_type, name, 'Active', currentOrder || nextCategoryOrder_(payload.business_id, payload.transaction_type)
+      sheet.getRange(rowIndex, 2, 1, 6).setValues([[
+        payload.business_id, payload.transaction_type, name, 'Active', currentOrder || nextCategoryOrder_(payload.business_id, payload.transaction_type), branchId
       ]]);
       invalidateDataCache_();
       return { ok: true, message: 'แก้ไขหมวดหมู่เรียบร้อยแล้ว' };
     }
     const newId = 'C-' + Utilities.getUuid().slice(0, 8).toUpperCase();
-    sheet.appendRow([newId, payload.business_id, payload.transaction_type, name, 'Active', nextCategoryOrder_(payload.business_id, payload.transaction_type)]);
+    sheet.appendRow([newId, payload.business_id, payload.transaction_type, name, 'Active', nextCategoryOrder_(payload.business_id, payload.transaction_type), branchId]);
     invalidateDataCache_();
     return { ok: true, id: newId, message: 'เพิ่มหมวดหมู่เรียบร้อยแล้ว' };
   } finally {
@@ -210,7 +246,7 @@ function saveCategory(payload, sessionToken) {
 }
 
 function reorderCategories(payload, sessionToken) {
-  requirePermission_(sessionToken, 'manage_categories');
+  const session = requirePermission_(sessionToken, 'manage_categories');
   if (!payload || !Array.isArray(payload.category_ids) || !payload.category_ids.length) throw new Error('ไม่พบลำดับหมวดหมู่');
   setupSheets_();
   const lock = LockService.getDocumentLock();
@@ -222,6 +258,12 @@ function reorderCategories(payload, sessionToken) {
     const ids = sheet.getRange(2, 1, rowCount, 1).getDisplayValues();
     const orders = sheet.getRange(2, 6, rowCount, 1).getValues();
     const orderMap = new Map(payload.category_ids.map((id, index) => [String(id), index + 1]));
+    const allowed = new Set(allowedBranchIds_(session, readObjects_(SHEETS.BRANCHES).filter(row => row.status === 'Active')));
+    const categories = readObjects_(SHEETS.CATEGORIES);
+    payload.category_ids.forEach(id => {
+      const category = categories.find(row => row.category_id === id);
+      if (!category || !allowed.has(String(category.branch_id || 'BR001'))) throw new Error('คุณไม่มีสิทธิ์จัดการหมวดหมู่ของสาขานี้');
+    });
     ids.forEach((row, index) => {
       if (orderMap.has(row[0])) orders[index][0] = orderMap.get(row[0]);
     });
@@ -241,7 +283,7 @@ function nextCategoryOrder_(businessId, transactionType) {
 }
 
 function deleteCategory(categoryId, sessionToken) {
-  requirePermission_(sessionToken, 'manage_categories');
+  const session = requirePermission_(sessionToken, 'manage_categories');
   if (!categoryId) throw new Error('ไม่พบรหัสหมวดหมู่');
   setupSheets_();
   const lock = LockService.getDocumentLock();
@@ -250,6 +292,7 @@ function deleteCategory(categoryId, sessionToken) {
     const sheet = getSpreadsheet_().getSheetByName(SHEETS.CATEGORIES);
     const rowIndex = findRowById_(sheet, categoryId);
     if (rowIndex < 2) throw new Error('ไม่พบหมวดหมู่ที่ต้องการลบ');
+    requireBranchAccess_(session, sheet.getRange(rowIndex, 7).getDisplayValue() || 'BR001');
     sheet.getRange(rowIndex, 5).setValue('Deleted');
     invalidateDataCache_();
     return { ok: true, message: 'ลบหมวดหมู่เรียบร้อยแล้ว' };
@@ -259,7 +302,7 @@ function deleteCategory(categoryId, sessionToken) {
 }
 
 function deleteTransaction(transactionId, sessionToken) {
-  requirePermission_(sessionToken, 'delete_transactions');
+  const session = requirePermission_(sessionToken, 'delete_transactions');
   if (!transactionId) throw new Error('ไม่พบรหัสรายการ');
   const lock = LockService.getDocumentLock();
   lock.waitLock(10000);
@@ -267,6 +310,7 @@ function deleteTransaction(transactionId, sessionToken) {
     const sheet = getSpreadsheet_().getSheetByName(SHEETS.TRANSACTIONS);
     const rowIndex = findRowById_(sheet, transactionId);
     if (rowIndex < 2) throw new Error('ไม่พบรายการที่ต้องการลบ');
+    requireBranchAccess_(session, sheet.getRange(rowIndex, 13).getDisplayValue() || 'BR001');
     sheet.getRange(rowIndex, 11).setValue(new Date());
     sheet.getRange(rowIndex, 12).setValue('Deleted');
     invalidateDataCache_();
@@ -277,7 +321,7 @@ function deleteTransaction(transactionId, sessionToken) {
 }
 
 function deleteTransactions(transactionIds, sessionToken) {
-  requirePermission_(sessionToken, 'delete_transactions');
+  const session = requirePermission_(sessionToken, 'delete_transactions');
   if (!Array.isArray(transactionIds) || transactionIds.length === 0) throw new Error('กรุณาเลือกรายการที่ต้องการลบ');
   if (transactionIds.length > 500) throw new Error('ลบได้สูงสุดครั้งละ 500 รายการ');
   setupSheets_();
@@ -289,12 +333,15 @@ function deleteTransactions(transactionIds, sessionToken) {
     if (sheet.getLastRow() < 2) throw new Error('ไม่พบรายการบัญชี');
     const rowCount = sheet.getLastRow() - 1;
     const ids = sheet.getRange(2, 1, rowCount, 1).getDisplayValues();
+    const branchIds = sheet.getRange(2, 13, rowCount, 1).getDisplayValues();
+    const allowed = new Set(allowedBranchIds_(session, readObjects_(SHEETS.BRANCHES).filter(row => row.status === 'Active')));
     const updatedAt = sheet.getRange(2, 11, rowCount, 1).getValues();
     const statuses = sheet.getRange(2, 12, rowCount, 1).getValues();
     const targets = new Set(uniqueIds);
     let deletedCount = 0;
     ids.forEach((row, index) => {
       if (targets.has(row[0]) && statuses[index][0] !== 'Deleted') {
+        if (!allowed.has(String(branchIds[index][0] || 'BR001'))) throw new Error('คุณไม่มีสิทธิ์ลบรายการของสาขานี้');
         updatedAt[index][0] = new Date();
         statuses[index][0] = 'Deleted';
         deletedCount++;
@@ -332,7 +379,9 @@ function login(username, password) {
     username: user.username,
     display_name: user.display_name,
     role: user.role,
-    permissions: permissionsForUser_(user)
+    permissions: permissionsForUser_(user),
+    branch_ids: String(user.branch_ids || (user.role === 'owner' ? 'ALL' : 'BR001')),
+    allow_export: user.role === 'owner' || String(user.allow_export).toLowerCase() === 'true' || (user.allow_export === '' && !['viewer', 'investor'].includes(user.role))
   };
   cache.put('SESSION_' + token, JSON.stringify(session), 21600);
   const sheet = getSpreadsheet_().getSheetByName(SHEETS.USERS);
@@ -371,7 +420,8 @@ function permissionsForUser_(user) {
   const defaults = {
     manager: ['read', 'write_transactions', 'delete_transactions', 'manage_categories'],
     staff: ['read', 'write_transactions'],
-    viewer: ['read']
+    viewer: ['read'],
+    investor: ['read']
   };
   return defaults[user.role] || ['read'];
 }
@@ -387,7 +437,9 @@ function listUsers(sessionToken) {
     status: user.status,
     created_at: user.created_at,
     last_login: user.last_login,
-    permissions: permissionsForUser_(user)
+    permissions: permissionsForUser_(user),
+    branch_ids: String(user.branch_ids || (user.role === 'owner' ? 'ALL' : 'BR001')).split(',').filter(Boolean),
+    allow_export: user.role === 'owner' || String(user.allow_export).toLowerCase() === 'true' || (user.allow_export === '' && !['viewer', 'investor'].includes(user.role))
   }));
 }
 
@@ -400,11 +452,15 @@ function saveUser(payload, sessionToken) {
   const role = String(payload.role || '');
   if (!/^[a-z0-9._-]{3,30}$/.test(username)) throw new Error('ชื่อผู้ใช้ต้องเป็นภาษาอังกฤษหรือตัวเลข 3–30 ตัว');
   if (!displayName) throw new Error('กรุณากรอกชื่อแสดงผล');
-  if (!['owner', 'manager', 'staff', 'viewer'].includes(role)) throw new Error('สิทธิ์สมาชิกไม่ถูกต้อง');
+  if (!['owner', 'manager', 'staff', 'viewer', 'investor'].includes(role)) throw new Error('สิทธิ์สมาชิกไม่ถูกต้อง');
   const allowedPermissions = ['read', 'write_transactions', 'delete_transactions', 'manage_categories', 'manage_users'];
   const permissions = role === 'owner' ? ['all'] : [...new Set((payload.permissions || []).filter(value => allowedPermissions.includes(value)))];
   if (session.role !== 'owner' && (role === 'owner' || permissions.includes('manage_users'))) throw new Error('เฉพาะเจ้าของเท่านั้นที่มอบสิทธิ์จัดการสมาชิกได้');
   if (!permissions.includes('read') && role !== 'owner') permissions.unshift('read');
+  const activeBranchIds = readObjects_(SHEETS.BRANCHES).filter(row => row.status === 'Active').map(row => String(row.branch_id));
+  const requestedBranches = role === 'owner' ? ['ALL'] : [...new Set((payload.branch_ids || []).map(String).filter(id => activeBranchIds.includes(id)))];
+  if (role !== 'owner' && !requestedBranches.length) throw new Error('กรุณากำหนดสาขาที่สมาชิกสามารถดูได้อย่างน้อย 1 สาขา');
+  const allowExport = role === 'owner' || payload.allow_export === true;
   const users = readObjects_(SHEETS.USERS);
   const duplicate = users.some(user => String(user.username).toLowerCase() === username && user.user_id !== payload.user_id && user.status === 'Active');
   if (duplicate) throw new Error('ชื่อผู้ใช้นี้มีอยู่แล้ว');
@@ -422,7 +478,7 @@ function saveUser(payload, sessionToken) {
     const rowIndex = findRowById_(sheet, existing.user_id);
     sheet.getRange(rowIndex, 1, 1, HEADERS.Users.length).setValues([[
       existing.user_id, username, passwordHash, salt, displayName, role, 'Active',
-      existing.created_at || new Date(), existing.last_login || '', permissions.join(',')
+      existing.created_at || new Date(), existing.last_login || '', permissions.join(','), requestedBranches.join(','), allowExport
     ]]);
     return { ok: true, message: 'แก้ไขสมาชิกเรียบร้อยแล้ว' };
   }
@@ -430,7 +486,7 @@ function saveUser(payload, sessionToken) {
   if (password.length < 8) throw new Error('รหัสผ่านต้องมีอย่างน้อย 8 ตัว');
   const salt = Utilities.getUuid().replace(/-/g, '');
   const newId = 'U-' + Utilities.getUuid().slice(0, 8).toUpperCase();
-  sheet.appendRow([newId, username, hashPassword_(password, salt), salt, displayName, role, 'Active', new Date(), '', permissions.join(',')]);
+  sheet.appendRow([newId, username, hashPassword_(password, salt), salt, displayName, role, 'Active', new Date(), '', permissions.join(','), requestedBranches.join(','), allowExport]);
   return { ok: true, id: newId, message: 'เพิ่มสมาชิกเรียบร้อยแล้ว' };
 }
 
@@ -476,13 +532,15 @@ function seedDefaultAdmin_() {
     'Active',
     new Date(),
     '',
-    'all'
+    'all',
+    'ALL',
+    true
   ]);
 }
 
 function setupSheets_() {
   const properties = PropertiesService.getScriptProperties();
-  const schemaKey = 'ACCOUNTING_SCHEMA_READY_V5';
+  const schemaKey = 'ACCOUNTING_SCHEMA_READY_V6_MULTI_BRANCH';
   if (properties.getProperty(schemaKey) === 'true') return;
   const ss = getSpreadsheet_();
   Object.keys(HEADERS).forEach(name => {
@@ -502,8 +560,8 @@ function setupSheets_() {
   });
 
   seedIfEmpty_(SHEETS.BUSINESSES, [
-    ['B001', 'ร้านซักผ้า Toki Wash', 'Toki Wash', 'Active'],
-    ['B002', 'สถานีชาร์จรถยนต์ไฟฟ้า Elexa', 'Elexa', 'Active']
+    ['B001', 'ร้านซักผ้า Toki Wash', 'Toki Wash', 'Active', 'BR001', 'laundry'],
+    ['B002', 'สถานีชาร์จรถยนต์ไฟฟ้า Elexa', 'Elexa', 'Active', 'BR001', 'ev_charger']
   ]);
   seedIfEmpty_(SHEETS.CATEGORIES, [
     ['C001', 'B001', 'income', 'ค่าซักผ้า', 'Active'],
@@ -528,12 +586,70 @@ function setupSheets_() {
     ['P005', 'อื่น ๆ', 'Active']
   ]);
   seedDefaultAdmin_();
+  migrateMultiBranchData_(ss);
 
   const tx = ss.getSheetByName(SHEETS.TRANSACTIONS);
   tx.getRange(2, 2, Math.max(tx.getMaxRows() - 1, 1), 1).setNumberFormat('dd/mm/yyyy');
   tx.getRange(2, 7, Math.max(tx.getMaxRows() - 1, 1), 1).setNumberFormat('#,##0.00');
   fixIncorrectTransactionYearsOnce_(tx);
   properties.setProperty(schemaKey, 'true');
+}
+
+function migrateMultiBranchData_(ss) {
+  const branchSheet = ss.getSheetByName(SHEETS.BRANCHES);
+  const existingBranches = readObjects_(SHEETS.BRANCHES).map(row => row.branch_id);
+  const branches = [
+    ['BR001', 'Toki Wash x Elexa มหาสารคาม', 'Toki x Elexa', 'มหาสารคาม', 'Active', 1],
+    ['BR002', 'ตลาดต้นสน EV มหาสารคาม', 'ตลาดต้นสน EV', 'ตลาดต้นสน มหาสารคาม', 'Active', 2],
+    ['BR003', 'GoNext มหาสารคาม', 'GoNext', 'มหาสารคาม', 'Active', 3]
+  ].filter(row => !existingBranches.includes(row[0]));
+  if (branches.length) branchSheet.getRange(branchSheet.getLastRow() + 1, 1, branches.length, HEADERS.Branches.length).setValues(branches);
+
+  const businessSheet = ss.getSheetByName(SHEETS.BUSINESSES);
+  const businessRows = readObjects_(SHEETS.BUSINESSES);
+  const businessIds = businessRows.map(row => row.business_id);
+  const newBusinesses = [
+    ['B003', 'สถานีชาร์จ EV ตลาดต้นสน', 'EV Charger', 'Active', 'BR002', 'ev_charger'],
+    ['B004', 'GoNext Solar & Energy', 'Solar & Energy', 'Active', 'BR003', 'solar_energy'],
+    ['B005', 'GoNext Café', 'Café', 'Active', 'BR003', 'cafe'],
+    ['B006', 'GoNext EV Charger', 'EV Charger', 'Active', 'BR003', 'ev_charger']
+  ].filter(row => !businessIds.includes(row[0]));
+  if (newBusinesses.length) businessSheet.getRange(businessSheet.getLastRow() + 1, 1, newBusinesses.length, HEADERS.Businesses.length).setValues(newBusinesses);
+  if (businessSheet.getLastRow() >= 2) {
+    const range = businessSheet.getRange(2, 1, businessSheet.getLastRow() - 1, HEADERS.Businesses.length);
+    const values = range.getValues();
+    values.forEach(row => {
+      if (!row[4]) row[4] = ['B001', 'B002'].includes(String(row[0])) ? 'BR001' : row[4];
+      if (!row[5]) row[5] = row[0] === 'B001' ? 'laundry' : 'ev_charger';
+    });
+    range.setValues(values);
+  }
+  const businessBranch = {};
+  readObjects_(SHEETS.BUSINESSES).forEach(row => businessBranch[row.business_id] = row.branch_id || 'BR001');
+  const txSheet = ss.getSheetByName(SHEETS.TRANSACTIONS);
+  if (txSheet.getLastRow() >= 2) {
+    const range = txSheet.getRange(2, 1, txSheet.getLastRow() - 1, HEADERS.Transactions.length);
+    const values = range.getValues();
+    values.forEach(row => { if (!row[12]) row[12] = businessBranch[row[2]] || 'BR001'; });
+    range.setValues(values);
+  }
+  const categorySheet = ss.getSheetByName(SHEETS.CATEGORIES);
+  if (categorySheet.getLastRow() >= 2) {
+    const range = categorySheet.getRange(2, 1, categorySheet.getLastRow() - 1, HEADERS.Categories.length);
+    const values = range.getValues();
+    values.forEach(row => { if (!row[6]) row[6] = businessBranch[row[1]] || 'BR001'; });
+    range.setValues(values);
+  }
+  const userSheet = ss.getSheetByName(SHEETS.USERS);
+  if (userSheet.getLastRow() >= 2) {
+    const range = userSheet.getRange(2, 1, userSheet.getLastRow() - 1, HEADERS.Users.length);
+    const values = range.getValues();
+    values.forEach(row => {
+      if (!row[10]) row[10] = row[5] === 'owner' ? 'ALL' : 'BR001';
+      if (row[11] === '') row[11] = !['viewer', 'investor'].includes(row[5]);
+    });
+    range.setValues(values);
+  }
 }
 
 function fixIncorrectTransactionYearsOnce_(sheet) {
@@ -617,7 +733,7 @@ function parseDate_(value) {
 function validateTransaction_(payload) {
   if (!payload) throw new Error('ไม่พบข้อมูลรายการ');
   if (!payload.transaction_date) throw new Error('กรุณาเลือกวันที่');
-  if (!['B001', 'B002'].includes(payload.business_id)) throw new Error('กรุณาเลือกร้าน');
+  if (!String(payload.business_id || '').trim()) throw new Error('กรุณาเลือกธุรกิจ');
   if (!['income', 'expense'].includes(payload.transaction_type)) throw new Error('กรุณาเลือกประเภทรายการ');
   if (!String(payload.category || '').trim()) throw new Error('กรุณาเลือกหมวดหมู่');
   if (!Number.isFinite(Number(payload.amount)) || Number(payload.amount) <= 0) throw new Error('ยอดเงินต้องมากกว่า 0');
