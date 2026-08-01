@@ -411,6 +411,7 @@
               <div>
                 <div class="flex items-center gap-2">
                   <span v-if="item.type === 'topup'" class="bg-emerald-100 text-emerald-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💳 เติมเงิน ({{ item.targetCol }})</span>
+                  <span v-else-if="item.type === 'credit'" class="bg-sky-100 text-sky-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">🪙 ขอเครดิต ({{ item.targetCol }})</span>
                   <span v-else-if="item.type === 'withdraw'" class="bg-purple-100 text-purple-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💸 ถอนเงิน ({{ item.targetCol }})</span>
                   <span v-else-if="item.type === 'slip'" class="bg-emerald-600 text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold">💳 โอนชำระใบแจ้งหนี้</span>
                   <span v-else class="bg-blue-100 text-blue-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💬 แชทสอบถาม</span>
@@ -428,6 +429,9 @@
                   <span v-else-if="item.accNo">รับเงินคืนเข้า: {{ item.bankName }} - {{ item.accNo }} ({{ item.accName }})</span>
                 </div>
                 <div v-if="item.note" class="text-xs text-slate-500 italic mt-0.5">"{{ item.note }}"</div>
+                <div v-if="item.resultMessage" class="mt-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-extrabold text-sky-800">
+                  {{ item.resultMessage }}
+                </div>
               </div>
 
               <div class="flex items-center gap-2 self-end sm:self-center">
@@ -1782,11 +1786,38 @@
     <div v-if="showTopupModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
       <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-100">
         <div class="bg-emerald-600 text-white p-4 sm:p-5 flex justify-between items-center">
-          <h3 class="font-bold text-base sm:text-lg flex items-center gap-2">💳 แจ้งเติมเงินเข้าบัญชี</h3>
+          <h3 class="font-bold text-base sm:text-lg flex items-center gap-2">
+            {{ topupForm.mode === 'credit' ? '🪙 แจ้งขอเครดิต' : '💳 แจ้งเติมเงินเข้าบัญชี' }}
+          </h3>
           <button @click="showTopupModal = false" class="text-white/80 hover:text-white text-xl">✕</button>
         </div>
 
         <div class="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-2">รูปแบบการเติม</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                @click="topupForm.mode = 'transfer'"
+                :class="topupForm.mode === 'transfer' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'"
+                class="rounded-xl border px-3 py-3 text-xs font-extrabold transition"
+              >
+                💳 เติมเงินแบบโอน
+              </button>
+              <button
+                type="button"
+                @click="topupForm.mode = 'credit'; topupForm.targetBank = ''; topupForm.imagePreview = ''"
+                :class="topupForm.mode === 'credit' ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-slate-600 border-slate-300'"
+                class="rounded-xl border px-3 py-3 text-xs font-extrabold transition"
+              >
+                🪙 ขอเครดิต
+              </button>
+            </div>
+            <div v-if="topupForm.mode === 'credit'" class="mt-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs font-bold text-sky-800">
+              ขอเพิ่มเครดิตได้โดยไม่ต้องโอนเงินหรือแนบสลิป เมื่อแอดมินอนุมัติ เครดิตจะเพิ่มเข้าหัวข้อที่เลือก
+            </div>
+          </div>
+
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">เลือกหัวข้อที่ต้องการเติมเงิน</label>
             <select v-model="topupForm.targetCol" class="w-full px-3.5 py-2.5 border rounded-xl text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500">
@@ -1796,7 +1827,7 @@
             </select>
           </div>
 
-          <div>
+          <div v-if="topupForm.mode === 'transfer'">
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">โอนเข้าธนาคารของแอดมิน</label>
             <select v-model="topupForm.targetBank" class="w-full px-3.5 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-medium">
               <option value="">-- เลือกธนาคารที่โอนเข้า --</option>
@@ -1807,11 +1838,11 @@
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">จำนวนเงินเติม (บาท)</label>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">{{ topupForm.mode === 'credit' ? 'จำนวนเครดิตที่ขอ' : 'จำนวนเงินเติม (บาท)' }}</label>
             <input type="number" inputmode="decimal" step="any" v-model.number="topupForm.amount" placeholder="0" class="w-full px-3.5 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500">
           </div>
 
-          <div>
+          <div v-if="topupForm.mode === 'transfer'">
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">แนบหลักฐานสลิปการโอนเงิน</label>
             <input type="file" accept="image/*" @change="handleTopupFile" class="w-full text-xs text-slate-500 border rounded-xl p-1 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-emerald-50 file:text-emerald-700 font-bold">
             
@@ -1823,11 +1854,11 @@
 
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">หมายเหตุเพิ่มเติม</label>
-            <input type="text" v-model="topupForm.note" placeholder="เช่น โอนจากแอป KBANK เวลา 14:00" class="w-full px-3.5 py-2 border rounded-xl text-sm outline-none font-medium">
+            <input type="text" v-model="topupForm.note" :placeholder="topupForm.mode === 'credit' ? 'ระบุเหตุผลหรือรายละเอียดการขอเครดิต' : 'เช่น โอนจากแอป KBANK เวลา 14:00'" class="w-full px-3.5 py-2 border rounded-xl text-sm outline-none font-medium">
           </div>
 
           <button @click="submitTopup" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-sm transition shadow-lg shadow-emerald-600/20">
-            🚀 ยืนยันแจ้งเติมเงินให้แอดมิน
+            {{ topupForm.mode === 'credit' ? '🪙 ส่งคำขอเครดิตให้แอดมิน' : '🚀 ยืนยันแจ้งเติมเงินให้แอดมิน' }}
           </button>
         </div>
       </div>
@@ -1979,6 +2010,7 @@
                       <span class="font-bold text-slate-900 text-base">👤 {{ item.customerName }}</span>
                       
                       <span v-if="item.type === 'topup'" class="bg-emerald-100 text-emerald-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💳 แจ้งเติมเงิน ({{ item.targetCol }})</span>
+                      <span v-else-if="item.type === 'credit'" class="bg-sky-600 text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold">🪙 ขอเครดิต ({{ item.targetCol }})</span>
                       <span v-else-if="item.type === 'withdraw'" class="bg-purple-100 text-purple-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💸 แจ้งถอนเงิน ({{ item.targetCol }})</span>
                       <span v-else-if="item.type === 'slip'" class="bg-emerald-600 text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold">💳 โอนชำระใบแจ้งหนี้</span>
                       <span v-else class="bg-blue-100 text-blue-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💬 แชทสอบถาม</span>
@@ -2012,8 +2044,8 @@
                 </div>
 
                 <div class="space-y-2 text-xs text-slate-700">
-                  <div v-if="item.type === 'topup' || item.type === 'slip'" class="space-y-1.5">
-                    <div v-if="item.targetCol"><strong class="text-slate-900">เติมเข้าหมวด:</strong> <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">{{ item.targetCol }}</span></div>
+                  <div v-if="item.type === 'topup' || item.type === 'credit' || item.type === 'slip'" class="space-y-1.5">
+                    <div v-if="item.targetCol"><strong class="text-slate-900">{{ item.type === 'credit' ? 'เพิ่มเครดิตเข้าหมวด:' : 'เติมเข้าหมวด:' }}</strong> <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">{{ item.targetCol }}</span></div>
                     <div v-if="item.targetBank"><strong class="text-slate-900">โอนเข้าบัญชี:</strong> {{ item.targetBank }}</div>
                     <div v-if="item.note"><strong class="text-slate-900">หมายเหตุ:</strong> "{{ item.note }}"</div>
                     
@@ -2040,7 +2072,11 @@
                 <div v-if="isAdmin" class="mt-4 pt-3 border-t border-amber-200/80 flex items-center justify-between gap-2">
                   <div class="flex flex-wrap items-center gap-2">
                     <button v-if="!item.paymentApplied" @click="approveNotiFast(item)" :disabled="item.processing" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold px-4 py-2 rounded-xl text-xs transition shadow flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-wait">
-                      <span>{{ item.processing ? 'กำลังยืนยันยอด...' : '⚡ ยืนยันยอดชำระ' }}</span>
+                      <span>
+                        {{ item.processing
+                          ? 'กำลังยืนยันยอด...'
+                          : (item.type === 'credit' ? '🪙 อนุมัติเครดิต' : '⚡ ยืนยันยอดชำระ') }}
+                      </span>
                     </button>
                     <span v-else class="bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-2 rounded-xl text-xs font-extrabold">
                       ✓ หักยอดชำระครั้งนี้แล้ว
@@ -2107,6 +2143,7 @@
                       <span class="font-bold text-slate-900 text-base">👤 {{ item.customerName }}</span>
                       
                       <span v-if="item.type === 'topup'" class="bg-emerald-100 text-emerald-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💳 เติมเงิน</span>
+                      <span v-else-if="item.type === 'credit'" class="bg-sky-100 text-sky-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">🪙 เครดิต</span>
                       <span v-else-if="item.type === 'withdraw'" class="bg-purple-100 text-purple-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💸 ถอนเงิน</span>
                       <span v-else-if="item.type === 'slip'" class="bg-emerald-600 text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold">💳 โอนชำระใบแจ้งหนี้</span>
                       <span v-else class="bg-blue-100 text-blue-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">💬 แชทสอบถาม</span>
@@ -2121,6 +2158,9 @@
                 </div>
 
                 <div class="space-y-1.5 text-xs text-slate-700">
+                  <div v-if="item.resultMessage" class="rounded-xl border border-sky-200 bg-sky-50 p-3 font-extrabold text-sky-800">
+                    {{ item.resultMessage }}
+                  </div>
                   <div v-if="item.note"><strong>หมายเหตุ:</strong> "{{ item.note }}"</div>
                   <div v-if="item.slipImage || item.imagePreview" class="pt-1">
                     <button @click="viewFullImage(item.slipImage || item.imagePreview)" class="text-xs text-indigo-600 underline font-bold">
@@ -2577,7 +2617,7 @@
         const selectedBankIds = ref([]);
 
         // Customer Forms State
-        const topupForm = ref({ targetCol: '', targetBank: '', amount: 0, imagePreview: '', note: '' });
+        const topupForm = ref({ mode: 'transfer', targetCol: '', targetBank: '', amount: 0, imagePreview: '', note: '' });
         const withdrawForm = ref({ targetCol: '', amount: 0, bankName: '', accNo: '', accName: '', note: '' });
 
         // Customer Bank Form
@@ -4306,7 +4346,8 @@
           const newNoti = {
             id: Date.now(),
             customerName: currentUser.value.name,
-            type: 'topup',
+            type: topupForm.value.mode === 'credit' ? 'credit' : 'topup',
+            topupMode: topupForm.value.mode,
             targetCol: topupForm.value.targetCol,
             targetBank: topupForm.value.targetBank,
             amount: topupForm.value.amount,
@@ -4320,12 +4361,15 @@
           saveAllData(true);
           syncDataRealtime();
           showTopupModal.value = false;
-          topupForm.value = { targetCol: '', targetBank: '', amount: 0, imagePreview: '', note: '' };
+          const submittedAsCredit = topupForm.value.mode === 'credit';
+          topupForm.value = { mode: 'transfer', targetCol: '', targetBank: '', amount: 0, imagePreview: '', note: '' };
 
           Swal.fire({ 
             icon: 'success', 
-            title: 'แจ้งเติมเงินสำเร็จ!', 
-            text: 'ส่งเรื่องแจ้งเติมเงินเข้าสู่กล่องข้อความแจ้งเตือนของแอดมินเรียบร้อยแล้ว', 
+            title: submittedAsCredit ? 'ส่งคำขอเครดิตสำเร็จ!' : 'แจ้งเติมเงินสำเร็จ!', 
+            text: submittedAsCredit
+              ? 'ส่งคำขอเครดิตให้แอดมินตรวจสอบแล้ว ไม่ต้องโอนเงินหรือแนบสลิป'
+              : 'ส่งเรื่องแจ้งเติมเงินเข้าสู่กล่องข้อความแจ้งเตือนของแอดมินเรียบร้อยแล้ว', 
             confirmButtonColor: '#059669' 
           });
         };
@@ -4469,6 +4513,18 @@
                   cust.values[matchingCol.id] = (cust.values[matchingCol.id] || 0) + amt;
                 }
               }
+            }
+
+            if (notiItem.type === 'credit') {
+              notiItem.approvedAt = new Date().toLocaleString('th-TH');
+              notiItem.resultMessage =
+                `แอดมินเติมเครดิตเข้าหัวข้อ ${notiItem.targetCol} จำนวน ${formatNumber(notiItem.amount)} บาทเรียบร้อยแล้ว`;
+              saveAllData(true);
+              syncDataRealtime();
+              showToast(
+                `เติมเครดิต ${notiItem.targetCol} จำนวน ${formatNumber(notiItem.amount)} บาท ให้คุณ ${notiItem.customerName} แล้ว`
+              );
+              return;
             }
 
             cust.adminConfirmed = true;

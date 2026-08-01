@@ -160,6 +160,8 @@ function resetProductionCustomerData() {
 function repairCustomerRecords_(data) {
   if (!data || typeof data !== 'object') return data;
   data.customers = Array.isArray(data.customers) ? data.customers : [];
+  data.notifications = Array.isArray(data.notifications) ? data.notifications : [];
+  normalizeOutstandingNotifications_(data.notifications);
   const existingIds = {};
   data.customers.forEach(function (customer) {
     existingIds[String(customer.id)] = true;
@@ -193,6 +195,72 @@ function repairCustomerRecords_(data) {
     existingIds[id] = true;
   });
   return data;
+}
+
+// Notifications are stored newest-first. Older clients kept every approved
+// partial payment in the outstanding tab, so one customer could appear there
+// more than once. Treat the newest card as authoritative and archive the rest.
+function normalizeOutstandingNotifications_(notifications) {
+  const outstandingByCustomer = {};
+  (notifications || []).forEach(function (item, index) {
+    const remaining = Number(item.remainingAfterPayment);
+    const isOutstanding =
+      item.status === 'pending_followup' ||
+      (
+        item.status === 'pending' &&
+        item.paymentApplied &&
+        Number.isFinite(remaining) &&
+        remaining > 0
+      ) ||
+      (
+        item.paymentApplied &&
+        item.supersededByNotificationId &&
+        Number.isFinite(remaining) &&
+        remaining > 0
+      );
+    if (!isOutstanding) return;
+
+    const customerKey = String(item.customerName || '').trim().toLowerCase();
+    if (!customerKey) return;
+    outstandingByCustomer[customerKey] = outstandingByCustomer[customerKey] || [];
+    outstandingByCustomer[customerKey].push({ item: item, index: index });
+  });
+
+  Object.keys(outstandingByCustomer).forEach(function (customerKey) {
+    const entries = outstandingByCustomer[customerKey];
+    if (entries.length < 2) return;
+
+    // Payment notification IDs are generated with Date.now(). Select the
+    // greatest ID, rather than relying on array order, because legacy saves
+    // could reorder notifications during a realtime merge.
+    const latestEntry = entries.reduce(function (latest, entry) {
+      const latestId = Number(latest.item.id);
+      const entryId = Number(entry.item.id);
+      if (Number.isFinite(entryId) && Number.isFinite(latestId)) {
+        return entryId > latestId ? entry : latest;
+      }
+      if (Number.isFinite(entryId)) return entry;
+      if (Number.isFinite(latestId)) return latest;
+      return entry.index < latest.index ? entry : latest;
+    }, entries[0]);
+
+    latestEntry.item.status = 'pending_followup';
+    latestEntry.item.keepUntilPaid = true;
+    delete latestEntry.item.supersededByNotificationId;
+
+    entries.forEach(function (entry) {
+      if (entry === latestEntry) return;
+      entry.item.status = 'approved';
+      entry.item.keepUntilPaid = false;
+      entry.item.closedAt =
+        entry.item.closedAt ||
+        latestEntry.item.approvedAt ||
+        latestEntry.item.createdAt ||
+        '';
+      entry.item.supersededByNotificationId = latestEntry.item.id;
+    });
+  });
+  return notifications;
 }
 
 // ตรวจสอบการเข้าสู่ระบบ
@@ -890,24 +958,48 @@ function approveCustomerPayment(customerId, paymentAmount, approval, notificatio
     const targetNotification = (data.notifications || []).find(function (item) {
       return String(item.id) === String(notificationId);
     });
+    const approvedAt = (approval && approval.paidAt) || new Date().toLocaleString('th-TH');
+    const targetName = String(customer.name || '').trim().toLowerCase();
+
+    // A new approved payment supersedes the customer's previous outstanding
+    // notification. Keep only the latest payment in the outstanding tab so
+    // earlier partial-payment cards do not repeat the same current balance.
+    (data.notifications || []).forEach(function (item) {
+      const isTarget = String(item.id) === String(notificationId);
+      const isSameCustomer =
+        String(item.customerName || '').trim().toLowerCase() === targetName;
+      const isPreviousOutstanding =
+        item.status === 'pending_followup' ||
+        (
+          item.status === 'pending' &&
+          item.paymentApplied &&
+          Number(item.remainingAfterPayment) > 0
+        );
+      if (!isTarget && isSameCustomer && isPreviousOutstanding) {
+        item.status = 'approved';
+        item.keepUntilPaid = false;
+        item.closedAt = approvedAt;
+        item.supersededByNotificationId = notificationId;
+      }
+    });
+
     if (targetNotification) {
       targetNotification.paymentApplied = true;
       targetNotification.processing = false;
-      targetNotification.approvedAt = (approval && approval.paidAt) || new Date().toLocaleString('th-TH');
+      targetNotification.approvedAt = approvedAt;
       targetNotification.remainingAfterPayment = remainingAmount;
       targetNotification.keepUntilPaid = remainingAmount > 0;
       targetNotification.status = remainingAmount > 0 ? 'pending_followup' : 'approved';
     }
 
     if (remainingAmount === 0) {
-      const targetName = String(customer.name || '').trim().toLowerCase();
       (data.notifications || []).forEach(function (item) {
         if (
           item.status === 'pending_followup' &&
           String(item.customerName || '').trim().toLowerCase() === targetName
         ) {
           item.status = 'approved';
-          item.closedAt = (approval && approval.paidAt) || new Date().toLocaleString('th-TH');
+          item.closedAt = approvedAt;
         }
       });
     }
