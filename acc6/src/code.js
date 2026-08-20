@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '1.9.1',
+  version: '2.4.0',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -19,9 +19,10 @@ const APP = {
     AuditLog: ['timestamp','userId','userName','action','entity','entityId','detail']
   }
 };
+const PRIMARY_DB_ID = '1EN084DNwJjxZdStDABk0znC-rLAPMzlCtHsLqQ4TnRs';
 
 function doGet() {
-  try{if(PropertiesService.getScriptProperties().getProperty('DB_ID'))ensureOwnerNameMigration_()}catch(e){}
+  try{if(PropertiesService.getScriptProperties().getProperty('DB_ID')){ensureOwnerNameMigration_();ensureOwnerLoginRepair_();ensureAllUserLoginRepair_()}}catch(e){}
   const template=HtmlService.createTemplateFromFile('Index'); template.appVersion=APP.version;
   return template.evaluate()
     .setTitle(APP.name)
@@ -32,12 +33,14 @@ function doGet() {
 function api(action, payload) {
   payload = payload || {};
   try {
-    if (action === 'status') return ok({ initialized: !!PropertiesService.getScriptProperties().getProperty('DB_ID') });
-    if (action === 'initialize') return initializeSystem_(payload);
+    if (action === 'status') return ok({ initialized: true });
+    if (action === 'initialize') throw new Error('ระบบกำหนดฐานข้อมูลหลักไว้แล้ว');
     if (action === 'login') return login_(payload);
+    if (action === 'logout') return logout_(payload.token);
     const user = requireSession_(payload.token);
     const routes = {
       bootstrap: () => bootstrap_(user),
+      revision: () => ok({revision:PropertiesService.getScriptProperties().getProperty('DATA_REVISION')||'0'}),
       savePurchase: () => savePurchase_(user, payload.data),
       saveTransaction: () => saveTransaction_(user, payload.data),
       deleteTransaction: () => deleteTransaction_(user, payload.data),
@@ -61,6 +64,7 @@ function api(action, payload) {
       ,reorderCategory: () => reorderCategory_(user, payload.data)
       ,compareFinancialPeriods: () => compareFinancialPeriods_(user, payload.data)
       ,getFinancialPeriod: () => getFinancialPeriod_(user, payload.data)
+      ,getTransactionHistory: () => getTransactionHistory_(user, payload.data)
       ,saveDividend: () => saveDividend_(user, payload.data)
       ,checkProductPrice: () => checkProductPrice_(user, payload.data)
       ,savePriceProduct: () => savePriceProduct_(user, payload.data)
@@ -77,11 +81,13 @@ function api(action, payload) {
 function initializeSystem_(data) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  let createdDbId = '';
   try {
     const props = PropertiesService.getScriptProperties();
     if (props.getProperty('DB_ID')) throw new Error('ระบบถูกตั้งค่าแล้ว');
     validateUserInput_(data);
     const ss = SpreadsheetApp.create('Wonder Duck - ฐานข้อมูลบัญชี');
+    createdDbId = ss.getId();
     props.setProperty('DB_ID', ss.getId());
     Object.keys(APP.sheets).forEach((name, index) => {
       const sh = index === 0 ? ss.getSheets()[0].setName(name) : ss.insertSheet(name);
@@ -94,7 +100,8 @@ function initializeSystem_(data) {
     audit_({id: owner[0], name: owner[3]}, 'INITIALIZE', 'SYSTEM', ss.getId(), 'สร้างระบบและบัญชีเจ้าของร้าน');
     return ok({ message: 'สร้างระบบเรียบร้อย', spreadsheetUrl: ss.getUrl() });
   } catch (e) {
-    PropertiesService.getScriptProperties().deleteProperty('DB_ID');
+    const props = PropertiesService.getScriptProperties();
+    if (createdDbId && props.getProperty('DB_ID') === createdDbId) props.deleteProperty('DB_ID');
     throw e;
   } finally { lock.releaseLock(); }
 }
@@ -120,17 +127,21 @@ function seed_() {
 
 function login_(data) {
   const username = clean_(data.username).toLowerCase();
-  const user = cachedRows_('Users', 120).find(r => String(r.username).toLowerCase() === username);
-  if (!user || !truthy_(user.active) || user.passwordHash !== hash_(data.password)) throw new Error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+  const user = rows_('Users').find(r => String(r.username).toLowerCase() === username);
+  if (!user || !truthy_(user.active) || String(user.passwordHash) !== hash_(data.password)) throw new Error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
   const token = Utilities.getUuid().replace(/-/g, '');
-  const sessionUser=publicUser_(user); sessionUser.sessionVersion=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1';
-  CacheService.getScriptCache().put('session:' + token, JSON.stringify(sessionUser), 21600);
+  const sessionUser=publicUser_(user); sessionUser.sessionVersion=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1';sessionUser.persistent=true;
+  const sessionRaw=JSON.stringify(sessionUser);CacheService.getScriptCache().put('session:' + token,sessionRaw,21600);PropertiesService.getScriptProperties().setProperty('SESSION_TOKEN_'+token,sessionRaw);
   return ok({ token, user: publicUser_(user), appData:bootstrap_(sessionUser).data });
 }
+
+function logout_(token){if(token){CacheService.getScriptCache().remove('session:'+token);PropertiesService.getScriptProperties().deleteProperty('SESSION_TOKEN_'+token)}return ok({loggedOut:true})}
 
 function bootstrap_(user) {
   ensureSchema_();
   ensureOwnerNameMigration_();
+  ensureOwnerLoginRepair_();
+  ensureAllUserLoginRepair_();
   const latestUser=cachedRows_('Users',120).find(x=>x.id===user.id);if(latestUser)user={...publicUser_(latestUser),sessionVersion:user.sessionVersion};
   const canViewFinance=canViewFinance_(user);
   const accountRows = cachedRows_('Accounts', 600).filter(x => truthy_(x.active));
@@ -154,6 +165,7 @@ function bootstrap_(user) {
   tx.forEach(t=>{const d=dateKey_(t.date),amount=num_(t.amount);Object.keys(summaryByPrefix).forEach(prefix=>{if(d.slice(0,prefix.length)===prefix){const s=summaryByPrefix[prefix];if(t.type==='INCOME')s.income+=amount;else if(t.type==='EXPENSE')s.expense+=amount;}})});
   Object.keys(summaryByPrefix).forEach(k=>{const s=summaryByPrefix[k];s.income=round_(s.income);s.expense=round_(s.expense);s.net=round_(s.income-s.expense)});
   const dashboardPeriods = canViewFinance ? buildDashboardPeriods_(tx, allCategories) : {};
+  const managerPeriods = user.role==='MANAGER' ? buildDashboardPeriods_(tx, allCategories) : {};
   const transactionViews = transactionViews_(allTransactions, allCategories, accountRows);
   const visibleTransactions = user.role==='STAFF' ? transactionViews.filter(x=>x.createdBy===user.id) : transactionViews;
   return ok({
@@ -166,8 +178,11 @@ function bootstrap_(user) {
     ,catalogProductCategories:canManage_(user)?cachedRows_('ProductCategories',600):[]
     ,catalogUnits:canManage_(user)?cachedRows_('Units',600):[]
     ,managerOverview:user.role==='MANAGER'?summarize(month):null
+    ,managerPeriods
+    ,managerHistory:user.role==='MANAGER'?visibleTransactions.filter(x=>x.status==='CONFIRMED').slice(0,200):[]
     ,payroll:canAdminUsers_(user)?buildPayroll_():null
     ,dividends:user.role==='OWNER'?buildDividends_():null
+    ,revision:PropertiesService.getScriptProperties().getProperty('DATA_REVISION')||'0'
   });
 }
 
@@ -187,7 +202,7 @@ function saveDividend_(user,data){
   const id=id_('DIV'),tx=id_('TX'),note=clean_(data.note)||('จ่ายเงินปันผล '+owner.name);
   append_('Transactions',[tx,date,'EXPENSE','CAT-DIVIDEND',account.id,amount,note,id,now_(),user.id,user.name,'CONFIRMED']);
   append_('DividendPayments',[id,owner.id,owner.name,date,amount,account.id,tx,note,now_(),user.id,user.name]);
-  invalidateRows_('Transactions');invalidateRows_('DividendPayments');audit_(user,'CREATE','DIVIDEND',id,owner.name+' '+amount);
+  SpreadsheetApp.flush();invalidateRows_('Transactions');invalidateRows_('DividendPayments');audit_(user,'CREATE','DIVIDEND',id,owner.name+' '+amount);
   return ok({id,refresh:bootstrap_(user).data});
 }
 
@@ -224,7 +239,13 @@ function compareFinancialPeriods_(user,data){
   return ok({first,second,changes:{income:change(second.income,first.income),expense:change(second.expense,first.expense),net:change(second.net,first.net)}});
 }
 function getFinancialPeriod_(user,data){
-  if(!canViewFinance_(user))throw new Error('ไม่มีสิทธิ์ดูข้อมูลการเงิน');const start=validDate_(data&&data.start),end=validDate_(data&&data.end);if(start>end)throw new Error('วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด');const list=cachedRows_('Transactions',30).filter(x=>x.status==='CONFIRMED').filter(x=>{const d=dateKey_(x.date);return d>=start&&d<=end});return ok({...totals_(list),start,end,label:clean_(data.label)||start+' – '+end,breakdown:[]});
+  if(!canViewFinance_(user)&&user.role!=='MANAGER')throw new Error('ไม่มีสิทธิ์ดูข้อมูลการเงิน');const start=validDate_(data&&data.start),end=validDate_(data&&data.end);if(start>end)throw new Error('วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด');const list=cachedRows_('Transactions',30).filter(x=>x.status==='CONFIRMED').filter(x=>{const d=dateKey_(x.date);return d>=start&&d<=end}),result={...totals_(list),start,end,label:clean_(data.label)||start+' – '+end,breakdown:[]};if(user.role==='MANAGER')result.transactions=transactionViews_(list,cachedRows_('Categories',600),cachedRows_('Accounts',600)).slice(0,500);return ok(result);
+}
+function getTransactionHistory_(user,data){
+  const start=validDate_(data&&data.start),end=validDate_(data&&data.end);if(start>end)throw new Error('วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด');
+  const list=rows_('Transactions').filter(x=>{const d=dateKey_(x.date);return d>=start&&d<=end});
+  const views=transactionViews_(list,cachedRows_('Categories',600),cachedRows_('Accounts',600));
+  return ok((user.role==='STAFF'?views.filter(x=>x.createdBy===user.id):views).slice(0,500));
 }
 
 function payrollWeek_(){
@@ -293,6 +314,7 @@ function savePurchase_(user, data) {
     invalidateRows_('Products');
     invalidateRows_('Purchases'); invalidateRows_('PurchaseItems');
     append_('Transactions', [id_('TX'),date,'EXPENSE','CAT-RAW',account.id,total,clean_(data.note) || 'ซื้อวัตถุดิบ',purchaseId,now_(),user.id,user.name,'CONFIRMED']);
+    SpreadsheetApp.flush();
     invalidateRows_('Transactions');
     audit_(user,'CREATE','PURCHASE',purchaseId,items.length+' รายการ รวม '+total+' บาท');
     return ok({ id:purchaseId, total, itemCount:items.length, refresh:bootstrap_(user).data });
@@ -314,10 +336,10 @@ function saveTransaction_(user, data) {
       sh.getRange(idx+1,2).setValue(date); sh.getRange(idx+1,5).setValue(account.id); sh.getRange(idx+1,7).setValue(clean_(data.note));
       updatePurchaseHeader_(old.referenceId,date,account.id,clean_(data.note));
     } else sh.getRange(idx+1,2,1,6).setValues([[date,data.type,category.id,account.id,round_(amount),clean_(data.note)]]);
-    invalidateRows_('Transactions'); audit_(user,'UPDATE','TRANSACTION',data.id,'แก้ไขรายการ'); return ok({id:data.id,refresh:bootstrap_(user).data});
+    SpreadsheetApp.flush(); invalidateRows_('Transactions'); audit_(user,'UPDATE','TRANSACTION',data.id,'แก้ไขรายการ'); return ok({id:data.id,refresh:bootstrap_(user).data});
   }
   const txId = id_('TX'); append_('Transactions',[txId,date,data.type,category.id,account.id,round_(amount),clean_(data.note),'',now_(),user.id,user.name,'CONFIRMED']);
-  invalidateRows_('Transactions'); audit_(user,'CREATE','TRANSACTION',txId,data.type+' '+amount+' บาท'); return ok({ id:txId,refresh:bootstrap_(user).data });
+  SpreadsheetApp.flush(); invalidateRows_('Transactions'); audit_(user,'CREATE','TRANSACTION',txId,data.type+' '+amount+' บาท'); return ok({ id:txId,refresh:bootstrap_(user).data });
 }
 
 function deleteTransaction_(user,data){
@@ -325,7 +347,7 @@ function deleteTransaction_(user,data){
   if(idx<0) throw new Error('ไม่พบรายการ'); const old=Object.fromEntries(head.map((h,i)=>[h,values[idx][i]]));
   if(old.status==='CANCELLED') throw new Error('รายการนี้ถูกยกเลิกแล้ว'); if(!canManage_(user)&&old.createdBy!==user.id) throw new Error('ยกเลิกได้เฉพาะรายการที่ตนเองบันทึก'); sh.getRange(idx+1,12).setValue('CANCELLED');
   if(old.referenceId){ const ps=sheet_('Purchases'), pv=ps.getDataRange().getValues(), pi=pv.findIndex((r,i)=>i>0&&r[0]===old.referenceId); if(pi>0) ps.getRange(pi+1,10).setValue('CANCELLED'); invalidateRows_('Purchases'); }
-  invalidateRows_('Transactions'); audit_(user,'CANCEL','TRANSACTION',data.id,clean_(data.reason)||'ยกเลิกรายการ'); return ok({refresh:bootstrap_(user).data});
+  SpreadsheetApp.flush(); invalidateRows_('Transactions'); audit_(user,'CANCEL','TRANSACTION',data.id,clean_(data.reason)||'ยกเลิกรายการ'); return ok({refresh:bootstrap_(user).data});
 }
 
 function updatePurchaseHeader_(id,date,accountId,note){ const sh=sheet_('Purchases'), v=sh.getDataRange().getValues(), i=v.findIndex((r,n)=>n>0&&r[0]===id); if(i>0){sh.getRange(i+1,2).setValue(date);sh.getRange(i+1,4).setValue(accountId);sh.getRange(i+1,6).setValue(note);invalidateRows_('Purchases');} }
@@ -428,7 +450,7 @@ function saveOpeningBalances_(user,data){
   const sh=sheet_('Accounts'), values=sh.getDataRange().getValues();
   data.accounts.forEach(x=>{ const idx=values.findIndex((r,i)=>i>0&&r[0]===x.id), amount=Number(x.openingBalance); if(idx<0||!isFinite(amount)) throw new Error('ยอดตั้งต้นไม่ถูกต้อง'); values[idx][3]=round_(amount); });
   sh.getRange(2,4,values.length-1,1).setValues(values.slice(1).map(r=>[r[3]]));
-  invalidateRows_('Accounts'); audit_(user,'UPDATE','ACCOUNTS','OPENING_BALANCE','แก้ไขยอดเงินตั้งต้น');
+  SpreadsheetApp.flush();invalidateRows_('Accounts'); audit_(user,'UPDATE','ACCOUNTS','OPENING_BALANCE','แก้ไขยอดเงินตั้งต้น');
   return ok({refresh:bootstrap_(user).data});
 }
 
@@ -456,6 +478,14 @@ function ensureOwnerNameMigration_(){
   const props=PropertiesService.getScriptProperties();if(props.getProperty('OWNER_NAME_BAS_TANGMO')==='1')return;const sh=sheet_('Users'),rows=sh.getDataRange().getValues(),i=rows.findIndex((r,n)=>n>0&&r[4]==='OWNER'&&clean_(r[3])==='เจ้าของร้าน');if(i>0){sh.getRange(i+1,4).setValue('บาส/แตงโม');SpreadsheetApp.flush()}invalidateRows_('Users');props.setProperty('OWNER_NAME_BAS_TANGMO','1');
 }
 
+function ensureOwnerLoginRepair_(){
+  const props=PropertiesService.getScriptProperties();if(props.getProperty('OWNER_LOGIN_REPAIR_20260819')==='1')return;const sh=sheet_('Users'),rows=sh.getDataRange().getValues(),i=rows.findIndex((r,n)=>n>0&&r[4]==='OWNER');if(i<1)throw new Error('ไม่พบบัญชีเจ้าของร้าน');const duplicate=rows.findIndex((r,n)=>n>0&&n!==i&&String(r[1]).toLowerCase()==='admin');if(duplicate>0)throw new Error('มี Username admin ซ้ำในระบบ');sh.getRange(i+1,2,1,5).setValues([['admin',hash_('admin123'),'บาส/แตงโม','OWNER',true]]);SpreadsheetApp.flush();invalidateRows_('Users');props.setProperty('OWNER_LOGIN_REPAIR_20260819','1');
+}
+
+function ensureAllUserLoginRepair_(){
+  const props=PropertiesService.getScriptProperties();if(props.getProperty('ALL_USER_LOGIN_REPAIR_20260819')==='1')return;const sh=sheet_('Users'),rows=sh.getDataRange().getValues();if(rows.length<2)throw new Error('ไม่พบข้อมูลผู้ใช้');const updates=rows.slice(1).map(r=>{const username=clean_(r[1]).toLowerCase(),password=username==='admin'?'admin123':username+'123';return[hash_(password),true]});sh.getRange(2,3,updates.length,1).setValues(updates.map(x=>[x[0]]));sh.getRange(2,6,updates.length,1).setValues(updates.map(x=>[x[1]]));SpreadsheetApp.flush();invalidateRows_('Users');props.setProperty('ALL_USER_LOGIN_REPAIR_20260819','1');
+}
+
 function ensureSchema_(){
   const props=PropertiesService.getScriptProperties();
   if(props.getProperty('SCHEMA_VERSION')==='8') return;
@@ -481,17 +511,19 @@ function totals_(list) {
 }
 function buildDashboardPeriods_(tx, categories){
   const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
-  const now=new Date(today+'T12:00:00'); const day=(now.getDay()+6)%7; const ws=new Date(now); ws.setDate(now.getDate()-day);
-  const starts={DAY:today,WEEK:Utilities.formatDate(ws,Session.getScriptTimeZone(),'yyyy-MM-dd'),MONTH:today.slice(0,7)+'-01',YEAR:today.slice(0,4)+'-01-01',ALL:'0000-01-01'};
+  const now=new Date(today+'T12:00:00'), yesterdayDate=new Date(now); yesterdayDate.setDate(now.getDate()-1);
+  const yesterday=Utilities.formatDate(yesterdayDate,Session.getScriptTimeZone(),'yyyy-MM-dd');
+  const day=(now.getDay()+6)%7; const ws=new Date(now); ws.setDate(now.getDate()-day);
+  const starts={YESTERDAY:yesterday,DAY:today,WEEK:Utilities.formatDate(ws,Session.getScriptTimeZone(),'yyyy-MM-dd'),MONTH:today.slice(0,7)+'-01',YEAR:today.slice(0,4)+'-01-01',ALL:'0000-01-01'};
   const categoryNames=Object.fromEntries(categories.map(c=>[c.id,c.name]));
   const purchases=cachedRows_('Purchases',60).filter(x=>x.status==='CONFIRMED');
   const purchaseDates=Object.fromEntries(purchases.map(x=>[x.id,dateKey_(x.date)]));
   const purchaseItems=cachedRows_('PurchaseItems',60);
   const result={};
   Object.keys(starts).forEach(key=>{
-    const start=starts[key], selected=tx.filter(x=>dateKey_(x.date)>=start && dateKey_(x.date)<=today), total=totals_(selected), grouped={};
+    const start=starts[key], end=key==='YESTERDAY'?yesterday:today, selected=tx.filter(x=>dateKey_(x.date)>=start && dateKey_(x.date)<=end), total=totals_(selected), grouped={};
     selected.filter(x=>x.type==='EXPENSE' && x.category!=='CAT-RAW').forEach(x=>{ const n=categoryNames[x.category]||'รายจ่ายอื่น'; grouped[n]=(grouped[n]||0)+num_(x.amount); });
-    purchaseItems.forEach(x=>{ const d=purchaseDates[x.purchaseId]; if(d && d>=start && d<=today){ const n=clean_(x.productCategory)||'วัตถุดิบอื่น'; grouped[n]=(grouped[n]||0)+num_(x.lineTotal); } });
+    purchaseItems.forEach(x=>{ const d=purchaseDates[x.purchaseId]; if(d && d>=start && d<=end){ const n=clean_(x.productCategory)||'วัตถุดิบอื่น'; grouped[n]=(grouped[n]||0)+num_(x.lineTotal); } });
     const breakdown=Object.keys(grouped).map(name=>({name,amount:round_(grouped[name]),pct:total.expense?round_(grouped[name]/total.expense*100):0})).sort((a,b)=>b.amount-a.amount);
     result[key]={...total,breakdown};
   });
@@ -500,9 +532,9 @@ function buildDashboardPeriods_(tx, categories){
 function transactionViews_(tx,categories,accounts){
   const cn=Object.fromEntries(categories.map(x=>[x.id,x.name])), an=Object.fromEntries(accounts.map(x=>[x.id,x.name]));
   const itemNames={}; cachedRows_('PurchaseItems',60).forEach(x=>{(itemNames[x.purchaseId]||(itemNames[x.purchaseId]=[])).push(x.productName);});
-  return tx.map(x=>({id:x.id,date:dateKey_(x.date),type:x.type,categoryId:x.category,categoryName:cn[x.category]||'ไม่ระบุหมวด',accountId:x.accountId,accountName:an[x.accountId]||'ไม่ระบุบัญชี',amount:num_(x.amount),note:x.note||'',referenceId:x.referenceId||'',purchaseItems:(itemNames[x.referenceId]||[]).slice(0,4),createdAt:String(x.createdAt||''),createdBy:x.createdBy||'',createdByName:x.createdByName||'',status:x.status})).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  return tx.map(x=>({id:x.id,date:dateKey_(x.date),type:x.type,categoryId:x.category,categoryName:cn[x.category]||'ไม่ระบุหมวด',accountId:x.accountId,accountName:an[x.accountId]||'ไม่ระบุบัญชี',amount:num_(x.amount),note:x.note||'',referenceId:x.referenceId||'',purchaseItems:(itemNames[x.referenceId]||[]),createdAt:String(x.createdAt||''),createdBy:x.createdBy||'',createdByName:x.createdByName||'',status:x.status})).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
 }
-function requireSession_(token) { const cache=CacheService.getScriptCache(),raw=cache.get('session:'+token); if(!raw) throw new Error('SESSION_EXPIRED'); let user=JSON.parse(raw); const version=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1'; if(user.sessionVersion!==version) throw new Error('SESSION_EXPIRED'); const latest=cachedRows_('Users',120).find(x=>x.id===user.id);if(!latest||!truthy_(latest.active))throw new Error('SESSION_EXPIRED');const fresh={...publicUser_(latest),sessionVersion:version};if(fresh.name!==user.name||fresh.username!==user.username||fresh.role!==user.role){user=fresh;cache.put('session:'+token,JSON.stringify(user),21600)}return user; }
+function requireSession_(token) { if(!token)throw new Error('SESSION_EXPIRED');const cache=CacheService.getScriptCache(),props=PropertiesService.getScriptProperties(),key='SESSION_TOKEN_'+token,raw=cache.get('session:'+token)||props.getProperty(key);if(!raw)throw new Error('SESSION_EXPIRED');let user=JSON.parse(raw);const version=props.getProperty('SESSION_VERSION')||'1';if(user.sessionVersion!==version){props.deleteProperty(key);throw new Error('SESSION_EXPIRED')}const latest=cachedRows_('Users',120).find(x=>x.id===user.id);if(!latest||!truthy_(latest.active)){props.deleteProperty(key);throw new Error('SESSION_EXPIRED')}const needsPersist=!user.persistent,fresh={...publicUser_(latest),sessionVersion:version,persistent:true};if(needsPersist||fresh.name!==user.name||fresh.username!==user.username||fresh.role!==user.role){user=fresh;props.setProperty(key,JSON.stringify(user))}cache.put('session:'+token,JSON.stringify(user),21600);return user; }
 function publicUser_(u) { return {id:u.id,name:u.name,username:u.username,role:u.role,active:truthy_(u.active)}; }
 function canManage_(u) { return ['ADMIN','MANAGER','OWNER'].includes(u.role); }
 function canAdminUsers_(u) { return ['ADMIN','OWNER'].includes(u.role); }
@@ -510,14 +542,15 @@ function canViewFinance_(u) { return ['ADMIN','OWNER'].includes(u.role); }
 function validateUserInput_(d) { if(clean_(d.name).length<2) throw new Error('กรุณาระบุชื่อ'); if(!/^[a-zA-Z0-9._-]{3,30}$/.test(clean_(d.username))) throw new Error('ชื่อผู้ใช้ต้องเป็นอังกฤษหรือตัวเลขอย่างน้อย 3 ตัว'); if(String(d.password||'').length<6) throw new Error('รหัสผ่านต้องมีอย่างน้อย 6 ตัว'); }
 function hash_(s) { return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(s))); }
 let DB_CACHE_;
-function db_() { if(DB_CACHE_) return DB_CACHE_; const id=PropertiesService.getScriptProperties().getProperty('DB_ID'); if(!id) throw new Error('ยังไม่ได้ตั้งค่าระบบ'); DB_CACHE_=SpreadsheetApp.openById(id); return DB_CACHE_; }
+let ROWS_MEMO_ = {};
+function db_() { if(DB_CACHE_) return DB_CACHE_; DB_CACHE_=SpreadsheetApp.openById(PRIMARY_DB_ID); return DB_CACHE_; }
 function sheet_(name) { const sh=db_().getSheetByName(name); if(!sh) throw new Error('ไม่พบชีต '+name); return sh; }
 function rows_(name) { const sh=sheet_(name), vals=sh.getDataRange().getValues(), head=vals.shift(); return vals.filter(r=>r.some(v=>v!=='' )).map(r=>Object.fromEntries(head.map((h,i)=>[h,r[i]]))); }
-function cachedRows_(name, seconds) { const cache=CacheService.getScriptCache(), key='rows:'+name, hit=cache.get(key); if(hit) return JSON.parse(hit); const data=rows_(name); const raw=JSON.stringify(data); if(raw.length<95000) cache.put(key,raw,seconds||300); return data; }
-function invalidateRows_(name) { CacheService.getScriptCache().remove('rows:'+name); }
+function cachedRows_(name, seconds) { if(Object.prototype.hasOwnProperty.call(ROWS_MEMO_,name))return ROWS_MEMO_[name];const cache=CacheService.getScriptCache(), key='rows:'+name, hit=cache.get(key); if(hit)return ROWS_MEMO_[name]=JSON.parse(hit); const data=rows_(name);ROWS_MEMO_[name]=data; const raw=JSON.stringify(data); if(raw.length<95000) cache.put(key,raw,seconds||300); return data; }
+function invalidateRows_(name) { delete ROWS_MEMO_[name];CacheService.getScriptCache().remove('rows:'+name); }
 function append_(name,row) { sheet_(name).appendRow(row); }
 function appendRows_(name, rows) { if(!rows.length) return; const sh=sheet_(name); sh.getRange(sh.getLastRow()+1,1,rows.length,rows[0].length).setValues(rows); }
-function audit_(u,a,e,id,d) { append_('AuditLog',[now_(),u.id,u.name,a,e,id,d]); }
+function audit_(u,a,e,id,d) { append_('AuditLog',[now_(),u.id,u.name,a,e,id,d]);PropertiesService.getScriptProperties().setProperty('DATA_REVISION',String(Date.now())); }
 function now_() { return Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm:ss'); }
 function dateKey_(v) {
   if(v instanceof Date) return Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd');

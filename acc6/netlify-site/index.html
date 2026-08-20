@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#f6c90e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="WD cafe">
+  <title>WD cafe</title>
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+  <link rel="manifest" href="/manifest.webmanifest?v=8">
+  <link rel="icon" type="image/jpeg" href="/assets/wonder-duck-logo-app.jpg?v=7">
+  <link rel="apple-touch-icon" href="/assets/wonder-duck-logo-app.jpg?v=7">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; }
+    iframe { width: 100%; height: 100%; border: 0; display: block; }
+  </style>
+</head>
+<body>
+  <iframe
+    id="wdApp"
+    credentialless
+    referrerpolicy="no-referrer"
+    allow="geolocation; camera; microphone; payment; autoplay; fullscreen"
+    loading="eager">
+  </iframe>
+  <script>
+    const wdFrame = document.getElementById('wdApp');
+    const wdExec = 'https://script.google.com/macros/s/AKfycbwTqNnkY1KsL1uGJFBkTLV8ONZQkEI5z3_d2n5gj--cvNIVxpOpt7KIpI9KS40ZYq38/exec?host=netlify-v8';
+    const wdToken = localStorage.getItem('wd_persistent_token') || '';
+    wdFrame.src = wdExec + (wdToken ? '#wd_token=' + encodeURIComponent(wdToken) : '');
+    window.addEventListener('message', event => {
+      if (event.source !== wdFrame.contentWindow || !event.data || event.data.type !== 'WD_TOKEN') return;
+      if (event.data.token) localStorage.setItem('wd_persistent_token', event.data.token);
+      else localStorage.removeItem('wd_persistent_token');
+    });
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(items => items.forEach(item => item.unregister()));
+    }
+    if ('caches' in window) caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
+  </script>
+</body>
+</html>

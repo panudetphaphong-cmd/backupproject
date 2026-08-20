@@ -1,0 +1,19 @@
+{
+  "name": "Wonder Duck Accounts",
+  "short_name": "WD cafe",
+  "description": "ระบบบัญชี Wonder Duck",
+  "start_url": "/?pwa=8",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#f6c90e",
+  "icons": [
+    {
+      "src": "/assets/wonder-duck-logo-app.jpg?v=7",
+      "sizes": "320x320",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
