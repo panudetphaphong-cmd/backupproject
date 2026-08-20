@@ -138,6 +138,20 @@ function login_(data) {
 function logout_(token){if(token){CacheService.getScriptCache().remove('session:'+token);PropertiesService.getScriptProperties().deleteProperty('SESSION_TOKEN_'+token)}return ok({loggedOut:true})}
 
 function bootstrap_(user) {
+  const props=PropertiesService.getScriptProperties();
+  const revision=props.getProperty('DATA_REVISION')||'0';
+  const day=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyyMMdd');
+  const cache=CacheService.getScriptCache();
+  const key=['bootstrap',APP.version,user.id,user.role,revision,day].join(':');
+  const hit=cache.get(key);
+  if(hit){try{return JSON.parse(hit)}catch(e){cache.remove(key)}}
+  const result=buildBootstrap_(user);
+  const raw=JSON.stringify(result);
+  if(raw.length<95000)cache.put(key,raw,120);
+  return result;
+}
+
+function buildBootstrap_(user) {
   ensureSchema_();
   ensureOwnerNameMigration_();
   ensureOwnerLoginRepair_();
@@ -547,7 +561,7 @@ function db_() { if(DB_CACHE_) return DB_CACHE_; DB_CACHE_=SpreadsheetApp.openBy
 function sheet_(name) { const sh=db_().getSheetByName(name); if(!sh) throw new Error('ไม่พบชีต '+name); return sh; }
 function rows_(name) { const sh=sheet_(name), vals=sh.getDataRange().getValues(), head=vals.shift(); return vals.filter(r=>r.some(v=>v!=='' )).map(r=>Object.fromEntries(head.map((h,i)=>[h,r[i]]))); }
 function cachedRows_(name, seconds) { if(Object.prototype.hasOwnProperty.call(ROWS_MEMO_,name))return ROWS_MEMO_[name];const cache=CacheService.getScriptCache(), key='rows:'+name, hit=cache.get(key); if(hit)return ROWS_MEMO_[name]=JSON.parse(hit); const data=rows_(name);ROWS_MEMO_[name]=data; const raw=JSON.stringify(data); if(raw.length<95000) cache.put(key,raw,seconds||300); return data; }
-function invalidateRows_(name) { delete ROWS_MEMO_[name];CacheService.getScriptCache().remove('rows:'+name); }
+function invalidateRows_(name) { delete ROWS_MEMO_[name];CacheService.getScriptCache().remove('rows:'+name);PropertiesService.getScriptProperties().setProperty('DATA_REVISION',String(Date.now())); }
 function append_(name,row) { sheet_(name).appendRow(row); }
 function appendRows_(name, rows) { if(!rows.length) return; const sh=sheet_(name); sh.getRange(sh.getLastRow()+1,1,rows.length,rows[0].length).setValues(rows); }
 function audit_(u,a,e,id,d) { append_('AuditLog',[now_(),u.id,u.name,a,e,id,d]);PropertiesService.getScriptProperties().setProperty('DATA_REVISION',String(Date.now())); }
