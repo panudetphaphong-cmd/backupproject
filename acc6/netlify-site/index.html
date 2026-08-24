@@ -30,12 +30,32 @@
   <script>
     const wdFrame = document.getElementById('wdApp');
     const wdExec = 'https://script.google.com/macros/s/AKfycbwTqNnkY1KsL1uGJFBkTLV8ONZQkEI5z3_d2n5gj--cvNIVxpOpt7KIpI9KS40ZYq38/exec?host=netlify-v8';
-    const wdToken = localStorage.getItem('wd_persistent_token') || '';
+    const readCookie = name => decodeURIComponent((document.cookie.split('; ').find(x=>x.startsWith(name+'='))||'=').split('=').slice(1).join('='));
+    const writeLoginCookie = token => { document.cookie = 'wd_device_token=' + encodeURIComponent(token||'') + '; Path=/; Max-Age=' + (token ? 31536000 : 0) + '; SameSite=Lax; Secure'; };
+    const wdToken = localStorage.getItem('wd_persistent_token') || readCookie('wd_device_token') || sessionStorage.getItem('wd_session_token') || '';
+    const wdRemember = !!localStorage.getItem('wd_persistent_token');
     wdFrame.src = wdExec + (wdToken ? '#wd_token=' + encodeURIComponent(wdToken) : '');
     window.addEventListener('message', event => {
-      if (event.source !== wdFrame.contentWindow || !event.data || event.data.type !== 'WD_TOKEN') return;
-      if (event.data.token) localStorage.setItem('wd_persistent_token', event.data.token);
-      else localStorage.removeItem('wd_persistent_token');
+      if (!event.data || !['WD_TOKEN','WD_TOKEN_REQUEST'].includes(event.data.type)) return;
+      const trustedGoogle = event.origin === 'null' || /^https:\/\/([a-z0-9-]+\.)?(googleusercontent\.com|google\.com)$/.test(event.origin);
+      if (event.source !== wdFrame.contentWindow && !trustedGoogle) return;
+      if (event.data.type === 'WD_TOKEN_REQUEST') {
+        event.source.postMessage({type:'WD_RESTORE_TOKEN',token:wdToken,remember:wdRemember},'*');
+        return;
+      }
+      if (event.data.token) {
+        localStorage.removeItem('wd_persistent_token');
+        sessionStorage.removeItem('wd_session_token');
+        (event.data.remember === false ? sessionStorage : localStorage).setItem(event.data.remember === false ? 'wd_session_token' : 'wd_persistent_token', event.data.token);
+        writeLoginCookie(event.data.remember === false ? '' : event.data.token);
+      } else {
+        localStorage.removeItem('wd_persistent_token');
+        sessionStorage.removeItem('wd_session_token');
+        writeLoginCookie('');
+      }
+    });
+    wdFrame.addEventListener('load',()=>{
+      if(wdToken) wdFrame.contentWindow.postMessage({type:'WD_RESTORE_TOKEN',token:wdToken,remember:wdRemember},'*');
     });
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(items => items.forEach(item => item.unregister()));
