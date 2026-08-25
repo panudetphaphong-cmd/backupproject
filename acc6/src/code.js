@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '2.6.0',
+  version: '2.6.2',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -134,7 +134,11 @@ function login_(data) {
   const token = makePersistentToken_(user);
   const sessionUser=publicUser_(user); sessionUser.sessionVersion=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1';sessionUser.persistent=true;
   const sessionRaw=JSON.stringify(sessionUser);CacheService.getScriptCache().put('session:' + token,sessionRaw,21600);PropertiesService.getScriptProperties().setProperty('SESSION_TOKEN_'+token,sessionRaw);
-  return ok({ token, user: publicUser_(user), appData:bootstrap_(sessionUser).data });
+  // Authentication must not be reported as failed merely because the first
+  // (large) dashboard bootstrap temporarily fails or times out.
+  let appData=null;
+  try{appData=bootstrap_(sessionUser).data}catch(e){}
+  return ok({ token, user: publicUser_(user), appData });
 }
 
 function logout_(token){if(token){CacheService.getScriptCache().remove('session:'+token);PropertiesService.getScriptProperties().deleteProperty('SESSION_TOKEN_'+token)}return ok({loggedOut:true})}
@@ -313,6 +317,8 @@ function savePurchase_(user, data) {
   if (total <= 0) throw new Error('ยอดรวมต้องมากกว่า 0');
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
+    const recentPurchase=rows_('Purchases').find(x=>dateKey_(x.date)===date&&x.accountId===account.id&&num_(x.total)===total&&x.createdBy===user.id&&x.status==='CONFIRMED'&&recentWrite_(x.createdAt));
+    if(recentPurchase)return ok({id:recentPurchase.id,total,itemCount:items.length,duplicate:true});
     const purchaseId = id_('BUY');
     append_('Purchases', [purchaseId,date,clean_(data.supplier),account.id,total,clean_(data.note),now_(),user.id,user.name,'CONFIRMED']);
     const productRows = cachedRows_('Products',120);
@@ -343,8 +349,8 @@ function savePurchase_(user, data) {
     append_('Transactions', [id_('TX'),date,'EXPENSE','CAT-RAW',account.id,total,clean_(data.note) || 'ซื้อวัตถุดิบ',purchaseId,now_(),user.id,user.name,'CONFIRMED']);
     SpreadsheetApp.flush();
     invalidateRows_('Transactions');
-    audit_(user,'CREATE','PURCHASE',purchaseId,items.length+' รายการ รวม '+total+' บาท');
-    return ok({ id:purchaseId, total, itemCount:items.length, refresh:bootstrap_(user).data });
+    try{audit_(user,'CREATE','PURCHASE',purchaseId,items.length+' รายการ รวม '+total+' บาท')}catch(e){}
+    return ok({ id:purchaseId, total, itemCount:items.length });
   } finally { lock.releaseLock(); }
 }
 
@@ -363,10 +369,15 @@ function saveTransaction_(user, data) {
       sh.getRange(idx+1,2).setValue(date); sh.getRange(idx+1,5).setValue(account.id); sh.getRange(idx+1,7).setValue(clean_(data.note));
       updatePurchaseHeader_(old.referenceId,date,account.id,clean_(data.note));
     } else sh.getRange(idx+1,2,1,6).setValues([[date,data.type,category.id,account.id,round_(amount),clean_(data.note)]]);
-    SpreadsheetApp.flush(); invalidateRows_('Transactions'); audit_(user,'UPDATE','TRANSACTION',data.id,'แก้ไขรายการ'); return ok({id:data.id,refresh:bootstrap_(user).data});
+    SpreadsheetApp.flush();invalidateRows_('Transactions');try{audit_(user,'UPDATE','TRANSACTION',data.id,'แก้ไขรายการ')}catch(e){}return ok({id:data.id});
   }
-  const txId = id_('TX'); append_('Transactions',[txId,date,data.type,category.id,account.id,round_(amount),clean_(data.note),'',now_(),user.id,user.name,'CONFIRMED']);
-  SpreadsheetApp.flush(); invalidateRows_('Transactions'); audit_(user,'CREATE','TRANSACTION',txId,data.type+' '+amount+' บาท'); return ok({ id:txId,refresh:bootstrap_(user).data });
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    const note=clean_(data.note),rounded=round_(amount),recent=rows_('Transactions').find(x=>dateKey_(x.date)===date&&x.type===data.type&&x.category===category.id&&x.accountId===account.id&&num_(x.amount)===rounded&&clean_(x.note)===note&&x.createdBy===user.id&&x.status==='CONFIRMED'&&recentWrite_(x.createdAt));
+    if(recent)return ok({id:recent.id,duplicate:true});
+    const txId = id_('TX'); append_('Transactions',[txId,date,data.type,category.id,account.id,rounded,note,'',now_(),user.id,user.name,'CONFIRMED']);
+    SpreadsheetApp.flush();invalidateRows_('Transactions');try{audit_(user,'CREATE','TRANSACTION',txId,data.type+' '+amount+' บาท')}catch(e){}return ok({id:txId});
+  }finally{lock.releaseLock()}
 }
 
 function deleteTransaction_(user,data){
@@ -382,15 +393,20 @@ function updatePurchaseHeader_(id,date,accountId,note){ const sh=sheet_('Purchas
 function createUser_(user, data) {
   if (!canAdminUsers_(user)) throw new Error('เฉพาะเจ้าของร้านหรือแอดมินเท่านั้น');
   validateUserInput_(data);
-  const username = clean_(data.username).toLowerCase();
-  if (rows_('Users').some(x => String(x.username).toLowerCase() === username)) throw new Error('ชื่อผู้ใช้นี้มีแล้ว');
-  const role = ['STAFF','MANAGER','ADMIN','OWNER'].includes(data.role) ? data.role : 'STAFF';
-  if (['OWNER','ADMIN'].includes(role) && user.role !== 'OWNER') throw new Error('เฉพาะเจ้าของร้านที่สร้างบัญชีเจ้าของหรือแอดมินได้');
-  const id = id_('USR');
-  append_('Users',[id,username,hash_(data.password),clean_(data.name),role,true,now_(),user.id]);
-  invalidateRows_('Users');
-  audit_(user,'CREATE','USER',id,username+' / '+role);
-  return ok({ id,refresh:bootstrap_(user).data });
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    const username = clean_(data.username).toLowerCase();
+    if (rows_('Users').some(x => String(x.username).toLowerCase() === username)) throw new Error('ชื่อผู้ใช้นี้มีแล้ว');
+    const role = ['STAFF','MANAGER','ADMIN','OWNER'].includes(data.role) ? data.role : 'STAFF';
+    if (['OWNER','ADMIN'].includes(role) && user.role !== 'OWNER') throw new Error('เฉพาะเจ้าของร้านที่สร้างบัญชีเจ้าของหรือแอดมินได้');
+    const id = id_('USR');
+    append_('Users',[id,username,hash_(data.password),clean_(data.name),role,true,now_(),user.id]);
+    SpreadsheetApp.flush();invalidateRows_('Users');
+    // The account is already committed. Audit/bootstrap failures must not make
+    // the client retry and accidentally create a duplicate account.
+    try{audit_(user,'CREATE','USER',id,username+' / '+role)}catch(e){}
+    return ok({id});
+  }finally{lock.releaseLock()}
 }
 
 function updateUser_(user,data){
@@ -404,7 +420,7 @@ function updateUser_(user,data){
   if(user.role!=='OWNER'&&['OWNER','ADMIN'].includes(role)) throw new Error('เฉพาะเจ้าของร้านที่กำหนดบทบาทนี้ได้');
   if(data.id===user.id&&role!==user.role) throw new Error('ไม่สามารถเปลี่ยนบทบาทของตนเอง');
   sh.getRange(idx+1,2).setValue(username); if(clean_(data.password)){ if(String(data.password).length<6) throw new Error('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัว'); sh.getRange(idx+1,3).setValue(hash_(data.password)); }
-  sh.getRange(idx+1,4).setValue(name); sh.getRange(idx+1,5).setValue(role); SpreadsheetApp.flush();invalidateRows_('Users'); const updated=rows_('Users').find(x=>x.id===data.id);invalidateRows_('Users');audit_(user,'UPDATE','USER',data.id,username+' / '+role); return ok({refresh:bootstrap_(data.id===user.id?{...publicUser_(updated),sessionVersion:user.sessionVersion}:user).data});
+  sh.getRange(idx+1,4).setValue(name);sh.getRange(idx+1,5).setValue(role);SpreadsheetApp.flush();invalidateRows_('Users');try{audit_(user,'UPDATE','USER',data.id,username+' / '+role)}catch(e){}return ok({id:data.id});
 }
 
 function toggleUser_(user, data) {
@@ -563,9 +579,10 @@ function transactionViews_(tx,categories,accounts){
 }
 function requireSession_(token) {if(!token)throw new Error('SESSION_EXPIRED');const cache=CacheService.getScriptCache(),props=PropertiesService.getScriptProperties(),key='SESSION_TOKEN_'+token,raw=cache.get('session:'+token)||props.getProperty(key);let user=raw?JSON.parse(raw):userFromPersistentToken_(token),version=props.getProperty('SESSION_VERSION')||'1';if(!user||user.sessionVersion!==version){props.deleteProperty(key);throw new Error('SESSION_EXPIRED')}const latest=cachedRows_('Users',120).find(x=>x.id===user.id);if(!latest||!truthy_(latest.active)){props.deleteProperty(key);throw new Error('SESSION_EXPIRED')}const fresh={...publicUser_(latest),sessionVersion:version,persistent:true};if(!raw||fresh.name!==user.name||fresh.username!==user.username||fresh.role!==user.role)props.setProperty(key,JSON.stringify(fresh));cache.put('session:'+token,JSON.stringify(fresh),21600);return fresh;}
 function sessionSecret_(){const props=PropertiesService.getScriptProperties();let secret=props.getProperty('SESSION_SIGNING_SECRET');if(!secret){secret=Utilities.getUuid()+Utilities.getUuid();props.setProperty('SESSION_SIGNING_SECRET',secret)}return secret}
-function tokenSignature_(user,version){return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+user.passwordHash+'|'+version,sessionSecret_())).replace(/=+$/,'')}
-function makePersistentToken_(user){const version=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1',payload=Utilities.base64EncodeWebSafe(user.id).replace(/=+$/,'');return'p1.'+payload+'.'+tokenSignature_(user,version)}
-function userFromPersistentToken_(token){try{const parts=String(token).split('.');if(parts.length!==3||parts[0]!=='p1')return null;const id=Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString(),user=cachedRows_('Users',120).find(x=>x.id===id),version=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1';if(!user||parts[2]!==tokenSignature_(user,version))return null;return{...publicUser_(user),sessionVersion:version,persistent:true}}catch(e){return null}}
+function legacyTokenSignature_(user,version){return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+user.passwordHash+'|'+version,sessionSecret_())).replace(/=+$/,'')}
+function tokenSignature_(user,version,nonce){return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+user.passwordHash+'|'+version+'|'+(nonce||''),sessionSecret_())).replace(/=+$/,'')}
+function makePersistentToken_(user){const version=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1',payload=Utilities.base64EncodeWebSafe(user.id).replace(/=+$/,''),nonce=Utilities.getUuid().replace(/-/g,'');return'p2.'+payload+'.'+nonce+'.'+tokenSignature_(user,version,nonce)}
+function userFromPersistentToken_(token){try{const parts=String(token).split('.'),legacy=parts[0]==='p1';if((legacy&&parts.length!==3)||(!legacy&&(parts[0]!=='p2'||parts.length!==4)))return null;const id=Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString(),user=cachedRows_('Users',120).find(x=>x.id===id),version=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1',nonce=legacy?'':parts[2],signature=legacy?parts[2]:parts[3],expected=legacy?legacyTokenSignature_(user,version):tokenSignature_(user,version,nonce);if(!user||signature!==expected)return null;return{...publicUser_(user),sessionVersion:version,persistent:true}}catch(e){return null}}
 function publicUser_(u) { return {id:u.id,name:u.name,username:u.username,role:u.role,active:truthy_(u.active)}; }
 function canManage_(u) { return ['ADMIN','MANAGER','OWNER'].includes(u.role); }
 function canAdminUsers_(u) { return ['ADMIN','OWNER'].includes(u.role); }

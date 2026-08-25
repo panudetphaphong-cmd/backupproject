@@ -29,7 +29,7 @@
   </iframe>
   <script>
     const wdFrame = document.getElementById('wdApp');
-    const wdExec = 'https://script.google.com/macros/s/AKfycbwTqNnkY1KsL1uGJFBkTLV8ONZQkEI5z3_d2n5gj--cvNIVxpOpt7KIpI9KS40ZYq38/exec?host=netlify-v8';
+    const wdExec = 'https://script.google.com/macros/s/AKfycbyVGVvE5sL7AgqHZIZAE9JD3wwCIeKie0drsbWKEDYTVeZLpbgwNVwIq4YI18u-BQ1-/exec?host=netlify-v9';
     const readCookie = name => decodeURIComponent((document.cookie.split('; ').find(x=>x.startsWith(name+'='))||'=').split('=').slice(1).join('='));
     const writeLoginCookie = token => { document.cookie = 'wd_device_token=' + encodeURIComponent(token||'') + '; Path=/; Max-Age=' + (token ? 31536000 : 0) + '; SameSite=Lax; Secure'; };
     const wdToken = localStorage.getItem('wd_persistent_token') || readCookie('wd_device_token') || sessionStorage.getItem('wd_session_token') || '';
