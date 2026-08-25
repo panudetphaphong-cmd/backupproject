@@ -3499,7 +3499,7 @@
           }
         };
 
-        // แอดมินยืนยันการโอนคืน แต่รอลูกค้าตรวจสอบก่อนรีเซ็ตยอด
+        // แอดมินแนบสลิปและยืนยัน: เซิร์ฟเวอร์เคลียร์ยอดและส่งหลักฐานเข้าแชทแบบ atomic
         const adminExecuteRefund = (customer) => {
           if (!isAdmin.value || !customer) return;
           const totalNeg = calculateTotal(customer.values);
@@ -3517,56 +3517,34 @@
             showCancelButton: true,
             confirmButtonColor: '#7c3aed',
             cancelButtonColor: '#64748b',
-            confirmButtonText: 'ใช่, โอนเงินคืนแล้ว รอลูกค้ายืนยัน',
+            confirmButtonText: 'ใช่, โอนคืนและเคลียร์ยอด',
             cancelButtonText: 'ยกเลิก'
           }).then((res) => {
             if (res.isConfirmed) {
-              customer.adminConfirmed = true;
-              customer.status = 'รอชำระ';
-              customer.invoiceSent = true;
-              if (customer.customerConfirmed) {
-                if (!customer.invoiceHistory) customer.invoiceHistory = [];
-                customer.invoiceHistory.unshift({
-                  id: Date.now(),
-                  total: totalNeg,
-                  date: customer.invoiceDate || currentDate.value,
-                  paidAt: new Date().toLocaleString('th-TH'),
-                  note: `ยืนยันครบทั้งสองฝ่าย โอนคืนเข้าบัญชี: ${bankInfoStr}`,
-                  attachedInvoiceImg: customer.attachedInvoiceImg || ''
+              google.script.run
+                .withSuccessHandler((result) => {
+                  if (!result?.success) {
+                    Swal.fire({ icon: 'error', title: 'โอนคืนไม่สำเร็จ', text: result?.message || 'กรุณาลองใหม่' });
+                    return;
+                  }
+                  Object.assign(customer, result.customer);
+                  syncDataRealtime();
+                  showDispatchModal.value = false;
+                  if (activeSummary.value) activeSummary.value = null;
+                  Swal.fire({
+                    icon: 'success', title: 'โอนคืนและเคลียร์ยอดแล้ว',
+                    text: `เคลียร์ยอดของคุณ ${customer.name} เป็น 0 และส่งสลิปเข้าแชทเรียบร้อยแล้ว`,
+                    confirmButtonColor: '#7c3aed'
+                  });
+                })
+                .withFailureHandler((error) => {
+                  Swal.fire({ icon: 'error', title: 'โอนคืนไม่สำเร็จ', text: error?.message || 'กรุณาลองใหม่' });
+                })
+                .completeCustomerRefund(customer.id, {
+                  slipImage: customer.attachedInvoiceImg || dispatchInvoiceImgPreview.value,
+                  bank: chosenBank,
+                  colLabel: availableCategories.value.length > 0 ? availableCategories.value[0].label : 'EDAY'
                 });
-                columns.value.forEach(col => {
-                  customer.values[col.id] = 0;
-                });
-                customer.status = 'ชำระแล้ว';
-                customer.invoiceSent = false;
-                customer.attachedInvoiceImg = '';
-                customer.selectedRefundBank = null;
-              }
-
-              transactions.value.unshift({
-                id: Date.now(),
-                colLabel: availableCategories.value.length > 0 ? availableCategories.value[0].label : 'EDAY',
-                type: 'expense',
-                amount: Math.abs(totalNeg),
-                startDate: todayStr,
-                endDate: todayStr,
-                note: `โอนเงินคืนยอดติดลบให้คุณ ${customer.name} (เข้าบัญชี: ${bankInfoStr})`,
-                createdAt: new Date().toISOString()
-              });
-
-              saveAllData(true);
-              syncDataRealtime();
-              showDispatchModal.value = false;
-              if (activeSummary.value) activeSummary.value = null;
-
-              Swal.fire({
-                icon: 'success',
-                title: customer.customerConfirmed ? 'ยืนยันครบทั้งสองฝ่ายแล้ว' : 'บันทึกการโอนเงินคืนแล้ว',
-                text: customer.customerConfirmed
-                  ? `รีเซ็ตยอดของคุณ ${customer.name} เป็น 0 และเก็บเข้าประวัติเรียบร้อยแล้ว`
-                  : `รอคุณ ${customer.name} ตรวจสอบและกดยืนยัน ระบบจึงจะเคลียร์ยอดในตารางเป็น 0`,
-                confirmButtonColor: '#7c3aed'
-              });
             }
           });
         };

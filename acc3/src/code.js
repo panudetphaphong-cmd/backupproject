@@ -10,8 +10,14 @@ const ACCOUNTING_DATA_CHUNK_SIZE = 45000;
 function doGet() {
   try {
     initializeSheetDatabase_();
+    processWeeklyOutstandingBalances({ dryRun: false });
   } catch (error) {
     Logger.log('doGet initialize error: ' + error);
+  }
+  try {
+    ensureAccountingAutomationTrigger_();
+  } catch (triggerError) {
+    Logger.log('Automation trigger setup error: ' + triggerError);
   }
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('ระบบบันทึกบัญชีลูกค้า')
@@ -633,6 +639,220 @@ function appendChatMessage(message) {
   } finally {
     if (lock.hasLock()) lock.releaseLock();
   }
+}
+
+// ตรวจทุกวัน และมี fallback ตอนเปิดเว็บ เผื่อ trigger ถูกลบหรือหยุดทำงาน
+function ensureAccountingAutomationTrigger_() {
+  const properties = PropertiesService.getScriptProperties();
+  if (properties.getProperty('ACCOUNTING_AUTOMATION_TRIGGER_READY') === 'true') return;
+  const handler = 'runDailyAccountingAutomation';
+  const exists = ScriptApp.getProjectTriggers().some(function (trigger) {
+    return trigger.getHandlerFunction() === handler;
+  });
+  if (!exists) {
+    ScriptApp.newTrigger(handler).timeBased().everyDays(1).atHour(1).create();
+  }
+  properties.setProperty('ACCOUNTING_AUTOMATION_TRIGGER_READY', 'true');
+}
+
+function runDailyAccountingAutomation() {
+  return processWeeklyOutstandingBalances({ dryRun: false });
+}
+
+// ย้ายยอดที่ค้างครบ 7 วันเข้า "ยอดเบิก" โดยคงยอดรวมเดิม และส่งรายละเอียดเข้าแชท
+// options: { dryRun: true, customerName: 'ยุทธ', now: Date|string }
+function processWeeklyOutstandingBalances(options) {
+  options = options || {};
+  const dryRun = options.dryRun === true;
+  const targetName = String(options.customerName || '').trim().toLowerCase();
+  const now = options.now ? new Date(options.now) : new Date();
+  if (isNaN(now.getTime())) throw new Error('วันที่ตรวจสอบไม่ถูกต้อง');
+
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const data = getData();
+    const columns = data.columns || [];
+    const withdrawColumn = columns.find(function (column) {
+      return column.id === 'withdraw' || String(column.label || '').trim() === 'ยอดเบิก';
+    });
+    if (!withdrawColumn) throw new Error('ไม่พบช่องยอดเบิก');
+
+    const results = [];
+    (data.customers || []).forEach(function (customer) {
+      if (targetName && String(customer.name || '').trim().toLowerCase().indexOf(targetName) < 0) return;
+      const invoiceDate = parseAccountingDate_(customer.invoiceDate);
+      const ageDays = invoiceDate
+        ? Math.floor((startOfAccountingDay_(now).getTime() - startOfAccountingDay_(invoiceDate).getTime()) / 86400000)
+        : -1;
+      const values = customer.values || {};
+      const detailColumns = columns.filter(function (column) {
+        return column.id !== withdrawColumn.id && (Number(values[column.id]) || 0) !== 0;
+      });
+      const amountToCarry = detailColumns.reduce(function (sum, column) {
+        return sum + (Number(values[column.id]) || 0);
+      }, 0);
+      const currentTotal = columns.reduce(function (sum, column) {
+        return sum + (Number(values[column.id]) || 0);
+      }, 0);
+      if (!customer.invoiceSent || ageDays < 7 || currentTotal <= 0 || amountToCarry === 0) return;
+
+      const details = detailColumns.map(function (column) {
+        return { id: column.id, label: column.label, amount: Number(values[column.id]) || 0 };
+      });
+      const result = {
+        customerId: customer.id,
+        customerName: customer.name,
+        invoiceDate: customer.invoiceDate,
+        ageDays: ageDays,
+        amountToCarry: amountToCarry,
+        previousWithdraw: Number(values[withdrawColumn.id]) || 0,
+        newWithdraw: (Number(values[withdrawColumn.id]) || 0) + amountToCarry,
+        details: details
+      };
+      results.push(result);
+      if (dryRun) return;
+
+      details.forEach(function (detail) { values[detail.id] = 0; });
+      values[withdrawColumn.id] = result.newWithdraw;
+      customer.values = values;
+      customer.invoiceDate = formatAccountingDate_(now);
+      customer.lastWeeklyCarryoverAt = now.toISOString();
+      customer.status = 'รอชำระ';
+      customer.adminConfirmed = false;
+      customer.customerConfirmed = false;
+      data.chatMessages = data.chatMessages || [];
+      data.chatMessages.push(buildSystemChatMessage_(customer.name,
+        'แจ้งยอดค้างครบ 7 วัน\n' +
+        details.map(function (detail) {
+          return '• ' + detail.label + ': ' + formatAccountingAmount_(detail.amount) + ' บาท';
+        }).join('\n') +
+        '\nรวมย้ายเข้าช่องยอดเบิก: ' + formatAccountingAmount_(amountToCarry) + ' บาท\n' +
+        'ยอดค้างรวมปัจจุบัน: ' + formatAccountingAmount_(currentTotal) + ' บาท',
+        '', now));
+    });
+
+    if (!dryRun && results.length) writeSharedData_(data);
+    return { success: true, dryRun: dryRun, processed: results.length, results: results };
+  } catch (error) {
+    return { success: false, dryRun: dryRun, message: error.toString(), processed: 0, results: [] };
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
+function previewWeeklyOutstandingForCustomer(customerName) {
+  return processWeeklyOutstandingBalances({ dryRun: true, customerName: customerName });
+}
+
+function previewYutWeeklyOutstanding() {
+  return previewWeeklyOutstandingForCustomer('ยุทธ');
+}
+
+function completeCustomerRefund(customerId, refund) {
+  refund = refund || {};
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const data = getData();
+    const customer = (data.customers || []).find(function (item) {
+      return String(item.id) === String(customerId);
+    });
+    if (!customer) throw new Error('ไม่พบข้อมูลลูกค้า');
+    const columns = data.columns || [];
+    const total = columns.reduce(function (sum, column) {
+      return sum + (Number((customer.values || {})[column.id]) || 0);
+    }, 0);
+    if (total >= 0) throw new Error('ลูกค้ารายนี้ไม่มียอดติดลบสำหรับโอนคืน');
+    const slipImage = refund.slipImage || customer.attachedInvoiceImg || '';
+    if (!slipImage) throw new Error('กรุณาแนบสลิปโอนเงินคืน');
+    const now = new Date();
+    const refundAmount = Math.abs(total);
+    const bank = refund.bank || customer.selectedRefundBank || null;
+    const bankText = bank
+      ? [bank.bankName, bank.accNo, bank.accName].filter(Boolean).join(' - ')
+      : 'ไม่ระบุบัญชี';
+
+    customer.invoiceHistory = customer.invoiceHistory || [];
+    customer.invoiceHistory.unshift({
+      id: now.getTime(), total: total, paidAmount: refundAmount, remainingAmount: 0,
+      date: customer.invoiceDate || formatAccountingDate_(now),
+      paidAt: now.toLocaleString('th-TH'),
+      note: 'แอดมินโอนเงินคืนและเคลียร์ยอด เข้าบัญชี: ' + bankText,
+      attachedInvoiceImg: slipImage
+    });
+    customer.values = customer.values || {};
+    columns.forEach(function (column) { customer.values[column.id] = 0; });
+    customer.status = 'ชำระแล้ว';
+    customer.invoiceSent = false;
+    customer.adminConfirmed = true;
+    customer.customerConfirmed = true;
+    customer.pendingPaymentAmount = 0;
+    customer.attachedInvoiceImg = '';
+    customer.selectedRefundBank = null;
+
+    data.transactions = data.transactions || [];
+    data.transactions.unshift({
+      id: now.getTime(), colLabel: refund.colLabel || 'EDAY', type: 'expense',
+      amount: refundAmount,
+      startDate: Utilities.formatDate(now, 'Asia/Bangkok', 'yyyy-MM-dd'),
+      endDate: Utilities.formatDate(now, 'Asia/Bangkok', 'yyyy-MM-dd'),
+      note: 'โอนเงินคืนยอดติดลบให้คุณ ' + customer.name + ' (เข้าบัญชี: ' + bankText + ')',
+      createdAt: now.toISOString()
+    });
+    data.chatMessages = data.chatMessages || [];
+    data.chatMessages.push(buildSystemChatMessage_(customer.name,
+      'โอนเงินคืนเรียบร้อยแล้ว\nจำนวน: ' + formatAccountingAmount_(refundAmount) +
+      ' บาท\nบัญชีรับเงิน: ' + bankText + '\nระบบเคลียร์ยอดในตารางเป็น 0 แล้ว',
+      slipImage, now));
+    writeSharedData_(data);
+    return { success: true, customer: customer, refundAmount: refundAmount, chatMessage: data.chatMessages[data.chatMessages.length - 1] };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
+function buildSystemChatMessage_(customerName, text, image, date) {
+  const now = date || new Date();
+  return {
+    id: now.getTime(), customerName: customerName, senderName: 'ระบบ', senderRole: 'admin',
+    text: text, image: image || '', isRead: false,
+    createdAt: now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+  };
+}
+
+function parseAccountingDate_(value) {
+  if (!value) return null;
+  if (value instanceof Date && !isNaN(value.getTime())) return value;
+  const text = String(value).trim();
+  const parsed = new Date(text);
+  if (!isNaN(parsed.getTime())) return parsed;
+  const numericMatch = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (numericMatch) {
+    let numericYear = Number(numericMatch[3]);
+    if (numericYear > 2400) numericYear -= 543;
+    return new Date(numericYear, Number(numericMatch[2]) - 1, Number(numericMatch[1]));
+  }
+  const thaiMonths = { มกราคม:0, กุมภาพันธ์:1, มีนาคม:2, เมษายน:3, พฤษภาคม:4, มิถุนายน:5, กรกฎาคม:6, สิงหาคม:7, กันยายน:8, ตุลาคม:9, พฤศจิกายน:10, ธันวาคม:11 };
+  const match = text.match(/(\d{1,2})\s+([^\s]+)\s+(\d{4})/);
+  if (!match || thaiMonths[match[2]] === undefined) return null;
+  let year = Number(match[3]);
+  if (year > 2400) year -= 543;
+  return new Date(year, thaiMonths[match[2]], Number(match[1]));
+}
+
+function startOfAccountingDay_(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function formatAccountingDate_(date) {
+  return date.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatAccountingAmount_(value) {
+  return (Number(value) || 0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function deleteChatConversation(customerName) {
