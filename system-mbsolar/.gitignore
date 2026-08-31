@@ -1,0 +1,12 @@
+# Local browser profiles and diagnostic output
+.edge-*/
+.edge-*.txt
+
+# Temporary syntax/test files
+.tmp-*
+*.log
+
+# Local dependencies and OS/editor files
+node_modules/
+.DS_Store
+Thumbs.db
