@@ -1,0 +1,17 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const server={},properties=new Map(),db={Quotations:[],QuotePresets:[]};let locked=false,id=0;
+vm.createContext(server);vm.runInContext(fs.readFileSync('src/Code.js','utf8'),server);
+Object.assign(server,{PropertiesService:{getScriptProperties:()=>({getProperty:k=>properties.get(k),setProperty:(k,v)=>properties.set(k,v)})},LockService:{getScriptLock:()=>({waitLock(){assert(!locked);locked=true},releaseLock(){locked=false}})},require_(){},date_:d=>d,db_:()=>db,rows_:name=>db[name],readSheet_:(_,name)=>db[name],id_:()=>`Q${++id}`,audit_(){},append_(name,values){assert(locked);db[name].push(Object.fromEntries(vm.runInContext('APP.sheets.'+name,server).map((h,i)=>[h,values[i]])))},updateRow_(name,key,values){assert(locked);Object.assign(db[name].find(x=>x.id===key),values)}});
+assert.equal(server.documentNumber_('QT',80,'2026-09-13'),'QT8013092569');assert.equal(server.documentNumber_('IV',80,'2026-09-13'),'IV8013092569');assert.equal(server.documentNumber_('RC',80,'2026-09-13'),'RC8013092569');
+assert.equal(server.documentNumber_('QT',8,'2026-09-13'),'QT0813092569');assert.equal(server.documentNumber_('QT',101,'2027-01-02'),'QT10102012570');
+assert.equal(server.quotationSequence_('QT8013092569'),80);assert.equal(server.quotationSequence_('QT0813092569'),8);assert.equal(server.quotationSequence_('QTSO-202609-079'),79);
+assert.equal(server.relatedDocumentNumber_('IV',{quoteNo:'QT8013092569',issueDate:'2026-10-01'},1),'IV8013092569-1');assert.equal(server.relatedDocumentNumber_('IV',{quoteNo:'QT8013092569'},2),'IV8013092569-2');assert.equal(server.relatedDocumentNumber_('RC',{quoteNo:'QT8013092569'}),'RC8013092569');assert.equal(server.relatedDocumentNumber_('IV',{quoteNo:'QTSO-202609-080',issueDate:'2026-09-13'},1),'IV8013092569-1');
+db.Quotations.push({id:'LEGACY',quoteNo:'QTSO-202609-079'});
+const input={issueDate:'2026-09-13',customerName:'Customer',workType:'Solar Cell',vatRate:7,items:[{description:'Solar',quantity:1,unitPrice:100}]};
+server.saveQuotation_({id:'U'},input);assert.equal(db.Quotations[1].quoteNo,'QT8013092569');assert(!locked);
+server.saveQuotation_({id:'U'},{...input,issueDate:'2026-10-01',workType:'EV Charger'});assert.equal(db.Quotations[2].quoteNo,'QT8101102569');
+db.Quotations.pop();server.saveQuotation_({id:'U'},input);assert.equal(db.Quotations[2].quoteNo,'QT8213092569');
+server.saveQuotation_({id:'U'},{...input,id:db.Quotations[1].id,quoteNo:'',issueDate:'2026-10-02'});assert.equal(db.Quotations[1].quoteNo,'QT8013092569');
+assert.throws(()=>server.saveQuotation_({id:'U'},{...input,quoteNo:'QT8013092569'}));assert(!locked);
+server.saveQuotation_({id:'U'},{...input,quoteNo:'QT9013092569'});db.Quotations.pop();server.saveQuotation_({id:'U'},input);assert.equal(db.Quotations.at(-1).quoteNo,'QT9113092569');
+console.log('PASS: QT / IV / RC Buddhist date format, 2+ digit sequence, global sequence, deletion-safe allocation, locked saves, duplicate rejection and existing number preservation');

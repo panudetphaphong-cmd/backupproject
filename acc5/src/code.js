@@ -1,8 +1,10 @@
 const SHEET_NAME = 'รายการบัญชี';
-const HEADERS = ['รหัส', 'วันที่', 'ประเภท', 'หมวดหมู่', 'รายละเอียด', 'จำนวนเงิน', 'ผู้บันทึก', 'สถานะ', 'สร้างเมื่อ', 'แก้ไขเมื่อ', 'บัญชี', 'ลิงก์สลิป', 'เลขอ้างอิงสลิป', 'รหัสธุรกิจ'];
+const HEADERS = ['รหัส', 'วันที่', 'ประเภท', 'หมวดหมู่', 'รายละเอียด', 'จำนวนเงิน', 'ผู้บันทึก', 'สถานะ', 'สร้างเมื่อ', 'แก้ไขเมื่อ', 'บัญชี', 'ลิงก์สลิป', 'เลขอ้างอิงสลิป', 'รหัสธุรกิจ', 'รหัสช่องทางการเงิน'];
 const CATEGORY_SHEET = 'หมวดหมู่';
 const BUSINESS_SHEET = 'ธุรกิจ';
 const SAVINGS_SHEET = 'เงินเก็บสะสม';
+const PAYMENT_SOURCE_SHEET = 'ช่องทางการเงิน';
+const CARD_PAYMENT_SHEET = 'ชำระบัตรเครดิต';
 const DEFAULT_CATEGORIES = [
   ['รายรับ', 'เงินเดือน'], ['รายรับ', 'รายได้เสริม'], ['รายรับ', 'เงินรับโอน'], ['รายรับ', 'รายรับอื่น ๆ'],
   ['รายจ่าย', 'อาหาร'], ['รายจ่าย', 'เดินทาง'], ['รายจ่าย', 'บ้าน'], ['รายจ่าย', 'สาธารณูปโภค'],
@@ -23,16 +25,15 @@ function doGet() {
 
 function getInitialData() {
   const cache = CacheService.getScriptCache();
-  const cached = cache.get('initial-data-v3');
+  const cached = cache.get('initial-data-v6');
   if (cached) return JSON.parse(cached);
-  migrateBusinessData_();
-  const data = { records: getRecords_(), categories: getCategories_(), businesses: getBusinesses_(), savings: getSavings_() };
-  try { cache.put('initial-data-v3', JSON.stringify(data), 120); } catch (ignore) {}
+  const data = { records: getRecords_(), categories: getCategories_(), paymentSources: getPaymentSources_(), cardPayments: getCardPayments_(), businesses: getBusinesses_() };
+  try { cache.put('initial-data-v6', JSON.stringify(data), 1800); } catch (ignore) {}
   return data;
 }
 
 function invalidateDataCache_() {
-  try { CacheService.getScriptCache().removeAll(['initial-data-v2', 'initial-data-v3']); } catch (ignore) {}
+  try { CacheService.getScriptCache().removeAll(['initial-data-v2', 'initial-data-v3', 'initial-data-v4', 'initial-data-v5', 'initial-data-v6']); } catch (ignore) {}
 }
 
 function addSavingsEntry(data) {
@@ -135,10 +136,33 @@ function addRecord(data) {
   const sheet = ensureSheet_();
   const now = new Date();
   const workspace = normalizeWorkspace_(data.workspace);
-  const row = [Utilities.getUuid(), parseDate_(data.date), data.type, data.category || 'อื่น ๆ', data.note || '', Number(data.amount), data.user || 'ส่วนกลาง', 'ใช้งาน', now, now, workspace, data.receiptUrl || '', normalizeSlipRef_(data.slipRef), workspace === 'BUSINESS' ? normalizeBusinessId_(data.businessId) : ''];
+  const row = [Utilities.getUuid(), parseDate_(data.date), data.type, data.category || 'อื่น ๆ', data.note || '', Number(data.amount), data.user || 'ส่วนกลาง', 'ใช้งาน', now, now, workspace, data.receiptUrl || '', normalizeSlipRef_(data.slipRef), workspace === 'BUSINESS' ? normalizeBusinessId_(data.businessId) : '', String(data.paymentSourceId || '')];
   sheet.appendRow(row);
   invalidateDataCache_();
   return { ok: true, message: 'เก็บให้เรียบร้อยแล้วนะ', record: rowToRecord_(row) };
+}
+
+function addRecordsBatch(items) {
+  if (!Array.isArray(items) || !items.length) throw new Error('กรุณาเพิ่มอย่างน้อย 1 รายการ');
+  if (items.length > 50) throw new Error('บันทึกได้สูงสุดครั้งละ 50 รายการ');
+  items.forEach(validateRecord_);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = ensureSheet_(), now = new Date();
+    const businessIds = getBusinesses_().map(b => b.id);
+    const rows = items.map(data => {
+      const workspace = normalizeWorkspace_(data.workspace);
+      const businessId = workspace === 'BUSINESS' && businessIds.includes(String(data.businessId)) ? String(data.businessId) : '';
+      if (workspace === 'BUSINESS' && !businessId) throw new Error('กรุณาเลือกกิจการให้ถูกต้อง');
+      return [Utilities.getUuid(), parseDate_(data.date), data.type, data.category || 'อื่น ๆ', data.note || '', Number(data.amount), data.user || 'ส่วนกลาง', 'ใช้งาน', now, now, workspace, data.receiptUrl || '', normalizeSlipRef_(data.slipRef), businessId, String(data.paymentSourceId || '')];
+    });
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, HEADERS.length).setValues(rows);
+    invalidateDataCache_();
+    return { ok: true, message: 'บันทึก ' + rows.length + ' รายการเรียบร้อยแล้ว', count: rows.length };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function analyzeSlip(payload, workspace, businessId) {
@@ -220,6 +244,7 @@ function updateRecord(id, changes) {
       ]]);
       sheet.getRange(i + 1, 11).setValue(normalizeWorkspace_(next.workspace || current.workspace));
       sheet.getRange(i + 1, 14).setValue(normalizeWorkspace_(next.workspace || current.workspace) === 'BUSINESS' ? normalizeBusinessId_(next.businessId || current.businessId) : '');
+      sheet.getRange(i + 1, 15).setValue(String(next.paymentSourceId || current.paymentSourceId || ''));
       invalidateDataCache_();
       return { ok: true, message: 'แก้ไขให้แล้วนะ' };
     }
@@ -497,7 +522,7 @@ function parseSlipText_(text) {
 }
 
 function rowToRecord_(r) {
-  return { id: String(r[0]), date: Utilities.formatDate(new Date(r[1]), 'Asia/Bangkok', 'yyyy-MM-dd'), type: r[2], category: r[3], note: r[4], amount: Number(r[5]), user: normalizeMember_(r[6]), status: r[7], createdAt: r[8] instanceof Date ? r[8].toISOString() : String(r[8]), updatedAt: r[9] instanceof Date ? r[9].toISOString() : String(r[9]), workspace: normalizeWorkspace_(r[10]), receiptUrl: String(r[11] || ''), slipRef: normalizeSlipRef_(r[12]), businessId: String(r[13] || '') };
+  return { id: String(r[0]), date: Utilities.formatDate(new Date(r[1]), 'Asia/Bangkok', 'yyyy-MM-dd'), type: r[2], category: r[3], note: r[4], amount: Number(r[5]), user: normalizeMember_(r[6]), status: r[7], createdAt: r[8] instanceof Date ? r[8].toISOString() : String(r[8]), updatedAt: r[9] instanceof Date ? r[9].toISOString() : String(r[9]), workspace: normalizeWorkspace_(r[10]), receiptUrl: String(r[11] || ''), slipRef: normalizeSlipRef_(r[12]), businessId: String(r[13] || ''), paymentSourceId: String(r[14] || '') };
 }
 
 function normalizeSlipRef_(value) {
@@ -627,4 +652,104 @@ function answerQuery_(q) {
   const amount = q.type === 'รายรับ' ? income : q.type === 'รายจ่าย' ? expense : income - expense;
   const label = q.type === 'รายรับ' ? 'มีรายรับ' : q.type === 'รายจ่าย' ? 'ใช้จ่ายไป' : 'มียอดสุทธิ';
   return { ok: true, query: true, amount, income, expense, message: `${periodName}${q.keyword ? ' หมวด' + q.keyword : ''} ${label} ${amount.toLocaleString('th-TH')} บาท จาก ${records.length} รายการ` };
+}
+
+/* Payment sources and credit-card settlement (v4) */
+function ensurePaymentSourceSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(PAYMENT_SOURCE_SHEET);
+  if (!sheet) sheet = ss.insertSheet(PAYMENT_SOURCE_SHEET);
+  const headers = ['รหัส', 'ชื่อช่องทาง', 'ประเภท', 'ยอดตั้งต้น', 'วงเงิน', 'วันตัดรอบ', 'วันครบกำหนด', 'สี', 'สถานะ', 'สร้างเมื่อ', 'แก้ไขเมื่อ', 'ลำดับ'];
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#E8E5FF');
+    const now = new Date();
+    sheet.getRange(2, 1, 3, headers.length).setValues([
+      [Utilities.getUuid(), 'บัญชีส่วนตัว', 'BANK', 0, 0, '', '', '#635BFF', 'ใช้งาน', now, now, 1],
+      [Utilities.getUuid(), 'เงินสด', 'CASH', 0, 0, '', '', '#16A085', 'ใช้งาน', now, now, 2],
+      [Utilities.getUuid(), 'บัตรเครดิต', 'CREDIT_CARD', 0, 0, 25, 10, '#FF6B6B', 'ใช้งาน', now, now, 3]
+    ]);
+    sheet.setFrozenRows(1);
+  } else if (sheet.getLastColumn() < headers.length) {
+    sheet.getRange(1, 12).setValue(headers[11]).setFontWeight('bold').setBackground('#E8E5FF');
+  }
+  return sheet;
+}
+
+function getPaymentSources_() {
+  return ensurePaymentSourceSheet_().getDataRange().getValues().slice(1)
+    .filter(r => r[0] && r[8] === 'ใช้งาน')
+    .map((r, i) => ({ id: String(r[0]), name: String(r[1]), type: String(r[2]), openingBalance: Number(r[3]) || 0, creditLimit: Number(r[4]) || 0, statementDay: Number(r[5]) || 0, dueDay: Number(r[6]) || 0, color: String(r[7] || '#635BFF'), order: Number(r[11]) || i + 1 }))
+    .sort((a, b) => a.order - b.order);
+}
+
+function savePaymentSource(data) {
+  data = data || {};
+  const name = String(data.name || '').trim();
+  const type = ['BANK', 'CASH', 'CREDIT_CARD'].includes(data.type) ? data.type : 'BANK';
+  if (!name) throw new Error('กรุณาใส่ชื่อช่องทางการเงิน');
+  const sheet = ensurePaymentSourceSheet_(), values = sheet.getDataRange().getValues(), id = String(data.id || '');
+  const row = [id || Utilities.getUuid(), name, type, Number(data.openingBalance) || 0, type === 'CREDIT_CARD' ? Number(data.creditLimit) || 0 : 0, type === 'CREDIT_CARD' ? Number(data.statementDay) || 0 : '', type === 'CREDIT_CARD' ? Number(data.dueDay) || 0 : '', String(data.color || '#635BFF'), 'ใช้งาน', new Date(), new Date(), Number(data.order) || values.length];
+  if (id) {
+    for (let i = 1; i < values.length; i++) if (String(values[i][0]) === id && values[i][8] === 'ใช้งาน') {
+      row[9] = values[i][9] || new Date();
+      sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
+      invalidateDataCache_();
+      return { ok: true, message: 'อัปเดตช่องทางแล้ว' };
+    }
+    throw new Error('ไม่พบช่องทางที่ต้องการแก้ไข');
+  }
+  sheet.appendRow(row);
+  invalidateDataCache_();
+  return { ok: true, message: 'เพิ่มช่องทางใหม่แล้ว' };
+}
+
+function reorderPaymentSources(ids) {
+  if (!Array.isArray(ids)) throw new Error('ลำดับบัญชีไม่ถูกต้อง');
+  const sheet = ensurePaymentSourceSheet_(), values = sheet.getDataRange().getValues();
+  const positions = {};
+  ids.forEach((id, i) => positions[String(id)] = i + 1);
+  for (let i = 1; i < values.length; i++) if (positions[String(values[i][0])]) sheet.getRange(i + 1, 12).setValue(positions[String(values[i][0])]);
+  invalidateDataCache_();
+  return { ok: true, message: 'บันทึกลำดับบัญชีแล้ว' };
+}
+
+function deletePaymentSource(id) {
+  if (getRecords_().some(r => r.paymentSourceId === String(id))) throw new Error('ช่องทางนี้มีรายการใช้งานอยู่ จึงยังลบไม่ได้');
+  const sheet = ensurePaymentSourceSheet_(), values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) if (String(values[i][0]) === String(id) && values[i][8] === 'ใช้งาน') {
+    sheet.getRange(i + 1, 9).setValue('ลบแล้ว');
+    sheet.getRange(i + 1, 11).setValue(new Date());
+    invalidateDataCache_();
+    return { ok: true, message: 'ลบช่องทางแล้ว' };
+  }
+  throw new Error('ไม่พบช่องทางการเงิน');
+}
+
+function ensureCardPaymentSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CARD_PAYMENT_SHEET);
+  if (!sheet) sheet = ss.insertSheet(CARD_PAYMENT_SHEET);
+  const headers = ['รหัส', 'วันที่', 'รหัสบัตร', 'รหัสบัญชีที่จ่าย', 'จำนวนเงิน', 'หมายเหตุ', 'สถานะ', 'สร้างเมื่อ'];
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#FFE8E8');
+  return sheet;
+}
+
+function getCardPayments_() {
+  return ensureCardPaymentSheet_().getDataRange().getValues().slice(1).filter(r => r[0] && r[6] === 'ใช้งาน').map(r => ({
+    id: String(r[0]), date: Utilities.formatDate(new Date(r[1]), 'Asia/Bangkok', 'yyyy-MM-dd'), cardId: String(r[2]), fromSourceId: String(r[3]), amount: Number(r[4]) || 0, note: String(r[5] || '')
+  }));
+}
+
+function payCreditCard(data) {
+  data = data || {};
+  const amount = Number(data.amount);
+  const sources = getPaymentSources_();
+  const card = sources.find(s => s.id === String(data.cardId) && s.type === 'CREDIT_CARD');
+  const from = sources.find(s => s.id === String(data.fromSourceId) && s.type !== 'CREDIT_CARD');
+  if (!card) throw new Error('กรุณาเลือกบัตรเครดิต');
+  if (!from) throw new Error('กรุณาเลือกบัญชีที่ใช้จ่ายบัตร');
+  if (!amount || amount <= 0) throw new Error('กรุณาใส่ยอดชำระมากกว่า 0');
+  ensureCardPaymentSheet_().appendRow([Utilities.getUuid(), parseDate_(data.date), card.id, from.id, amount, String(data.note || '').trim(), 'ใช้งาน', new Date()]);
+  invalidateDataCache_();
+  return { ok: true, message: 'บันทึกการจ่ายบัตรแล้ว' };
 }

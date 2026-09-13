@@ -1,10 +1,10 @@
 const APP = {
-  version: '2.6.0',
+  version: '2.27.0',
   maintenanceMode: true,
   spreadsheetId: '15wNWYPRNU3ozpuaQI4r_g2rYfwKSRwvWZV93jZGrDl4',
   sheets: {
     Users: ['id','name','username','passwordHash','role','permissions','active','createdAt'],
-    Projects: ['id','name','customer','contractValue','vatRate','status','startDate','endDate','note','createdAt','createdBy'],
+    Projects: ['id','name','customer','contractValue','vatRate','status','startDate','endDate','note','createdAt','createdBy','siteLocation','province','projectType','deliveryDate'],
     Income: ['id','projectId','date','description','amountExVat','vat','total','account','createdAt','createdBy'],
     Expenses: ['id','projectId','date','category','description','amountExVat','vat','total','paidBy','taxInvoice','createdAt','createdBy'],
     Employees: ['id','name','type','wageRate','otRate','active','note','createdAt','position'],
@@ -17,15 +17,23 @@ const APP = {
     BalanceAccounts: ['id','name','type','openingBalance','active','sortOrder','createdAt','createdBy'],
     Partners: ['id','name','active','createdAt'],
     Dividends: ['id','partnerId','date','amount','paidFrom','note','createdAt','createdBy','projectId'],
+    Quotations: ['id','quoteNo','issueDate','customerName','customerPhone','customerAddress','customerTaxId','workType','itemsJson','vatRate','paymentTerms','deliveryTerms','warrantyText','scopeText','note','status','subtotal','vatAmount','grandTotal','createdAt','updatedAt','createdBy','logoData','noteColor','companyJson'],
+    QuotePresets: ['id','kind','workType','name','dataJson','updatedAt','createdBy'],
+    Invoices: ['id','invoiceNo','issueDate','quotationId','quoteNo','installment','percent','subtotal','vatRate','vatAmount','grandTotal','paymentTerms','deliveryTerms','poNo','snapshotJson','itemsJson','logoData','createdAt','createdBy'],
+    Receipts: ['id','receiptNo','issueDate','invoiceId','invoiceNo','quotationId','quoteNo','installment','subtotal','vatRate','vatAmount','grandTotal','snapshotJson','itemsJson','logoData','createdAt','createdBy'],
     AuditLog: ['id','date','userId','action','entity','entityId','detail']
   }
 };
 
 function doGet() {
   ensureSchemaOnce_();
-  const template=HtmlService.createTemplateFromFile('Index');
-  template.initialData=JSON.stringify(bootstrap_(maintenanceUser_())).replace(/</g,'\\u003c');
-  return template.evaluate().setTitle('MB Solar Project Profit')
+  const initialData=JSON.stringify(bootstrap_(maintenanceUser_())).replace(/</g,'\\u003c');
+  const source=HtmlService.createTemplateFromFile('Index').getRawContent().replace('<?!= initialData ?>',()=>initialData);
+  const html=source.replace(/<script>([\s\S]*?)<\/script>/g,(_,script)=>{
+    const encoded=Utilities.base64Encode(script,Utilities.Charset.UTF_8);
+    return '<script>const appScript=document.createElement("script");appScript.textContent=new TextDecoder().decode(Uint8Array.from(atob("'+encoded+'"),c=>c.charCodeAt(0)));document.head.appendChild(appScript);</script>';
+  });
+  return HtmlService.createHtmlOutput(html).setTitle('MB Solar Project Profit')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
 }
@@ -36,17 +44,162 @@ function api(action, payload) {
   if (action === 'login') return clientSafe_(login_(payload));
   const user = APP.maintenanceMode && !payload.token ? maintenanceUser_() : sessionUser_(payload.token);
   if (action === 'bootstrap') return clientSafe_(bootstrap_(user));
-  const routes = {saveProject:saveProject_,deleteProject:deleteProject_,saveIncome:saveIncome_,saveExpense:saveExpense_,saveExpensesBatch:saveExpensesBatch_,saveTransactionsBatch:saveTransactionsBatch_,updateTransaction:updateTransaction_,deleteTransaction:deleteTransaction_,saveEmployee:saveEmployee_,deleteEmployee:deleteEmployee_,saveOvertime:saveOvertime_,saveSalaryAdvance:saveSalaryAdvance_,payMonthlySalary:payMonthlySalary_,saveDividend:saveDividend_,distributeProjectDividend:distributeProjectDividend_,saveUser:saveUser_,saveCategory:saveCategory_,deleteCategory:deleteCategory_,savePaymentMethod:savePaymentMethod_,deletePaymentMethod:deletePaymentMethod_,saveBalanceAccount:saveBalanceAccount_,deleteBalanceAccount:deleteBalanceAccount_};
+  if (action === 'createInvoice') return clientSafe_(createInvoice_(user, payload.data || {}));
+  if (action === 'createReceipt') return clientSafe_(createReceipt_(user, payload.data || {}));
+  const routes = {saveProject:saveProject_,deleteProject:deleteProject_,saveIncome:saveIncome_,saveExpense:saveExpense_,saveExpensesBatch:saveExpensesBatch_,saveTransactionsBatch:saveTransactionsBatch_,updateTransaction:updateTransaction_,deleteTransaction:deleteTransaction_,saveEmployee:saveEmployee_,deleteEmployee:deleteEmployee_,saveOvertime:saveOvertime_,saveSalaryAdvance:saveSalaryAdvance_,payMonthlySalary:payMonthlySalary_,distributeProjectDividend:distributeProjectDividend_,saveQuotation:saveQuotation_,saveQuotePreset:saveQuotePreset_,deleteQuotePreset:deleteQuotePreset_,deleteQuotation:deleteQuotation_,saveUser:saveUser_,saveCategory:saveCategory_,deleteCategory:deleteCategory_,savePaymentMethod:savePaymentMethod_,deletePaymentMethod:deletePaymentMethod_,saveBalanceAccount:saveBalanceAccount_,deleteBalanceAccount:deleteBalanceAccount_};
   if (!routes[action]) throw new Error('ไม่พบคำสั่งที่ร้องขอ');
   return clientSafe_(routes[action](user, payload.data || {}));
 }
 
 function ensureSchemaOnce_(){
-  const props=PropertiesService.getScriptProperties();if(props.getProperty('MB_SCHEMA_VERSION')==='6')return;
+  const props=PropertiesService.getScriptProperties();if(props.getProperty('MB_SCHEMA_VERSION')==='26')return;
   const ss=db_();Object.keys(APP.sheets).forEach(name=>{let sh=ss.getSheetByName(name);if(!sh)sh=ss.insertSheet(name);const expected=APP.sheets[name];if(sh.getLastRow()===0){sh.getRange(1,1,1,expected.length).setValues([expected]);sh.setFrozenRows(1)}else{const lastCol=Math.max(1,sh.getLastColumn()),existing=sh.getRange(1,1,1,lastCol).getValues()[0];expected.filter(h=>existing.indexOf(h)<0).forEach(h=>{sh.getRange(1,sh.getLastColumn()+1).setValue(h)})}sh.getRange(1,1,1,sh.getLastColumn()).setFontWeight('bold').setBackground('#dff5e8')});
   if(readSheet_(ss,'Partners').length===0){append_('Partners',['PART-BAS','บาส',true,new Date()]);append_('Partners',['PART-GOLF','กอล์ฟ',true,new Date()])}
   if(readSheet_(ss,'BalanceAccounts').length===0){append_('BalanceAccounts',['BAL-CASH','เงินสด','CASH',0,true,1,new Date(),'SYSTEM']);append_('BalanceAccounts',['BAL-COMPANY','บัญชีบริษัท','COMPANY',0,true,2,new Date(),'SYSTEM'])}
-  props.setProperty('MB_SCHEMA_VERSION','6');
+  seedEvPriceSets_();
+  fillEvPackageDescriptions_();
+  splitEvPackageRows_();
+  seedSolarPriceSets_();
+  migrateSolarCompany_();
+  migrateSolarPanelCounts_();
+  migrateSolarBank_();
+  migrateSavedSolarBanks_();
+  migrateInvoiceNumbers_();
+  props.setProperty('MB_SCHEMA_VERSION','26');
+}
+
+function migrateSavedSolarBanks_(){const props=PropertiesService.getScriptProperties(),key='SAVED_SOLAR_BANKS_V1',lock=LockService.getScriptLock();lock.waitLock(30000);try{if(props.getProperty(key)==='done')return;const bank=solarCompanyDefaults_();rows_('Quotations').filter(x=>x.workType==='Solar Cell').forEach(row=>{const company=JSON.parse(row.companyJson||'{}');if(String(company.bankAccount||'').trim())return;append_('AuditLog',[id_('AUD'),new Date(),'SYSTEM','BACKUP','QUOTATION_COMPANY',row.id,row.companyJson||'{}']);const updated={...bank,...company,bankName:bank.bankName,bankAccount:bank.bankAccount,accountName:bank.accountName};updateRow_('Quotations',row.id,{companyJson:JSON.stringify(updated),updatedAt:new Date()})});props.setProperty(key,'done')}finally{lock.releaseLock()}}
+
+function solarPanelCount_(kw,panel=''){const fixed={3:5,5:8,10:16}[Number(kw)],watt=String(panel).match(/(\d+(?:\.\d+)?)\s*W\b/i);return fixed||(Number(kw)>0&&watt&&Number(watt[1])>0?Math.ceil(Number(kw)*1000/Number(watt[1])):0)}
+function migrateSolarPanelCounts_(){const props=PropertiesService.getScriptProperties(),key='SOLAR_PANEL_COUNTS_V2',lock=LockService.getScriptLock();lock.waitLock(30000);try{if(props.getProperty(key)==='done')return;rows_('QuotePresets').filter(x=>x.kind==='SET'&&x.workType==='Solar Cell').forEach(row=>{const data=JSON.parse(row.dataJson||'{}');let changed=false;(data.items||[]).forEach(item=>{const description=String(item.description||''),match=description.split('\n')[0].match(/Inverter\s+\S+\s+(\d+)\s*kW/i),count=match?solarPanelCount_(match[1],(description.match(/PV Module ([^\n]*)/)||[])[1]||''):0;if(!count)return;const next=description.replace(/(PV Module [^\n]*?) \(จำนวนแผงตามแบบที่ยืนยัน\)/g,'$1 — '+count+' แผง');if(next!==description){item.description=next;changed=true}});if(changed){append_('AuditLog',[id_('AUD'),new Date(),'SYSTEM','BACKUP','QUOTE_PRESET',row.id,row.dataJson]);updateRow_('QuotePresets',row.id,{dataJson:JSON.stringify(data),updatedAt:new Date()})}});props.setProperty(key,'done')}finally{lock.releaseLock()}}
+
+function solarCompanyDefaults_(){return {name:'ห้างหุ้นส่วนจำกัด เอ็มบี โซล่า (สำนักงานใหญ่)',phone:'095-238-3016',email:'',taxId:'0403566004363',address:'87 หมู่ที่ 1 ตำบลหนองแวงนางเบ้า อำเภอพล จ.ขอนแก่น 40120',bankName:'ธนาคารกสิกรไทย',bankAccount:'232-2-79355-6',accountName:'ห้างหุ้นส่วนจำกัด เอ็ม บี โซล่า',signerName:'นาย ณัฐฤทธิ์ นนทโคตร',signatureData:''}}
+function migrateSolarBank_(){const props=PropertiesService.getScriptProperties(),key='SOLAR_BANK_KBANK_2322793556_V1',lock=LockService.getScriptLock();lock.waitLock(30000);try{if(props.getProperty(key)==='done')return;const template=rows_('QuotePresets').find(x=>x.kind==='TEMPLATE'&&x.workType==='Solar Cell');if(!template)throw new Error('ไม่พบฟอร์ม Solar Cell สำหรับเพิ่มบัญชี');const data=JSON.parse(template.dataJson||'{}'),defaults=solarCompanyDefaults_();append_('AuditLog',[id_('AUD'),new Date(),'SYSTEM','BACKUP','QUOTE_PRESET',template.id,template.dataJson]);data.company={...(data.company||defaults),bankName:defaults.bankName,bankAccount:defaults.bankAccount,accountName:defaults.accountName};updateRow_('QuotePresets',template.id,{dataJson:JSON.stringify(data),updatedAt:new Date()});props.setProperty(key,'done')}finally{lock.releaseLock()}}
+function migrateSolarCompany_(){const props=PropertiesService.getScriptProperties(),key='SOLAR_COMPANY_MB_V1',lock=LockService.getScriptLock();lock.waitLock(30000);try{if(props.getProperty(key)==='done')return;const template=rows_('QuotePresets').find(x=>x.kind==='TEMPLATE'&&x.workType==='Solar Cell');if(template){const data=JSON.parse(template.dataJson||'{}');append_('AuditLog',[id_('AUD'),new Date(),'SYSTEM','BACKUP','QUOTE_PRESET',template.id,String(template.dataJson||'{}')]);data.company=solarCompanyDefaults_();updateRow_('QuotePresets',template.id,{dataJson:JSON.stringify(data),updatedAt:new Date()})}else append_('QuotePresets',['QPR-TEMPLATE-SOLAR-ROOF','TEMPLATE','Solar Cell','Solar Cell',JSON.stringify({...solarTemplateDefaults_(),company:solarCompanyDefaults_()}),new Date(),'SYSTEM']);props.setProperty(key,'done')}finally{lock.releaseLock()}}
+
+function solarPriceCatalog_(){return [
+  ...[[3,1,99500],[5,1,129000],[5,3,149000],[10,1,229000],[10,3,239000],[15,3,329000],[20,3,369000],[30,3,429000],[50,3,899000],[100,3,1690000],[199,3,2990000]].map(([kw,phase,price])=>({type:'On-grid',brand:'Huawei',kw,phase,price,panel:kw>=30?'Trina 720 W':'AIKO 670 W'})),
+  ...[[6,1,249000],[8,1,259000],[10,1,329000],[10,3,359000],[16,3,429000],[20,3,539000]].map(([kw,phase,price])=>({type:'Hybrid On/Off-grid',brand:'Solis',kw,phase,price,panel:'AIKO 670 W'}))
+]}
+function solarPackageItem_(x){const hybrid=x.type==='Hybrid On/Off-grid',title='งานติดตั้งระบบ Solar Roof '+x.type+' Inverter '+x.brand+' '+x.kw+' kW '+x.phase+' Phase'+(hybrid?' + Battery Solis 16 kWh':''),details=[
+  'PV Module '+x.panel+(solarPanelCount_(x.kw,x.panel)?' — '+solarPanelCount_(x.kw,x.panel)+' แผง':' (จำนวนแผงตามแบบที่ยืนยัน)'),
+  'Inverter '+x.brand+' '+x.type+' '+x.kw+' kW '+x.phase+' Phase — 1 เครื่อง',
+  ...(hybrid?['Battery Solis 314Ah 51.2V IntelliHome-16kWh-OD (IP66) ขนาด 16 kWh — 1 ชุด']:[]),
+  'DC Cable (Link) และ AC Cable (Yazaki - Thai)',
+  'Mounting Structure, Raceway และ Wireway',
+  'DC Fuse Cabinet และ Solar AC Cabinet',
+  'Ground Systems ระบบสายดิน DC และ AC',
+  'Zero Export System ระบบกันย้อนตามมาตรฐาน PEA',
+  'วิศวกรควบคุมงาน จัดทำ SLD และลงนามรับรองตามมาตรฐาน MEA / PEA',
+  'ดำเนินการขออนุญาตการไฟฟ้า และแอปติดตามสถานะ Solar Cell',
+  'ติดตั้ง ทดสอบระบบ และส่งมอบงาน'
+];return {description:title+'\nรายการย่อยที่ลูกค้าจะได้รับ\n'+details.map(t=>'• '+t).join('\n'),quantity:1,unit:'งาน',unitPrice:x.price,packagePrice:true,packageIncluded:false}}
+function solarTemplateDefaults_(){return {company:solarCompanyDefaults_(),vatRate:7,noteColor:'black',paymentTerms:'งวดที่ 1: 50% เมื่อออกใบ PO และนัดวันติดตั้ง · งวดที่ 2: 50% หลังติดตั้งออนระบบและส่งมอบงานแล้วเสร็จ ก่อนยื่นขนานไฟจาก PEA',deliveryTerms:'ระยะดำเนินการตามตกลงของหน้างานและสัญญาโครงการ',warrantyText:'รับประกันงานติดตั้ง 3 ปี ฟรีล้างแผงและ PM 3 ปี (ปีละ 1 ครั้ง) กรณีเร่งด่วนที่แก้ไขทางโทรศัพท์ไม่ได้ เข้าบริการ Onsite ภายใน 48 ชั่วโมง บริการออนไลน์ผ่านโทรศัพท์ตลอดอายุการใช้งาน การรับประกันแผง Inverter และแบตเตอรี่ตามรุ่นและเงื่อนไขผู้ผลิต',scopeText:'อุปกรณ์และงานเดินสายตามมาตรฐานการไฟฟ้าและวิศวกรรม ภายนอกใช้ท่อ IMC หรือท่ออ่อนกันน้ำ ภายในใช้ท่อ UPVC ราง UPVC หรือ Wireway อลูมิเนียม จัดทำ SLD พร้อมวิศวกรลงนามรับรองตาม MEA / PEA ฟรีค่าดำเนินการขออนุญาตการไฟฟ้า บริษัทจัดหาอุปกรณ์ ติดตั้ง และทดสอบระบบก่อนส่งมอบ ใบเสนอราคามีอายุ 7 วัน ห้ามนำข้อมูลไปใช้หรือเผยแพร่โดยไม่ได้รับอนุญาต',note:'หลังพ้นรับประกันงานติดตั้ง 3 ปี การเข้า Service Onsite หรือเปลี่ยนอุปกรณ์มีค่าดำเนินการ'}}
+function seedSolarPriceSets_(){const props=PropertiesService.getScriptProperties(),key='SOLAR_PRICE_SETS_20260912_V1',lock=LockService.getScriptLock();lock.waitLock(30000);try{if(props.getProperty(key)==='done')return;const existing=rows_('QuotePresets'),ids=new Set(existing.map(x=>x.id));solarPriceCatalog_().forEach(x=>{const hybrid=x.type==='Hybrid On/Off-grid',id='QPR-SOLAR-'+(hybrid?'HYBRID':'ONGRID')+'-'+x.kw+'-'+x.phase;if(ids.has(id))return;const name=x.type+' · '+x.brand+' '+x.kw+' kW · '+x.phase+' Phase'+(hybrid?' + Battery 16 kWh':'');append_('QuotePresets',[id,'SET','Solar Cell',name,JSON.stringify({items:[solarPackageItem_(x)]}),new Date(),'SYSTEM'])});if(!existing.some(x=>x.kind==='TEMPLATE'&&x.workType==='Solar Cell'))append_('QuotePresets',['QPR-TEMPLATE-SOLAR-ROOF','TEMPLATE','Solar Cell','Solar Cell',JSON.stringify(solarTemplateDefaults_()),new Date(),'SYSTEM']);props.setProperty(key,'done')}finally{lock.releaseLock()}}
+
+function quotationCompany_(d){const result={};['name','phone','email','taxId','address','bankName','bankAccount','accountName','signerName'].forEach(k=>{const field='company_'+k;if(Object.prototype.hasOwnProperty.call(d,field))result[k]=String(d[field]??'').trim().slice(0,k==='address'?1000:200)});if(Object.prototype.hasOwnProperty.call(d,'company_signatureData')){const image=String(d.company_signatureData||'');if(image&&(image.length>20000||!/^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/=]+$/.test(image)))throw new Error('ไฟล์ลายเซ็นไม่ถูกต้องหรือมีขนาดใหญ่เกินไป');result.signatureData=image}return result}
+
+function quotationLineAmount_(x){return round_(x.packagePrice===true?x.unitPrice:x.quantity*x.unitPrice)}
+function evPackageItems_(kw,count,total){
+  const lines=evPackageDescription_(kw,count).split('\n').slice(1);
+  const units=['เครื่อง','ชุด','ชุด','งาน','ระบบ','งาน','งาน'];
+  return lines.map((text,i)=>({description:text.replace(/^\d+\. /,'').replace(/ — \d+ \S+$/,''),quantity:i===0?count:1,unit:units[i],unitPrice:i===0?total:0,packagePrice:i===0,packageIncluded:i!==0}));
+}
+function splitEvPackageRows_(){
+  const props=PropertiesService.getScriptProperties(),key='EV_PACKAGE_ROWS_V1',lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    if(props.getProperty(key)==='done')return;
+    rows_('QuotePresets').forEach(row=>{
+      const m=String(row.id).match(/^QPR-EV-FLEXXFAST-(120|150|180|240)-([1-4])$/);
+      if(!m||row.kind!=='SET'||row.workType!=='EV Charger')return;
+      const data=JSON.parse(row.dataJson||'{}');
+      if(data.evRowsVersion===1)return;
+      if(!Array.isArray(data.items)||!data.items.length)throw new Error('ไม่พบรายการในชุด '+row.name);
+      const total=round_(data.items.reduce((s,x)=>s+quotationLineAmount_(x),0));
+      append_('AuditLog',[id_('AUD'),new Date(),'SYSTEM','BACKUP_BEFORE_SPLIT','QUOTE_PRESET',row.id,row.dataJson]);
+      data.items=evPackageItems_(Number(m[1]),Number(m[2]),total);data.evRowsVersion=1;
+      updateRow_('QuotePresets',row.id,{dataJson:JSON.stringify(data),updatedAt:new Date()});
+    });
+    props.setProperty(key,'done');
+  }finally{lock.releaseLock()}
+}
+
+function evPackageDescription_(kw,count){
+  if(![120,150,180,240].includes(kw)||![1,2,3,4].includes(count))throw new Error('รุ่นหรือจำนวนเครื่องไม่ถูกต้อง');
+  const heads=count*2;
+  return [
+    'Flexxfast '+kw+' kW จำนวน '+count+' เครื่อง',
+    '1. ตู้ชาร์จ Flexxfast '+kw+' kW ต่อเครื่อง แบบ Dual CCS2 รวม '+heads+' หัวจ่าย พร้อมเราเตอร์ 4G/5G และเชื่อมต่อ CMS ตามสเปกที่ยืนยัน — '+count+' เครื่อง',
+    '2. หม้อแปลงเฉพาะสถานี 3 Phase พร้อมอุปกรณ์แรงสูง ขนาดตามโหลดรวม '+(kw*count)+' kW และแบบวิศวกรอนุมัติ — 1 ชุด',
+    '3. ตู้ Outdoor MDB (IP65) พร้อม Main Breaker, SPD และ RCD Type B ตามแบบระบบป้องกัน — 1 ชุด',
+    '4. งานเดินสายกำลังใต้ดิน XLPE/NYY ท่อ HDPE และระบบสายดินไม่เกิน 5 โอห์ม หรือตามเกณฑ์ที่เข้มงวดกว่าของแบบอนุมัติ — 1 งาน',
+    '5. ระบบ CCTV IP Camera พร้อมอุปกรณ์บันทึกภาพ ตามแบบสถานี — 1 ระบบ',
+    '6. งานโยธาและช่องจอด EV: ฐานรากตู้ชาร์จ '+count+' ฐาน เสากันชนเหล็กเบื้องต้น '+heads+' ต้น ยางกันล้อ '+heads+' ชิ้น และตีเส้นพร้อมสัญลักษณ์ช่องจอด '+heads+' ช่อง ตามผังที่ตกลง — 1 งาน',
+    '7. ค่าแรงติดตั้ง ทดสอบระบบ Commissioning และเอกสารรับรองโดยวิศวกรไฟฟ้า กว. ตามขอบเขตงาน — 1 งาน'
+  ].join('\n');
+}
+
+// Previous generated text retained only to recognize safe migration targets.
+function evPackageDescriptionV1_(kw,count){
+  if(![120,150,180,240].includes(kw)||![1,2,3,4].includes(count))throw new Error('รุ่นหรือจำนวนเครื่องไม่ถูกต้อง');
+  const heads=count*2,load=kw*count,kva=Math.ceil(load/0.95/0.95*1.25);
+  return [
+    'แพ็กเกจ Turnkey Flexxfast '+kw+' kW จำนวน '+count+' เครื่อง (ราคาเหมารวม 1 ชุด)',
+    '1. ตู้ชาร์จ DC Flexxfast กำลังรวม '+kw+' kW ต่อเครื่อง จำนวน '+count+' เครื่อง หัวจ่าย Dual CCS2 รวม '+heads+' หัว พร้อมเราเตอร์ 4G/5G และตั้งค่าเชื่อมต่อ CMS ตามรุ่นอุปกรณ์ที่ยืนยัน',
+    '2. หม้อแปลงเฉพาะสถานี 3 Phase จำนวน 1 ชุด รองรับกำลังชาร์จรวม '+load+' kW พร้อมอุปกรณ์แรงสูงตามแบบการไฟฟ้าอนุมัติ; กำลังหม้อแปลงคำนวณเบื้องต้นประมาณ '+kva+' kVA (สมมติประสิทธิภาพ 95%, PF 0.95, เผื่อ 25%; ไม่ใช่สเปกยืนยันของเครื่อง) ขนาดพิกัดติดตั้งและโหลดประกอบต้องให้วิศวกรยืนยัน',
+    '3. ตู้ Outdoor MDB (IP65) จำนวน 1 ชุด พร้อม Main Breaker, SPD และระบบป้องกันไฟรั่ว RCD Type B ตามแบบและข้อกำหนดผู้ผลิต',
+    '4. งานสายไฟฟ้ากำลังใต้ดิน XLPE/NYY พร้อมท่อ HDPE และอุปกรณ์ จำนวน 1 งาน ขนาดสายและระยะทางตามแบบและขอบเขตที่ตกลง',
+    '5. ระบบสายดินและการต่อประสานศักย์ จำนวน 1 ระบบ พร้อมตรวจวัดความต้านทานดินไม่เกิน 5 โอห์ม หรือตามเกณฑ์ที่เข้มงวดกว่าของแบบอนุมัติ',
+    '6. CCTV IP Camera พร้อมอุปกรณ์บันทึกภาพ จำนวน 1 ระบบ จำนวนกล้องและตำแหน่งตามแบบสถานี',
+    '7. โคมไฟสปอร์ตไลท์ LED พร้อมสายไฟและอุปกรณ์ติดตั้ง จำนวน 1 ชุด จำนวนโคมและตำแหน่งตามแบบแสงสว่าง',
+    '8. ถังดับเพลิงประจำสถานีพร้อมป้าย จำนวน 1 ชุด ชนิด ขนาด และจำนวนถังตามแผนความปลอดภัย',
+    '9. ฐานรากคอนกรีตสำหรับตู้ชาร์จ จำนวน '+count+' ฐาน พร้อมอุปกรณ์ยึดตามแบบโครงสร้าง',
+    '10. เสากันชนเหล็ก เบื้องต้น '+heads+' ต้น (2 ต้นต่อเครื่อง) ยืนยันจำนวนและตำแหน่งตามผังหน้างาน',
+    '11. ยางกันล้อ เบื้องต้น '+heads+' ชิ้น (1 ชิ้นต่อช่องจอด)',
+    '12. งานทาสีตีเส้นและสัญลักษณ์ช่องจอด EV จำนวน '+heads+' ช่อง รองรับหัวชาร์จตามผังที่ตกลง',
+    '13. ค่าแรงติดตั้งอุปกรณ์และระบบประกอบตามขอบเขตแพ็กเกจ จำนวน 1 งาน',
+    '14. ทดสอบและเดินระบบ Commissioning ทดสอบการชาร์จและ CMS แนะนำการใช้งาน พร้อมเอกสารรับรอง/ผลทดสอบโดยวิศวกรไฟฟ้าผู้มีใบอนุญาต กว. ตามขอบเขตงาน จำนวน 1 งาน'
+  ].join('\n');
+}
+
+// Fill only the original imported placeholder. Preserve custom text, prices,
+// deleted packages, Solar templates and all previously saved quotations.
+function fillEvPackageDescriptions_(){
+  const props=PropertiesService.getScriptProperties(),key='EV_PACKAGE_DESCRIPTIONS_V2',lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    if(props.getProperty(key)==='done')return;
+    rows_('QuotePresets').forEach(row=>{
+      const match=String(row.id).match(/^QPR-EV-FLEXXFAST-(120|150|180|240)-([1-4])$/);
+      if(!match||row.kind!=='SET'||row.workType!=='EV Charger')return;
+      let data;try{data=JSON.parse(row.dataJson)}catch(e){return}
+      const kw=Number(match[1]),count=Number(match[2]),placeholder='Flexxfast '+kw+' kW · '+count+' เครื่อง';
+      if(!data||!Array.isArray(data.items)||data.items.length!==1)return;
+      if(![placeholder,evPackageDescriptionV1_(kw,count)].includes(data.items[0].description))return;
+      data.items[0].description=evPackageDescription_(kw,count);
+      updateRow_('QuotePresets',row.id,{dataJson:JSON.stringify(data),updatedAt:new Date()});
+    });
+    props.setProperty(key,'done');
+  }finally{lock.releaseLock()}
+}
+
+// User-supplied Canva DAHJ_hxMMwo: total package prices, excluding VAT.
+// One-time import: subsequent edits/deletions are never restored on page load.
+function seedEvPriceSets_(){
+  const props=PropertiesService.getScriptProperties(),key='EV_PRICE_SETS_DAHJ_hxMMwo_V1';
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    if(props.getProperty(key)==='done')return;
+    const prices={120:[1590000,2590000,3690000,4690000],150:[1790000,2890000,4190000,5290000],180:[2290000,3490000,4990000,5990000],240:[2490000,3990000,5590000,6990000]};
+    const existing=new Set(rows_('QuotePresets').map(x=>x.id));
+    Object.entries(prices).forEach(([kw,totals])=>totals.forEach((total,i)=>{
+      const count=i+1,id='QPR-EV-FLEXXFAST-'+kw+'-'+count;
+      if(existing.has(id))return;
+      const name='Flexxfast '+kw+' kW · '+count+' เครื่อง';
+      const data={items:[{description:name,quantity:1,unit:'ชุด',unitPrice:total}]};
+      append_('QuotePresets',[id,'SET','EV Charger',name,JSON.stringify(data),new Date(),'SYSTEM']);
+    }));
+    props.setProperty(key,'done');
+  }finally{lock.releaseLock()}
 }
 
 function maintenanceUser_(){
@@ -107,13 +260,13 @@ function bootstrap_(user) {
   const totals=projectSummaries.reduce((a,p)=>({contract:a.contract+num_(p.contractValue),income:a.income+p.income,expenses:a.expenses+p.expenses,profit:a.profit+p.profit}),{contract:0,income:0,expenses:0,profit:0});
   const banks=readSheet_(ss,'Banks').filter(x=>truthy_(x.active)),categories=sortActiveRows_(readSheet_(ss,'Categories')),paymentMethods=sortActiveRows_(readSheet_(ss,'PaymentMethods')),balanceAccounts=sortActiveRows_(readSheet_(ss,'BalanceAccounts'));
   const employeeNames=readSheet_(ss,'Employees').reduce((o,e)=>(o[e.id]=e.name,o),{}),wageHistory=[...salaryPayments.map(x=>({id:x.id,type:'SALARY',date:x.paidDate||x.dueDate,monthKey:x.monthKey,employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',baseSalary:num_(x.baseSalary),otTotal:num_(x.otTotal),advanceTotal:num_(x.advanceTotal),amount:num_(x.netPaid),note:x.note||''})),...overtime.map(x=>({id:x.id,type:'OT',date:x.date,monthKey:String(x.date).slice(0,7),employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',projectId:x.projectId,hours:num_(x.hours),rate:num_(x.rate),amount:num_(x.amount),note:x.note||''})),...salaryAdvances.map(x=>({id:x.id,type:'ADVANCE',date:x.date,monthKey:x.monthKey,employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',amount:num_(x.amount),note:x.note||''}))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  return {appVersion:APP.version,user:publicUser_(user),permissions:permissions_(user),totals,projects:projectSummaries,income,expenses,employees,overtime,wageHistory,banks,categories,paymentMethods,balanceAccounts,payrollMonth:month,partners,dividends,users:allowed_(user,'USERS_MANAGE')?readSheet_(ss,'Users').map(publicUser_):[]};
+  return {appVersion:APP.version,user:publicUser_(user),permissions:permissions_(user),totals,projects:projectSummaries,income,expenses,employees,overtime,wageHistory,banks,categories,paymentMethods,balanceAccounts,payrollMonth:month,partners,dividends,users:allowed_(user,'USERS_MANAGE')?readSheet_(ss,'Users').map(publicUser_):[],quotations:quotationRows_(ss),quotePresets:quotePresetRows_(ss),invoices:invoiceRows_(ss),receipts:receiptRows_(ss)};
 }
 
 function saveProject_(user,d) {
-  require_(user,'PROJECT_EDIT'); const name=clean_(d.name),value=num_(d.contractValue); if(!name||value<0)throw new Error('กรุณากรอกชื่อโปรเจกต์และมูลค่างานให้ถูกต้อง');
-  if(d.id){const old=project_(d.id);updateRow_('Projects',d.id,{name,customer:clean_(d.customer),contractValue:value,status:clean_(d.status)||'PLANNING',startDate:date_(d.startDate),endDate:date_(d.endDate),note:clean_(d.note)});audit_(user,'UPDATE','PROJECT',old.id,name);return businessPayload_(db_())}
-  const id=id_('PRJ'); append_('Projects',[id,name,clean_(d.customer),value,7,clean_(d.status)||'PLANNING',date_(d.startDate),date_(d.endDate),clean_(d.note),new Date(),user.id]); audit_(user,'CREATE','PROJECT',id,name); return businessPayload_(db_());
+  require_(user,'PROJECT_EDIT'); const name=clean_(d.name),value=num_(d.contractValue),siteLocation=clean_(d.siteLocation),province=clean_(d.province),projectType=clean_(d.projectType)==='OTHER'?clean_(d.projectTypeOther):clean_(d.projectType),startDate=date_(d.startDate),deliveryDate=clean_(d.deliveryDate); if(!name||value<0)throw new Error('กรุณากรอกชื่อโปรเจกต์และมูลค่างานให้ถูกต้อง');if(!projectType)throw new Error('กรุณาเลือกหรือระบุประเภทงาน');if(deliveryDate&&deliveryDate<startDate)throw new Error('วันที่ส่งมอบต้องไม่ก่อนวันเริ่มงาน');
+  if(d.id){const old=project_(d.id);updateRow_('Projects',d.id,{name,customer:clean_(d.customer),contractValue:value,status:clean_(d.status)||'PLANNING',startDate,endDate:old.endDate||'',note:clean_(d.note),siteLocation,province,projectType,deliveryDate});audit_(user,'UPDATE','PROJECT',old.id,name);return businessPayload_(db_())}
+  const id=id_('PRJ'); append_('Projects',[id,name,clean_(d.customer),value,7,clean_(d.status)||'PLANNING',startDate,'',clean_(d.note),new Date(),user.id,siteLocation,province,projectType,deliveryDate]); audit_(user,'CREATE','PROJECT',id,name); return businessPayload_(db_());
 }
 function deleteProject_(user,d){require_(user,'PROJECT_EDIT');const p=project_(d.id),used=rows_('Income').some(x=>x.projectId===p.id)||rows_('Expenses').some(x=>x.projectId===p.id)||rows_('Overtime').some(x=>x.projectId===p.id);if(used)throw new Error('ลบไม่ได้ เพราะโปรเจกต์นี้มีรายการการเงินหรือ OT แล้ว');deleteRow_('Projects',p.id);audit_(user,'DELETE','PROJECT',p.id,p.name);return businessPayload_(db_())}
 function saveIncome_(user,d) {
@@ -167,8 +320,37 @@ function saveOvertime_(user,d) {
 }
 function saveSalaryAdvance_(user,d){require_(user,'EMPLOYEE_MANAGE');const employee=rows_('Employees').find(x=>x.id===d.employeeId&&truthy_(x.active));if(!employee)throw new Error('ไม่พบพนักงาน');const month=monthInfo_(),amount=positive_(d.amount,'ยอดเบิก'),payments=rows_('SalaryPayments');if(payments.some(x=>x.employeeId===employee.id&&x.monthKey===month.key))throw new Error('พนักงานคนนี้ปิดรอบเงินเดือนแล้ว');const used=rows_('SalaryAdvances').filter(x=>x.employeeId===employee.id&&x.monthKey===month.key).reduce((s,x)=>s+num_(x.amount),0);if(amount>num_(employee.wageRate)-used)throw new Error('ยอดเบิกมากกว่าเงินเดือนคงเหลือ');const id=id_('ADV');append_('SalaryAdvances',[id,employee.id,month.key,date_(d.date),amount,clean_(d.note),new Date(),user.id]);audit_(user,'CREATE','SALARY_ADVANCE',id,employee.name+' '+amount);return payrollPayload_(db_())}
 function payMonthlySalary_(user,d){require_(user,'EMPLOYEE_MANAGE');const employee=rows_('Employees').find(x=>x.id===d.employeeId&&truthy_(x.active));if(!employee)throw new Error('ไม่พบพนักงาน');const month=monthInfo_(),payments=rows_('SalaryPayments');if(payments.some(x=>x.employeeId===employee.id&&x.monthKey===month.key))throw new Error('ปิดรอบเงินเดือนนี้แล้ว');const advanceTotal=round_(rows_('SalaryAdvances').filter(x=>x.employeeId===employee.id&&x.monthKey===month.key).reduce((s,x)=>s+num_(x.amount),0)),otTotal=round_(rows_('Overtime').filter(x=>x.employeeId===employee.id&&String(x.date).slice(0,7)===month.key).reduce((s,x)=>s+num_(x.amount),0)),base=num_(employee.wageRate),net=round_(Math.max(0,base+otTotal-advanceTotal)),id=id_('SAL');append_('SalaryPayments',[id,employee.id,month.key,month.dueDate,base,advanceTotal,net,date_(d.paidDate),clean_(d.note),new Date(),user.id,otTotal]);audit_(user,'CREATE','SALARY_PAYMENT',id,employee.name+' '+net);return payrollPayload_(db_())}
-function saveDividend_(user,d){require_(user,'FINANCE_EDIT');const partner=rows_('Partners').find(x=>x.id===d.partnerId&&truthy_(x.active));if(!partner)throw new Error('ไม่พบหุ้นส่วน');const project=project_(d.projectId);if(String(project.status).toUpperCase()!=='COMPLETED')throw new Error('เลือกปันผลได้เฉพาะโปรเจกต์ที่เสร็จแล้ว');const expenses=rows_('Expenses').filter(x=>x.projectId===project.id).reduce((s,x)=>s+num_(x.amountExVat),0),ot=rows_('Overtime').filter(x=>x.projectId===project.id).reduce((s,x)=>s+num_(x.amount),0),income=rows_('Income').filter(x=>x.projectId===project.id).reduce((s,x)=>s+num_(x.amountExVat),0),alreadyPaid=rows_('Dividends').filter(x=>x.projectId===project.id).reduce((s,x)=>s+num_(x.amount),0),available=round_(income-expenses-ot-alreadyPaid),amount=positive_(d.amount,'ยอดปันผล');if(amount>available)throw new Error('ยอดปันผลมากกว่ากำไรคงเหลือของโปรเจกต์');const id=id_('DIV');append_('Dividends',[id,partner.id,date_(d.date),amount,clean_(d.paidFrom),clean_(d.note),new Date(),user.id,project.id]);audit_(user,'CREATE','DIVIDEND',id,project.name+' · '+partner.name+' '+amount);return dividendPayload_(db_())}
-function distributeProjectDividend_(user,d){require_(user,'FINANCE_EDIT');const project=project_(d.projectId);if(String(project.status).toUpperCase()!=='COMPLETED')throw new Error('ปันผลได้เฉพาะโปรเจกต์ที่เสร็จแล้ว');const partners=rows_('Partners').filter(x=>truthy_(x.active)&&(x.id==='PART-BAS'||x.id==='PART-GOLF'));if(partners.length!==2)throw new Error('ไม่พบข้อมูลหุ้นส่วนบาสและกอล์ฟครบทั้งสองคน');const expenses=rows_('Expenses').filter(x=>x.projectId===project.id).reduce((s,x)=>s+num_(x.amountExVat),0),ot=rows_('Overtime').filter(x=>x.projectId===project.id).reduce((s,x)=>s+num_(x.amount),0),income=rows_('Income').filter(x=>x.projectId===project.id).reduce((s,x)=>s+num_(x.amountExVat),0),alreadyPaid=rows_('Dividends').filter(x=>x.projectId===project.id).reduce((s,x)=>s+num_(x.amount),0),available=round_(income-expenses-ot-alreadyPaid);if(available<=0)throw new Error('โปรเจกต์นี้ไม่มีกำไรคงเหลือสำหรับปันผล');const first=round_(available/2),amounts=[first,round_(available-first)],paidFrom=clean_(d.paidFrom),source=rows_('BalanceAccounts').find(x=>truthy_(x.active)&&x.name===paidFrom);if(!source)throw new Error('กรุณาเลือกบัญชีเงินคงเหลือที่ใช้งานอยู่');partners.forEach((partner,i)=>{const id=id_('DIV'),amount=amounts[i];append_('Dividends',[id,partner.id,date_(d.date),amount,paidFrom,clean_(d.note)||'ปันผลกำไรโครงการ 50%',new Date(),user.id,project.id]);audit_(user,'CREATE','PROJECT_DIVIDEND_50',id,project.name+' · '+partner.name+' '+amount)});return dividendPayload_(db_())}
+function distributeProjectDividend_(user,d){require_(user,'FINANCE_EDIT');const partners=rows_('Partners').filter(x=>truthy_(x.active)&&(x.id==='PART-BAS'||x.id==='PART-GOLF'));if(partners.length!==2)throw new Error('ไม่พบข้อมูลหุ้นส่วนบาสและกอล์ฟครบทั้งสองคน');const expenses=rows_('Expenses').reduce((s,x)=>s+num_(x.amountExVat),0),ot=rows_('Overtime').reduce((s,x)=>s+num_(x.amount),0),income=rows_('Income').reduce((s,x)=>s+num_(x.amountExVat),0),alreadyPaid=rows_('Dividends').reduce((s,x)=>s+num_(x.amount),0),available=round_(income-expenses-ot-alreadyPaid),amountByPartner={'PART-BAS':Math.max(0,round_(d.basAmount)),'PART-GOLF':Math.max(0,round_(d.golfAmount))},total=round_(amountByPartner['PART-BAS']+amountByPartner['PART-GOLF']);if(available<=0)throw new Error('ไม่มีกำไรคงเหลือรวมสำหรับปันผล');if(total<=0)throw new Error('กรุณากรอกยอดที่จ่ายจริงอย่างน้อย 1 คน');if(total>available)throw new Error('ยอดจ่ายรวมมากกว่ากำไรคงเหลือรวม');const paidFrom=clean_(d.paidFrom),source=rows_('BalanceAccounts').find(x=>truthy_(x.active)&&x.name===paidFrom);if(!source)throw new Error('กรุณาเลือกบัญชีหรือเงินสดที่ใช้งานอยู่');const sourceBalance=round_(num_(source.openingBalance)+rows_('Income').filter(x=>x.account===paidFrom).reduce((s,x)=>s+num_(x.total!=null?x.total:x.amountExVat),0)-rows_('Expenses').filter(x=>x.paidBy===paidFrom).reduce((s,x)=>s+num_(x.total!=null?x.total:x.amountExVat),0)-rows_('Dividends').filter(x=>x.paidFrom===paidFrom).reduce((s,x)=>s+num_(x.amount),0));if(total>sourceBalance)throw new Error('ยอดเงินใน '+paidFrom+' ไม่พอจ่ายปันผล (คงเหลือ '+sourceBalance+' บาท)');partners.forEach(partner=>{const amount=amountByPartner[partner.id];if(amount<=0)return;const id=id_('DIV');append_('Dividends',[id,partner.id,date_(d.date),amount,paidFrom,clean_(d.note)||'ปันผลกำไรรวมตามจริง',new Date(),user.id,'']);audit_(user,'CREATE','GLOBAL_DIVIDEND_ACTUAL',id,'กำไรรวม · '+partner.name+' '+amount)});return dividendPayload_(db_())}
+function quotePresetRows_(ss){return readSheet_(ss,'QuotePresets').map(x=>{let data={};try{data=JSON.parse(x.dataJson||'{}')}catch(e){}return Object.assign({},x,{data})})}
+function saveQuotePreset_(user,d){
+  require_(user,'FINANCE_EDIT');
+  if(!['TEMPLATE','SET'].includes(d.kind)||!['EV Charger','Solar Cell'].includes(d.workType))throw new Error('ประเภทฟอร์มไม่ถูกต้อง');
+  const name=clean_(d.name),long=v=>String(v==null?'':v).trim().slice(0,5000),all=rows_('QuotePresets');
+  if(!name)throw new Error('กรุณาระบุชื่อชุด');
+  const items=(Array.isArray(d.items)?d.items:[]).map(x=>({description:long(x.description),quantity:Number(x.quantity),unit:clean_(x.unit)||'ชุด',unitPrice:Number(x.unitPrice),packagePrice:x.packagePrice===true,packageIncluded:x.packageIncluded===true}));
+  if(d.kind==='SET'&&(!items.length||items.length>100||items.some(x=>!x.description||!Number.isFinite(x.quantity)||x.quantity<=0||!Number.isFinite(x.unitPrice)||x.unitPrice<0)))throw new Error('กรุณากรอกรายละเอียด จำนวน และราคาให้ถูกต้อง (สูงสุด 100 รายการ)');
+  const data=d.kind==='SET'?{items}:Object.fromEntries(['paymentTerms','deliveryTerms','warrantyText','scopeText','note'].map(k=>[k,long(d[k])]));
+  if(d.kind==='TEMPLATE'){data.company=quotationCompany_(d);data.logoData=String(d.logoData||'').slice(0,45000);data.noteColor=d.noteColor==='red'?'red':'black';data.vatRate=Number(d.vatRate);if(!Number.isFinite(data.vatRate)||data.vatRate<0)throw new Error('VAT ไม่ถูกต้อง')}
+  const dataJson=JSON.stringify(data);if(dataJson.length>49000)throw new Error('ข้อมูลชุดหรือรูปโลโก้มีขนาดใหญ่เกินไป กรุณาลดขนาด');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{const fresh=rows_('QuotePresets'),existing=d.id?fresh.find(x=>x.id===d.id):d.kind==='TEMPLATE'?fresh.find(x=>x.kind===d.kind&&x.workType===d.workType):null;
+    if(d.id&&!existing)throw new Error('ไม่พบชุดที่ต้องการแก้ไข');
+    if(existing&&(existing.kind!==d.kind||existing.workType!==d.workType))throw new Error('ไม่สามารถเปลี่ยนประเภทชุดเดิมได้');
+    const id=existing?existing.id:id_('QPR'),values={kind:d.kind,workType:d.workType,name,dataJson,updatedAt:new Date(),createdBy:user.id};
+    if(existing)updateRow_('QuotePresets',id,values);else append_('QuotePresets',[id,values.kind,values.workType,name,dataJson,values.updatedAt,user.id]);
+    audit_(user,existing?'UPDATE':'CREATE','QUOTE_PRESET',id,name);
+  }finally{lock.releaseLock()}
+  return {partial:true,quotePresets:quotePresetRows_(db_())};
+}
+function deleteQuotePreset_(user,d){require_(user,'FINANCE_EDIT');const x=rows_('QuotePresets').find(x=>x.id===d.id);if(!x||x.kind!=='SET')throw new Error('ไม่พบชุดรายการ');deleteRow_('QuotePresets',d.id);audit_(user,'DELETE','QUOTE_PRESET',d.id,x.name);return {partial:true,quotePresets:quotePresetRows_(db_())}}
+function quotationRows_(ss){return readSheet_(ss,'Quotations').map(x=>{let items=[],company={};try{company=JSON.parse(x.companyJson||'{}')}catch(e){}try{items=JSON.parse(String(x.itemsJson||'[]'))}catch(e){}return Object.assign({},x,{items:Array.isArray(items)?items:[],company})}).sort((a,b)=>String(b.issueDate).localeCompare(String(a.issueDate))||String(b.createdAt).localeCompare(String(a.createdAt)))}
+function documentNumber_(prefix,sequence,issueDate){const date=String(issueDate||'').match(/^(\d{4})-(\d{2})-(\d{2})$/),number=Number(sequence);if(!['QT','IV','RC'].includes(prefix)||!date||!Number.isSafeInteger(number)||number<1)throw new Error('ข้อมูลเลขเอกสารไม่ถูกต้อง');return prefix+String(number).padStart(2,'0')+date[3]+date[2]+String(Number(date[1])+543)}
+function quotationSequence_(quoteNo){const text=String(quoteNo||''),current=text.match(/^QT(\d+)\d{8}$/),legacy=text.match(/^QT(?:SO|EV)-\d{6}-(\d+)$/);return Number(current?.[1]||legacy?.[1]||0)}
+function relatedDocumentNumber_(prefix,q,installment,issueDate){if(!['IV','RC'].includes(prefix))throw new Error('ประเภทเอกสารไม่ถูกต้อง');const reference=String(q.quoteNo||''),modern=/^QT\d{9,}$/.test(reference),sequence=quotationSequence_(reference);if(!sequence)throw new Error('กรุณาปรับเลขใบเสนอราคาเป็นรูปแบบ QT เช่น QT8013092569 ก่อนออกเอกสาร');const base=issueDate?documentNumber_(prefix,sequence,issueDate):modern?prefix+reference.slice(2):documentNumber_(prefix,sequence,q.issueDate);if(installment!==undefined&&![1,2].includes(Number(installment)))throw new Error('งวดเอกสารไม่ถูกต้อง');return base+(installment===undefined?'':'-'+Number(installment))}
+function nextQuotationNo_(workType,issueDate){const props=PropertiesService.getScriptProperties(),max=rows_('Quotations').reduce((n,q)=>Math.max(n,quotationSequence_(q.quoteNo)),Number(props.getProperty('DOCUMENT_QT_SEQUENCE'))||0),next=max+1;props.setProperty('DOCUMENT_QT_SEQUENCE',String(next));return documentNumber_('QT',next,issueDate)}
+function saveQuotation_(user,d){require_(user,'FINANCE_EDIT');const lock=LockService.getScriptLock();lock.waitLock(30000);try{const result=saveQuotationLocked_(user,d),props=PropertiesService.getScriptProperties(),sequence=quotationSequence_(d.quoteNo);if(sequence>(Number(props.getProperty('DOCUMENT_QT_SEQUENCE'))||0))props.setProperty('DOCUMENT_QT_SEQUENCE',String(sequence));return result}finally{lock.releaseLock()}}
+function saveQuotationLocked_(user,d){require_(user,'FINANCE_EDIT');const long=v=>String(v==null?'':v).trim().slice(0,5000),customerName=clean_(d.customerName),issueDate=date_(d.issueDate),workType=clean_(d.workType)==='Solar Cell'?'Solar Cell':'EV Charger',rawItems=Array.isArray(d.items)?d.items:[],items=rawItems.map(x=>({description:long(x.description),quantity:round_(x.quantity),unit:clean_(x.unit)||'ชุด',unitPrice:round_(x.unitPrice),packagePrice:x.packagePrice===true,packageIncluded:x.packageIncluded===true})).filter(x=>x.description||x.quantity||x.unitPrice);if(!customerName)throw new Error('กรุณากรอกชื่อลูกค้า');if(!items.length)throw new Error('กรุณาเพิ่มรายละเอียดงานอย่างน้อย 1 รายการ');if(items.length>100)throw new Error('เพิ่มรายละเอียดได้สูงสุด 100 รายการต่อเอกสาร');items.forEach((x,i)=>{if(!x.description)throw new Error('กรุณากรอกรายละเอียดรายการที่ '+(i+1));if(x.quantity<=0)throw new Error('จำนวนรายการที่ '+(i+1)+' ต้องมากกว่า 0');if(x.unitPrice<0)throw new Error('ราคาต่อหน่วยไม่ถูกต้อง')});const vatRate=Math.max(0,round_(d.vatRate==null?7:d.vatRate)),subtotal=round_(items.reduce((s,x)=>s+quotationLineAmount_(x),0)),vatAmount=round_(subtotal*vatRate/100),grandTotal=round_(subtotal+vatAmount),all=rows_('Quotations'),quoteNo=clean_(d.quoteNo)||all.find(x=>x.id===d.id)?.quoteNo||nextQuotationNo_(workType,issueDate);if(all.some(x=>x.id!==d.id&&String(x.quoteNo).toLowerCase()===quoteNo.toLowerCase()))throw new Error('เลขที่ใบเสนอราคานี้มีอยู่แล้ว');const company=quotationCompany_(d),existing=all.find(x=>x.id===d.id),companyJson=Object.keys(company).length?JSON.stringify(company):existing?.companyJson||'{}';const values={companyJson,quoteNo,issueDate,customerName,customerPhone:clean_(d.customerPhone),customerAddress:long(d.customerAddress),customerTaxId:clean_(d.customerTaxId),workType,itemsJson:JSON.stringify(items),vatRate,paymentTerms:long(d.paymentTerms),deliveryTerms:long(d.deliveryTerms),warrantyText:long(d.warrantyText),scopeText:long(d.scopeText),note:long(d.note),noteColor:d.noteColor==='red'?'red':'black',logoData:String(d.logoData||'').slice(0,45000),status:['DRAFT','SENT','APPROVED'].indexOf(clean_(d.status))>=0?clean_(d.status):'DRAFT',subtotal,vatAmount,grandTotal,updatedAt:new Date()};if(d.id){if(!all.some(x=>x.id===d.id))throw new Error('ไม่พบใบเสนอราคาที่ต้องการแก้ไข');updateRow_('Quotations',d.id,values);audit_(user,'UPDATE','QUOTATION',d.id,quoteNo)}else{const id=id_('QTN');append_('Quotations',[id,values.quoteNo,values.issueDate,values.customerName,values.customerPhone,values.customerAddress,values.customerTaxId,values.workType,values.itemsJson,values.vatRate,values.paymentTerms,values.deliveryTerms,values.warrantyText,values.scopeText,values.note,values.status,values.subtotal,values.vatAmount,values.grandTotal,new Date(),values.updatedAt,user.id,values.logoData,values.noteColor,values.companyJson]);audit_(user,'CREATE','QUOTATION',id,quoteNo)}return quotationPayload_(db_())}
+function deleteQuotation_(user,d){require_(user,'FINANCE_EDIT');const item=rows_('Quotations').find(x=>x.id===d.id);if(!item)throw new Error('ไม่พบใบเสนอราคา');deleteRow_('Quotations',d.id);audit_(user,'DELETE','QUOTATION',d.id,item.quoteNo);return quotationPayload_(db_())}
 function saveUser_(user,d) {
   require_(user,'USERS_MANAGE'); if(!clean_(d.name)||!clean_(d.username)||String(d.password||'').length<4)throw new Error('กรุณากรอกข้อมูลผู้ใช้และรหัสผ่านอย่างน้อย 4 ตัว');
   if(rows_('Users').some(x=>String(x.username).toLowerCase()===clean_(d.username).toLowerCase()))throw new Error('ชื่อผู้ใช้นี้มีอยู่แล้ว');
@@ -190,7 +372,8 @@ function publicUser_(u){return{id:u.id,name:u.name,username:u.username,role:u.ro
 function project_(id){const p=rows_('Projects').find(x=>x.id===id);if(!p)throw new Error('กรุณาเลือกโปรเจกต์');return p}
 function sortedActive_(name){return rows_(name).filter(x=>truthy_(x.active)).sort((a,b)=>num_(a.sortOrder)-num_(b.sortOrder)||String(a.name).localeCompare(String(b.name),'th'))}
 function sortActiveRows_(rows){return rows.filter(x=>truthy_(x.active)).sort((a,b)=>num_(a.sortOrder)-num_(b.sortOrder)||String(a.name).localeCompare(String(b.name),'th'))}
-function readSheet_(ss,name){const sh=ss.getSheetByName(name);if(!sh)throw new Error('ไม่พบตาราง '+name);const lastRow=sh.getLastRow(),lastCol=sh.getLastColumn();if(lastRow<2||lastCol<1)return[];const values=sh.getRange(1,1,lastRow,lastCol).getValues(),h=values[0];return values.slice(1).filter(r=>r.some(v=>v!=='')).map(r=>h.reduce((o,k,i)=>(o[k]=r[i],o),{}))}
+function sheetValue_(key,value){if(value instanceof Date&&(key==='date'||/Date$/.test(String(key))))return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd');return value}
+function readSheet_(ss,name){const sh=ss.getSheetByName(name);if(!sh)throw new Error('ไม่พบตาราง '+name);const lastRow=sh.getLastRow(),lastCol=sh.getLastColumn();if(lastRow<2||lastCol<1)return[];const values=sh.getRange(1,1,lastRow,lastCol).getValues(),h=values[0];return values.slice(1).filter(r=>r.some(v=>v!=='')).map(r=>h.reduce((o,k,i)=>(o[k]=sheetValue_(k,r[i]),o),{}))}
 function rows_(name){return readSheet_(db_(),name)}
 function append_(name,row){db_().getSheetByName(name).appendRow(row)} function audit_(u,a,e,id,d){append_('AuditLog',[id_('LOG'),new Date(),u.id,a,e,id,d])}
 function updateRow_(name,id,changes){const sh=db_().getSheetByName(name),values=sh.getDataRange().getValues(),h=values[0],index=values.findIndex((r,i)=>i>0&&r[0]===id);if(index<1)throw new Error('ไม่พบข้อมูลที่ต้องการแก้ไข');Object.keys(changes).forEach(k=>{const col=h.indexOf(k);if(col>=0)values[index][col]=changes[k]});sh.getRange(index+1,1,1,h.length).setValues([values[index]])}
@@ -204,4 +387,43 @@ function businessPayload_(ss){const projects=readSheet_(ss,'Projects'),income=re
 function payrollPayload_(ss){const month=monthInfo_(),allEmployees=readSheet_(ss,'Employees'),employeeRows=allEmployees.filter(x=>truthy_(x.active)),advances=readSheet_(ss,'SalaryAdvances'),payments=readSheet_(ss,'SalaryPayments'),overtime=readSheet_(ss,'Overtime');const employees=employeeRows.map(e=>{const own=advances.filter(x=>x.employeeId===e.id&&x.monthKey===month.key),advanceTotal=round_(own.reduce((s,x)=>s+num_(x.amount),0)),employeeOt=overtime.filter(x=>x.employeeId===e.id&&String(x.date).slice(0,7)===month.key),otTotal=round_(employeeOt.reduce((s,x)=>s+num_(x.amount),0)),payment=payments.find(x=>x.employeeId===e.id&&x.monthKey===month.key),salary=num_(e.wageRate),earned=round_(salary+otTotal),remaining=payment?0:round_(Math.max(0,earned-advanceTotal)),progress=earned?round_(remaining/earned*100):0;return Object.assign({},e,{salary:{monthKey:month.key,dueDate:month.dueDate,baseSalary:salary,otTotal,totalEarned:earned,advanceTotal,remaining,progress,paid:!!payment,netPaid:payment?num_(payment.netPaid):0,advances:own}})}),employeeNames=allEmployees.reduce((o,e)=>(o[e.id]=e.name,o),{}),wageHistory=[...payments.map(x=>({id:x.id,type:'SALARY',date:x.paidDate||x.dueDate,monthKey:x.monthKey,employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',baseSalary:num_(x.baseSalary),otTotal:num_(x.otTotal),advanceTotal:num_(x.advanceTotal),amount:num_(x.netPaid),note:x.note||''})),...overtime.map(x=>({id:x.id,type:'OT',date:x.date,monthKey:String(x.date).slice(0,7),employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',projectId:x.projectId,hours:num_(x.hours),rate:num_(x.rate),amount:num_(x.amount),note:x.note||''})),...advances.map(x=>({id:x.id,type:'ADVANCE',date:x.date,monthKey:x.monthKey,employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',amount:num_(x.amount),note:x.note||''}))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));return{partial:true,employees,overtime,wageHistory,payrollMonth:month}}
 function dividendPayload_(ss){const dividends=readSheet_(ss,'Dividends'),partners=readSheet_(ss,'Partners').filter(x=>truthy_(x.active)).map(p=>Object.assign({},p,{totalPaid:round_(dividends.filter(x=>x.partnerId===p.id).reduce((s,x)=>s+num_(x.amount),0)),payments:dividends.filter(x=>x.partnerId===p.id).sort((a,b)=>String(b.date).localeCompare(String(a.date)))}));return Object.assign({},businessPayload_(ss),{partners,dividends})}
 function lookupPayload_(ss){return{partial:true,categories:sortActiveRows_(readSheet_(ss,'Categories')),paymentMethods:sortActiveRows_(readSheet_(ss,'PaymentMethods')),balanceAccounts:sortActiveRows_(readSheet_(ss,'BalanceAccounts'))}}
+function migrateInvoiceNumbers_(){const props=PropertiesService.getScriptProperties(),key='INVOICE_ISSUE_DATE_NUMBERS_V1',lock=LockService.getScriptLock();lock.waitLock(30000);try{if(props.getProperty(key)==='done')return;const all=rows_('Invoices'),plan=all.filter(x=>/^(?:INVSO-\d{6}-\d+|IV\d{9,}-[12])$/.test(String(x.invoiceNo))&&quotationSequence_(x.quoteNo)>0).map(x=>({row:x,invoiceNo:relatedDocumentNumber_('IV',{quoteNo:x.quoteNo},Number(x.installment),x.issueDate)})),names=new Set();all.forEach(x=>{const number=(plan.find(p=>p.row.id===x.id)?.invoiceNo||String(x.invoiceNo)).toUpperCase();if(names.has(number))throw new Error('เลขใบแจ้งหนี้ซ้ำในการปรับรูปแบบ กรุณาตรวจสอบเอกสาร');names.add(number)});plan.filter(x=>x.row.invoiceNo!==x.invoiceNo).forEach(x=>{append_('AuditLog',[id_('AUD'),new Date(),'SYSTEM','BACKUP','INVOICE_NUMBER',x.row.id,JSON.stringify({invoiceNo:x.row.invoiceNo,newInvoiceNo:x.invoiceNo,quoteNo:x.row.quoteNo,issueDate:x.row.issueDate})]);updateRow_('Invoices',x.row.id,{invoiceNo:x.invoiceNo})});props.setProperty(key,'done')}finally{lock.releaseLock()}}
+function invoiceRows_(ss){return readSheet_(ss,'Invoices').map(row=>({...row,snapshot:{...JSON.parse(row.snapshotJson||'{}'),items:JSON.parse(row.itemsJson||'[]'),logoData:row.logoData||''}})).sort((a,b)=>String(b.issueDate).localeCompare(String(a.issueDate))||String(b.createdAt).localeCompare(String(a.createdAt)))}
+function receiptRows_(ss){return readSheet_(ss,'Receipts').map(row=>({...row,snapshot:{...JSON.parse(row.snapshotJson||'{}'),items:JSON.parse(row.itemsJson||'[]'),logoData:row.logoData||''}})).sort((a,b)=>String(b.issueDate).localeCompare(String(a.issueDate))||String(b.createdAt).localeCompare(String(a.createdAt)))}
+function createReceipt_(user,d){
+  require_(user,'FINANCE_EDIT');
+  const paidDate=String(d.paidDate||''),paidTime=new Date(paidDate+'T00:00:00Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(paidDate)||!Number.isFinite(paidTime.getTime())||paidTime.toISOString().slice(0,10)!==paidDate)throw new Error('กรุณาระบุวันที่รับชำระเงินให้ถูกต้อง');
+  if(d.confirmPaid!==true)throw new Error('กรุณายืนยันว่าได้รับชำระเงินแล้ว');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    const ss=db_(),all=receiptRows_(ss),existing=all.find(x=>x.invoiceId===d.invoiceId);if(existing)return {partial:true,receipts:all,issuedReceiptId:existing.id};
+    const invoice=readSheet_(ss,'Invoices').find(x=>x.id===d.invoiceId);if(!invoice)throw new Error('ไม่พบใบแจ้งหนี้ที่ต้องการออกใบเสร็จ');
+    if(!Number.isFinite(Number(invoice.grandTotal))||Number(invoice.grandTotal)<=0||round_(Number(invoice.subtotal)+Number(invoice.vatAmount))!==Number(invoice.grandTotal))throw new Error('ยอดใบแจ้งหนี้ไม่ถูกต้อง');
+    const receiptNo=relatedDocumentNumber_('RC',{quoteNo:invoice.quoteNo},Number(invoice.installment),paidDate);if(all.some(x=>String(x.receiptNo).toUpperCase()===receiptNo.toUpperCase()))throw new Error('เลขใบเสร็จนี้มีอยู่แล้ว กรุณาตรวจสอบใบแจ้งหนี้อ้างอิง');
+    const id=id_('RCT'),row={...invoice,id,receiptNo,issueDate:paidDate,invoiceId:invoice.id,createdAt:new Date(),createdBy:user.id};
+    append_('Receipts',APP.sheets.Receipts.map(key=>row[key]));audit_(user,'CREATE','RECEIPT',id,receiptNo+' / '+invoice.invoiceNo+' / '+paidDate);
+    return {partial:true,receipts:receiptRows_(ss),issuedReceiptId:id};
+  }finally{lock.releaseLock()}
+}
+function invoiceAmounts_(q,installment){const cents=key=>{const amount=Number(q[key]);if(!Number.isFinite(amount)||amount<0)throw new Error('ยอดใบเสนอราคาไม่ถูกต้อง');return Math.round(amount*100)},base=cents('subtotal'),vat=cents('vatAmount'),total=cents('grandTotal');if(base+vat!==total||total<=0)throw new Error('ยอดใบเสนอราคาไม่สมบูรณ์');const firstTotal=Math.round(total/2),firstBase=Math.round(base/2),firstVat=firstTotal-firstBase;return installment===1?{subtotal:firstBase/100,vatAmount:firstVat/100,grandTotal:firstTotal/100}:{subtotal:(base-firstBase)/100,vatAmount:(vat-firstVat)/100,grandTotal:(total-firstTotal)/100}}
+function createInvoice_(user,d){
+  require_(user,'FINANCE_EDIT');
+  const installment=Number(d.installment);if(![1,2].includes(installment))throw new Error('เลือกงวดที่ 1 หรือ 2');
+  const issueTime=new Date(String(d.issueDate)+'T00:00:00Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d.issueDate||''))||!Number.isFinite(issueTime.getTime())||issueTime.toISOString().slice(0,10)!==d.issueDate)throw new Error('กรุณาระบุวันที่ออกเอกสารให้ถูกต้อง');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    const ss=db_(),all=invoiceRows_(ss),related=all.filter(x=>x.quotationId===d.quotationId),existing=related.find(x=>Number(x.installment)===installment);
+    if(existing)return {partial:true,invoices:all,issuedInvoiceId:existing.id};
+    const q=related.length?related[0].snapshot:quotationRows_(ss).find(x=>x.id===d.quotationId);
+    if(!q||q.workType!=='Solar Cell')throw new Error('กรุณาเลือกใบเสนอราคา Solar Cell');
+    const amounts=invoiceAmounts_(q,installment),terms=installment===1?'งวดที่ 1 50% เมื่อออกใบ PO และนัดวันติดตั้ง':'งวดที่ 2 50% หลังติดตั้งออนระบบและส่งมอบงานแล้วเสร็จ ก่อนยื่นขนานไฟจาก PEA',delivery='ระยะดำเนินการตามตกลงของหน้างานและสัญญาโครงการ';
+    const invoiceNo=relatedDocumentNumber_('IV',q,installment,d.issueDate);if(all.some(x=>String(x.invoiceNo).toUpperCase()===invoiceNo.toUpperCase()))throw new Error('เลขใบแจ้งหนี้นี้มีอยู่แล้ว กรุณาตรวจเลขใบเสนอราคาอ้างอิง');
+    const snapshot={...q};delete snapshot.items;delete snapshot.logoData;delete snapshot.itemsJson;delete snapshot.companyJson;
+    const snapshotJson=JSON.stringify(snapshot),itemsJson=JSON.stringify(q.items||[]);if(snapshotJson.length>49000||itemsJson.length>49000)throw new Error('รายละเอียดใบเสนอราคายาวเกินไปสำหรับออกเอกสาร');
+    const id=id_('INV'),row={id,invoiceNo,issueDate:d.issueDate,quotationId:d.quotationId,quoteNo:q.quoteNo,installment,percent:50,...amounts,vatRate:q.vatRate,paymentTerms:terms,deliveryTerms:delivery,poNo:clean_(d.poNo),snapshotJson,itemsJson,logoData:q.logoData||'',createdAt:new Date(),createdBy:user.id};
+    append_('Invoices',APP.sheets.Invoices.map(key=>row[key]));audit_(user,'CREATE','INVOICE',id,invoiceNo+' / '+q.quoteNo+' / '+installment);
+    return {partial:true,invoices:invoiceRows_(ss),issuedInvoiceId:id};
+  }finally{lock.releaseLock()}
+}
+function quotationPayload_(ss){return{partial:true,quotations:quotationRows_(ss),quotePresets:quotePresetRows_(ss)}}
 function clientSafe_(value){return JSON.parse(JSON.stringify(value))}
