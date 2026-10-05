@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.5.0',
+  version: '3.6.0',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -27,7 +27,7 @@ let MIGRATIONS_CHECKED_ = false;
 function runStartupMigrations_() {
   if (MIGRATIONS_CHECKED_) return;
   const cache = CacheService.getScriptCache();
-  if (cache.get('STARTUP_MIGRATIONS_DONE_V14') === '1') {
+  if (cache.get('STARTUP_MIGRATIONS_DONE_V15') === '1') {
     MIGRATIONS_CHECKED_ = true;
     return;
   }
@@ -38,9 +38,27 @@ function runStartupMigrations_() {
     ensureDividendTransactionRepair_();
     ensureOwnerNameMigration_();
     ensureAdminUser_();
+    ensureSeedEmployees_();
     cleanupOldSessionProperties_();
     MIGRATIONS_CHECKED_ = true;
-    cache.put('STARTUP_MIGRATIONS_DONE_V14', '1', 21600);
+    cache.put('STARTUP_MIGRATIONS_DONE_V15', '1', 21600);
+  } catch(e) {}
+}
+
+function ensureSeedEmployees_() {
+  try {
+    const sh = sheet_('Employees');
+    const vals = sh.getDataRange().getValues();
+    if (vals.length <= 1) {
+      append_('Employees', [id_('EMP'), 'จีจี้', 3000, '', now_(), 'SYSTEM', 'พนักงาน', 'FULL_TIME']);
+      invalidateRows_('Employees');
+    } else {
+      const emps = rows_('Employees');
+      if (!emps.some(e => clean_(e.name) === 'จีจี้')) {
+        append_('Employees', [id_('EMP'), 'จีจี้', 3000, '', now_(), 'SYSTEM', 'พนักงาน', 'FULL_TIME']);
+        invalidateRows_('Employees');
+      }
+    }
   } catch(e) {}
 }
 
@@ -371,7 +389,7 @@ function buildBootstrap_(user) {
     ,managerOverview:user.role==='MANAGER'?summarize(month):null
     ,managerPeriods
     ,managerHistory:user.role==='MANAGER'?visibleTransactions.filter(x=>x.status==='CONFIRMED').slice(0,200):[]
-    ,payroll:canAdminUsers_(user)?buildPayroll_():null
+    ,employees: cachedRows_('Employees', 600).filter(x => x.name).map(x => ({ id: x.id, name: clean_(x.name) }))
     ,dividends:user.role==='OWNER'?buildDividends_():null
     ,revision:PropertiesService.getScriptProperties().getProperty('DATA_REVISION')||'0'
   });
