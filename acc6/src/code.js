@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.4.8',
+  version: '3.4.9',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -23,8 +23,41 @@ const APP = {
 };
 const PRIMARY_DB_ID = '1EN084DNwJjxZdStDABk0znC-rLAPMzlCtHsLqQ4TnRs';
 
+let MIGRATIONS_CHECKED_ = false;
+function runStartupMigrations_() {
+  if (MIGRATIONS_CHECKED_) return;
+  try {
+    ensureSchema_();
+    ensureCurrentPayrollPendingMigration_();
+    ensureManualPayrollMigration_();
+    ensureDividendTransactionRepair_();
+    if (PropertiesService.getScriptProperties().getProperty('DB_ID')) {
+      ensureOwnerNameMigration_();
+      ensureOwnerLoginRepair_();
+      ensureAllUserLoginRepair_();
+    }
+    cleanupOldSessionProperties_();
+    MIGRATIONS_CHECKED_ = true;
+  } catch(e) {}
+}
+
+function cleanupOldSessionProperties_() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    if (props.getProperty('SESSION_PROP_CLEANED_V1') === '1') return;
+    const all = props.getProperties();
+    const sessionKeys = Object.keys(all).filter(k => k.startsWith('SESSION_TOKEN_'));
+    if (sessionKeys.length > 0) {
+      sessionKeys.slice(0, 100).forEach(k => props.deleteProperty(k));
+    }
+    if (sessionKeys.length <= 100) {
+      props.setProperty('SESSION_PROP_CLEANED_V1', '1');
+    }
+  } catch(e) {}
+}
+
 function doGet() {
-  try{ensureSchema_();ensureCurrentPayrollPendingMigration_();ensureManualPayrollMigration_();ensureDividendTransactionRepair_();if(PropertiesService.getScriptProperties().getProperty('DB_ID')){ensureOwnerNameMigration_();ensureOwnerLoginRepair_();ensureAllUserLoginRepair_()}}catch(e){}
+  runStartupMigrations_();
   const template=HtmlService.createTemplateFromFile('Index'); template.appVersion=APP.version;
   return template.evaluate()
     .setTitle(APP.name)
@@ -136,20 +169,44 @@ function seed_() {
 }
 
 function login_(data) {
-  const username = clean_(data.username).toLowerCase();
-  const user = rows_('Users').find(r => String(r.username).toLowerCase() === username);
-  if (!user || !truthy_(user.active) || String(user.passwordHash) !== hash_(data.password)) throw new Error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+  const username = clean_(data && data.username).toLowerCase();
+  const password = String(data && data.password != null ? data.password : '');
+  if (!username || !password) throw new Error('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
+
+  const users = rows_('Users');
+  const user = users.find(r => String(r.username || '').trim().toLowerCase() === username);
+  if (!user || !truthy_(user.active) || String(user.passwordHash) !== hash_(password)) {
+    throw new Error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+  }
+
   const token = makePersistentToken_(user);
-  const sessionUser=publicUser_(user); sessionUser.sessionVersion=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1';sessionUser.persistent=true;
-  const sessionRaw=JSON.stringify(sessionUser);CacheService.getScriptCache().put('session:' + token,sessionRaw,21600);PropertiesService.getScriptProperties().setProperty('SESSION_TOKEN_'+token,sessionRaw);
+  const version = getSessionVersion_();
+  const sessionUser = {
+    ...publicUser_(user),
+    sessionVersion: version,
+    persistent: true
+  };
+  const sessionRaw = JSON.stringify(sessionUser);
+  CacheService.getScriptCache().put('session:' + token, sessionRaw, 21600);
+
   // Authentication must not be reported as failed merely because the first
   // (large) dashboard bootstrap temporarily fails or times out.
-  let appData=null;
-  try{appData=bootstrap_(sessionUser).data}catch(e){}
+  let appData = null;
+  try {
+    appData = bootstrap_(sessionUser).data;
+  } catch(e) {}
   return ok({ token, user: publicUser_(user), appData });
 }
 
-function logout_(token){if(token){CacheService.getScriptCache().remove('session:'+token);PropertiesService.getScriptProperties().deleteProperty('SESSION_TOKEN_'+token)}return ok({loggedOut:true})}
+function logout_(token) {
+  if (token) {
+    CacheService.getScriptCache().remove('session:' + token);
+    try {
+      PropertiesService.getScriptProperties().deleteProperty('SESSION_TOKEN_' + token);
+    } catch(e) {}
+  }
+  return ok({ loggedOut: true });
+}
 
 function bootstrap_(user) {
   const props=PropertiesService.getScriptProperties();
@@ -167,13 +224,7 @@ function bootstrap_(user) {
 function safeBootstrap_(user){try{return bootstrap_(user).data}catch(e){return null}}
 
 function buildBootstrap_(user) {
-  ensureSchema_();
-  ensureCurrentPayrollPendingMigration_();
-  ensureManualPayrollMigration_();
-  ensureDividendTransactionRepair_();
-  ensureOwnerNameMigration_();
-  ensureOwnerLoginRepair_();
-  ensureAllUserLoginRepair_();
+  runStartupMigrations_();
   const latestUser=cachedRows_('Users',120).find(x=>x.id===user.id);if(latestUser)user={...publicUser_(latestUser),sessionVersion:user.sessionVersion};
   const canViewFinance=canViewFinance_(user);
   const accountRows = cachedRows_('Accounts', 600).filter(x => truthy_(x.active));
@@ -663,12 +714,94 @@ function transactionViews_(tx,categories,accounts){
   const itemNames={}; cachedRows_('PurchaseItems',60).forEach(x=>{(itemNames[x.purchaseId]||(itemNames[x.purchaseId]=[])).push(x.productName);});
   return tx.map(x=>({id:x.id,date:dateKey_(x.date),type:x.type,categoryId:x.category,categoryName:cn[x.category]||'ไม่ระบุหมวด',accountId:x.accountId,accountName:an[x.accountId]||'ไม่ระบุบัญชี',amount:num_(x.amount),note:x.note||'',referenceId:x.referenceId||'',purchaseItems:(itemNames[x.referenceId]||[]),createdAt:String(x.createdAt||''),createdBy:x.createdBy||'',createdByName:x.createdByName||'',status:x.status})).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
 }
-function requireSession_(token) {if(!token)throw new Error('SESSION_EXPIRED');const cache=CacheService.getScriptCache(),props=PropertiesService.getScriptProperties(),key='SESSION_TOKEN_'+token,raw=cache.get('session:'+token)||props.getProperty(key);let user=raw?JSON.parse(raw):userFromPersistentToken_(token),version=props.getProperty('SESSION_VERSION')||'1';if(!user||user.sessionVersion!==version){props.deleteProperty(key);throw new Error('SESSION_EXPIRED')}const latest=cachedRows_('Users',120).find(x=>x.id===user.id);if(!latest||!truthy_(latest.active)){props.deleteProperty(key);throw new Error('SESSION_EXPIRED')}const fresh={...publicUser_(latest),sessionVersion:version,persistent:true};if(!raw||fresh.name!==user.name||fresh.username!==user.username||fresh.role!==user.role)props.setProperty(key,JSON.stringify(fresh));cache.put('session:'+token,JSON.stringify(fresh),21600);return fresh;}
-function sessionSecret_(){const props=PropertiesService.getScriptProperties();let secret=props.getProperty('SESSION_SIGNING_SECRET');if(!secret){secret=Utilities.getUuid()+Utilities.getUuid();props.setProperty('SESSION_SIGNING_SECRET',secret)}return secret}
-function legacyTokenSignature_(user,version){return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+user.passwordHash+'|'+version,sessionSecret_())).replace(/=+$/,'')}
-function tokenSignature_(user,version,nonce){return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+user.passwordHash+'|'+version+'|'+(nonce||''),sessionSecret_())).replace(/=+$/,'')}
-function makePersistentToken_(user){const version=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1',payload=Utilities.base64EncodeWebSafe(user.id).replace(/=+$/,''),nonce=Utilities.getUuid().replace(/-/g,'');return'p2.'+payload+'.'+nonce+'.'+tokenSignature_(user,version,nonce)}
-function userFromPersistentToken_(token){try{const parts=String(token).split('.'),legacy=parts[0]==='p1';if((legacy&&parts.length!==3)||(!legacy&&(parts[0]!=='p2'||parts.length!==4)))return null;const id=Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString(),user=cachedRows_('Users',120).find(x=>x.id===id),version=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1',nonce=legacy?'':parts[2],signature=legacy?parts[2]:parts[3],expected=legacy?legacyTokenSignature_(user,version):tokenSignature_(user,version,nonce);if(!user||signature!==expected)return null;return{...publicUser_(user),sessionVersion:version,persistent:true}}catch(e){return null}}
+let SESSION_SECRET_CACHE_;
+function sessionSecret_(){
+  if(SESSION_SECRET_CACHE_)return SESSION_SECRET_CACHE_;
+  const props=PropertiesService.getScriptProperties();
+  let secret=props.getProperty('SESSION_SIGNING_SECRET');
+  if(!secret){
+    secret=Utilities.getUuid()+Utilities.getUuid();
+    props.setProperty('SESSION_SIGNING_SECRET',secret);
+  }
+  SESSION_SECRET_CACHE_=secret;
+  return secret;
+}
+
+let SESSION_VERSION_CACHE_;
+function getSessionVersion_(){
+  if(SESSION_VERSION_CACHE_)return SESSION_VERSION_CACHE_;
+  SESSION_VERSION_CACHE_=PropertiesService.getScriptProperties().getProperty('SESSION_VERSION')||'1';
+  return SESSION_VERSION_CACHE_;
+}
+
+function legacyTokenSignature_(user,version){
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+user.passwordHash+'|'+version,sessionSecret_())).replace(/=+$/,'');
+}
+
+function tokenSignature_(user,version,nonce){
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+user.passwordHash+'|'+version+'|'+(nonce||''),sessionSecret_())).replace(/=+$/,'');
+}
+
+function makePersistentToken_(user){
+  const version=getSessionVersion_();
+  const payload=Utilities.base64EncodeWebSafe(String(user.id)).replace(/=+$/,'');
+  const nonce=Utilities.getUuid().replace(/-/g,'');
+  return 'p2.'+payload+'.'+nonce+'.'+tokenSignature_(user,version,nonce);
+}
+
+function userFromPersistentToken_(token){
+  try{
+    const parts=String(token).split('.');
+    const legacy=parts[0]==='p1';
+    if((legacy&&parts.length!==3)||(!legacy&&(parts[0]!=='p2'||parts.length!==4)))return null;
+    const id=Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString();
+    const user=cachedRows_('Users',120).find(x=>x.id===id)||rows_('Users').find(x=>x.id===id);
+    if(!user||!truthy_(user.active))return null;
+    const version=getSessionVersion_();
+    const nonce=legacy?'':parts[2];
+    const signature=legacy?parts[2]:parts[3];
+    const expected=legacy?legacyTokenSignature_(user,version):tokenSignature_(user,version,nonce);
+    if(signature!==expected)return null;
+    return{...publicUser_(user),sessionVersion:version,persistent:true};
+  }catch(e){
+    return null;
+  }
+}
+
+function requireSession_(token){
+  if(!token)throw new Error('SESSION_EXPIRED');
+  const cache=CacheService.getScriptCache();
+  const raw=cache.get('session:'+token);
+  let user=null;
+  const version=getSessionVersion_();
+
+  if(raw){
+    try{
+      const parsed=JSON.parse(raw);
+      if(parsed&&parsed.sessionVersion===version){
+        user=parsed;
+      }
+    }catch(e){}
+  }
+
+  if(!user){
+    user=userFromPersistentToken_(token);
+  }
+
+  if(!user||user.sessionVersion!==version){
+    throw new Error('SESSION_EXPIRED');
+  }
+
+  const latest=cachedRows_('Users',120).find(x=>x.id===user.id)||rows_('Users').find(x=>x.id===user.id);
+  if(!latest||!truthy_(latest.active)){
+    cache.remove('session:'+token);
+    throw new Error('SESSION_EXPIRED');
+  }
+
+  const fresh={...publicUser_(latest),sessionVersion:version,persistent:true};
+  cache.put('session:'+token,JSON.stringify(fresh),21600);
+  return fresh;
+}
 function publicUser_(u) { return {id:u.id,name:u.name,username:u.username,role:u.role,active:truthy_(u.active)}; }
 function canManage_(u) { return ['ADMIN','MANAGER','OWNER'].includes(u.role); }
 function canAdminUsers_(u) { return ['ADMIN','OWNER'].includes(u.role); }
