@@ -4,7 +4,6 @@
 <head>
     <meta charset="utf-8">
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'"><noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         :root {
             --yellow: #f6c90e;
@@ -348,52 +347,203 @@
             height: 8px
         }
 
-        .loading {
+        /* Top Statusbar & Yellow Loading Bar (Zero Delay) */
+        .top-status-bar {
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999999;
+            pointer-events: none;
+            width: min(440px, calc(100vw - 24px));
+        }
+        .top-status-box {
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1.5px solid rgba(246, 201, 14, 0.55);
+            border-radius: 99px;
+            padding: 8px 16px 9px;
+            box-shadow: 0 8px 30px rgba(41, 39, 18, 0.12);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            opacity: 0;
+            transform: translateY(-12px);
+            transition: opacity .16s ease, transform .16s ease;
+            pointer-events: auto;
+        }
+        .top-status-box.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .top-status-box.error {
+            border-color: #ef4444;
+            background: rgba(255, 245, 245, 0.88);
+        }
+        .top-status-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 800;
+            color: #292712;
+        }
+        .top-status-tube {
+            width: 100%;
+            height: 7px;
+            background: rgba(246, 201, 14, 0.22);
+            border-radius: 99px;
+            overflow: hidden;
+            position: relative;
+        }
+        .top-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #f6c90e, #ffd928, #f6c90e);
+            border-radius: 99px;
+            box-shadow: 0 0 10px rgba(246, 201, 14, 0.8);
+            transition: width .18s ease-out;
+        }
+        .top-status-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 11px;
+            background: #f6c90e;
+            color: #292712;
+            font-weight: 900;
+            flex: none;
+        }
+        .top-status-icon.error {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        .top-status-icon.warning {
+            background: #fef3c7;
+            color: #d97706;
+        }
+        /* Native Lightweight Modal (Zero Delay) */
+        .native-modal-overlay {
             position: fixed;
             inset: 0;
-            z-index: 100;
-            background: #fffdf3d9;
-            backdrop-filter: blur(3px);
-            display: grid;
-            place-items: center
+            background: rgba(41, 39, 18, 0.55);
+            backdrop-filter: blur(2px);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
         }
-
-        .loading-box {
+        .native-modal-box {
             background: #fff;
             border: 1px solid var(--line);
-            border-radius: 20px;
-            padding: 22px 28px;
+            border-radius: 22px;
+            padding: 22px;
+            width: min(520px, calc(100vw - 24px));
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(41, 39, 18, 0.2);
+            text-align: left;
+        }
+        .native-modal-title {
+            font-size: 18px;
+            font-weight: 850;
+            margin-bottom: 12px;
+        }
+        .native-modal-body {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        /* Subtabs for Entry Hub */
+        .entry-subtabs {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin: 10px 0 16px;
+            padding: 4px;
+            background: #f4f1dc;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+        }
+        .entry-subtab {
+            border: 0;
+            border-radius: 12px;
+            background: transparent;
+            color: var(--muted);
+            font-weight: 750;
+            font-size: 12px;
+            padding: 10px 4px;
+            white-space: nowrap;
             text-align: center;
-            box-shadow: 0 16px 50px #6f590d2b;
-            font-weight: 800
+            cursor: pointer;
         }
-
-        .spinner {
-            width: 42px;
-            height: 42px;
-            border: 5px solid #f6c90e42;
-            border-top-color: var(--yellow-dark);
-            border-radius: 50%;
-            animation: spin .75s linear infinite;
-            margin: 0 auto 12px
+        .entry-subtab.active {
+            background: #fff;
+            color: var(--ink);
+            font-weight: 900;
+            box-shadow: 0 3px 12px rgba(138, 114, 13, 0.16), 0 0 0 1px #f6c90e;
         }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg)
+        @media(max-width: 440px) {
+            .entry-subtabs {
+                grid-template-columns: repeat(2, 1fr);
             }
         }
-
-        .swal2-confirm {
-            background: var(--yellow) !important;
-            color: var(--ink) !important;
-            border: 1px solid var(--yellow-dark) !important
+        /* Smart Quick Input Card */
+        .quick-smart-card {
+            border: 1.5px solid #ebdca3;
+            border-radius: 20px;
+            padding: 18px;
+            background: #fffdf5;
         }
-
-        .swal2-cancel {
-            background: #fff !important;
-            color: var(--ink) !important;
-            border: 1px solid #d8cf9c !important
+        .quick-smart-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .smart-parsed-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 380px;
+            overflow-y: auto;
+        }
+        .smart-parsed-item {
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid #ebdca3;
+            background: #fff;
+            display: grid;
+            gap: 8px;
+        }
+        .smart-item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        .type-badge-income {
+            background: #dcfce7;
+            color: #166534;
+            font-weight: 800;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 99px;
+            cursor: pointer;
+        }
+        .type-badge-expense {
+            background: #fee2e2;
+            color: #991b1b;
+            font-weight: 800;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 99px;
+            cursor: pointer;
         }
 
         @media(max-width:430px) {
@@ -481,11 +631,35 @@
 </head>
 
 <body>
-    <div id="loading" class="loading hidden">
-        <div class="loading-box">
-            <div class="duck-walk"><div class="walk-shadow"></div><img id="loadingLogo" alt="Wonder Duck กำลังเดิน"><span class="step step-one">•</span><span class="step step-two">•</span><span class="step step-three">•</span></div>
-            <div id="loadingText">กำลังโหลด...</div>
-            <div class="loading-dots"><i></i><i></i><i></i></div>
+    <!-- Top Status Bar & Yellow Loading Progress Bar (Zero Delay) -->
+    <div id="topStatusBar" class="top-status-bar">
+        <div id="topStatusBox" class="top-status-box">
+            <div class="top-status-row">
+                <div style="display:flex;align-items:center;gap:7px;min-width:0">
+                    <span id="topStatusIcon" class="top-status-icon">✓</span>
+                    <span id="topStatusText" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">พร้อมใช้งาน</span>
+                </div>
+                <small id="topStatusPercent" style="color:#786400;font-weight:850;font-size:11px">100%</small>
+            </div>
+            <div class="top-status-tube">
+                <div id="topProgressFill" class="top-progress-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Native Lightweight Modal (Zero Delay) -->
+    <div id="nativeModal" class="native-modal-overlay hidden">
+        <div class="native-modal-box">
+            <div id="nativeModalTitle" class="native-modal-title"></div>
+            <div id="nativeModalBody" class="native-modal-body"></div>
+            <div id="nativeModalInputBox" class="hidden" style="margin-top:12px">
+                <input id="nativeModalInput" class="full">
+            </div>
+            <div id="nativeModalValidation" class="notice negative hidden" style="margin-top:8px"></div>
+            <div class="row" style="margin-top:16px">
+                <button id="nativeModalCancel" class="btn light">ยกเลิก</button>
+                <button id="nativeModalConfirm" class="btn">ตกลง</button>
+            </div>
         </div>
     </div>
     <section id="auth" class="auth">
@@ -532,41 +706,108 @@
                 </div>
                 <div class="title">สัดส่วนรายจ่ายตามหมวด</div><div id="expenseBreakdown" class="card"></div><details id="analyticsHome" class="analytics-home hidden"><summary>↗ วิเคราะห์และเปรียบเทียบ</summary><div class="card analytics-controls"><div class="analysis-private">เฉพาะเจ้าของร้าน</div><label class="label">รูปแบบการเปรียบเทียบ</label><select id="analysisType" onchange="renderAnalysisInputs()"><option value="YEAR">ปีต่อปี</option><option value="MONTH">เดือนต่อเดือน</option><option value="CUSTOM">กำหนดช่วงวันที่</option></select><div id="analysisInputs"></div><div class="spacer"></div><button class="btn full" onclick="runFinancialComparison()">เปรียบเทียบข้อมูล</button></div><div id="analysisResult" class="hidden"></div></details></div><div id="limitedDashboard" class="role-panel hidden"><div class="role-mark">✓</div><div><div id="roleHomeTitle" class="title">พื้นที่ทำงาน</div><div id="roleHomeText" class="muted"></div></div><div id="managerDonut" class="manager-overview hidden"><div class="manager-head"><div><small>ภาพรวมเงินเข้า–ออก</small><b id="managerPeriodLabel">เดือนนี้</b></div><span>ไม่รวมยอดคงเหลือเจ้าของร้าน</span></div><div class="manager-periods"><button onclick="selectManagerPeriod('DAY',this)">วันนี้</button><button onclick="selectManagerPeriod('WEEK',this)">สัปดาห์</button><button class="active" onclick="selectManagerPeriod('MONTH',this)">เดือน</button><button onclick="selectManagerPeriod('YEAR',this)">ปี</button><button onclick="selectManagerPeriod('ALL',this)">ทั้งหมด</button></div><div class="manager-flow"><i id="managerIncomeBar"></i><b id="managerExpenseBar"></b></div><div class="manager-stats"><div><small>รายรับ</small><strong id="managerIncome" class="positive">฿0</strong></div><div><small>รายจ่าย</small><strong id="managerExpense" class="negative">฿0</strong></div><div><small>สุทธิ</small><strong id="managerNet">฿0</strong></div></div><div class="manager-history-head"><div><b>รายการย้อนหลัง</b><small id="managerHistoryCount">0 รายการ</small></div></div><div id="managerHistory" class="manager-history"></div></div><div class="quick-actions"><button class="btn" onclick="goToPage('buy')">＋ ซื้อของ</button><button class="btn light" onclick="goToPage('entry')">฿ รับ–จ่าย</button></div></div><div id="recentTodaySection"><div class="title">รายการล่าสุด</div><div id="recentToday" class="card activity-list"></div></div>
             </section>
-            <section id="page-buy" class="hidden">
-                <div class="title">บันทึกซื้อของ</div>
-                <div class="card">
-                    <div class="buy-toolbar"><div><label class="label">วันที่ซื้อ</label><input id="buyDate" type="date"></div><button class="btn price-check-btn" onclick="openPriceChecker()">⌕ เช็กราคาและจัดการสินค้า</button></div>
-                    <label class="label">แตะเลือกบัญชีที่ใช้จ่าย</label><input id="buyAccount" type="hidden"><div id="buyAccountPicker" class="buy-account-picker"></div>
-                    <div class="quick-entry"><div class="quick-head"><div><b>พิมพ์รายการแบบง่าย</b><div class="muted">หนึ่งบรรทัดต่อหนึ่งรายการ</div></div><span class="pill">เร็วที่สุด</span></div><div class="format-chip">ชื่อสินค้า&nbsp; จำนวน&nbsp; หน่วย&nbsp; ราคา</div><textarea
-                            id="quickItems" rows="5"
-                            placeholder="มะม่วง 1 กก 40 บาท&#10;มะพร้าว 1 ลูก 20&#10;นมสด 2 ขวด 90 บาท"></textarea><button
-                            class="btn full" style="margin-top:8px" onclick="parseQuickItemsV2()">✨
-                            แยกรายการให้ฉัน</button>
-                    </div>
-                    <div id="buyItems"></div><button class="btn light full" onclick="addItem()">＋
-                        เพิ่มรายการเอง</button><details id="catalogManager" class="card catalog-manager"><summary>⚙ จัดการหน่วยและหมวดสินค้า</summary><div class="catalog-grid"><div><b>หมวดสินค้า</b><input id="productCategoryId" type="hidden"><div class="inline-form"><input id="productCategoryName" placeholder="ชื่อหมวดใหม่"><button class="btn" onclick="saveProductCategory()">บันทึก</button></div><div id="productCategoryList" class="compact-list"></div></div><div><b>หน่วยสินค้า</b><input id="unitId" type="hidden"><div class="inline-form"><input id="unitName" placeholder="เช่น โหล"><input id="unitFactor" type="number" step="0.001" value="1" placeholder="ตัวคูณ"><input id="unitBase" placeholder="หน่วยฐาน"><button class="btn" onclick="saveUnit()">บันทึก</button></div><div id="unitList" class="compact-list"></div></div></div></details><label class="label">หมายเหตุ</label><textarea id="buyNote"
-                        rows="2"></textarea>
-                    <div class="card hero" style="margin-top:14px">
-                        <div class="row"><span><b id="itemCount">0</b> รายการ</span><strong
-                                id="draftTotal">฿0.00</strong></div>
-                    </div><button class="btn full" onclick="openReview()">ตรวจสอบก่อนยืนยัน</button>
-                </div>
-            </section>
             <section id="page-entry" class="hidden">
-                <div class="title">รายรับ / รายจ่ายทั่วไป</div>
-                <form id="txForm" class="card"><input id="txId" type="hidden"><div id="txEditBanner" class="edit-banner hidden">กำลังแก้ไขรายการ <button type="button" onclick="clearTransactionForm()">ยกเลิก</button></div><label class="label">ประเภท</label><select id="txType"
-                        onchange="renderCategories()">
-                        <option value="INCOME">รายรับ</option>
-                        <option value="EXPENSE">รายจ่าย</option>
-                    </select><label class="label">วันที่</label><input id="txDate" type="date"><label
-                        class="label">หมวดหมู่</label><select id="txCategory"></select><label
-                        class="label">รับ/จ่ายเข้าบัญชี</label><select id="txAccount"></select><label
-                        class="label">จำนวนเงิน</label><input id="txAmount" inputmode="decimal" type="number" min="0.01"
-                        step="0.01" placeholder="0.00"><label class="label">รายละเอียด</label><textarea id="txNote"
-                        rows="2"></textarea>
-                    <div class="spacer"></div><button id="txSubmitBtn" class="btn full">บันทึกรายการ</button>
-                </form>
-                <div class="title">ประวัติรายรับ–รายจ่าย</div><div id="transactionHistory" class="activity-list"></div>
+                <div class="title">ศูนย์รายรับ–รายจ่าย</div>
+                <div class="entry-subtabs">
+                    <button id="entrySubTabQuick" class="entry-subtab active" onclick="switchEntrySubTab('quick')">⚡ พิมพ์ด่วน</button>
+                    <button id="entrySubTabForm" class="entry-subtab" onclick="switchEntrySubTab('form')">📝 รับ–จ่ายทั่วไป</button>
+                    <button id="entrySubTabBuy" class="entry-subtab" onclick="switchEntrySubTab('buy')">🛒 ซื้อของ &amp; เช็กราคา</button>
+                    <button id="entrySubTabPayroll" class="entry-subtab" onclick="switchEntrySubTab('payroll')">👥 ค่าจ้าง</button>
+                </div>
+
+                <!-- Sub-section 1: Smart Quick Input -->
+                <div id="entrySectionQuick" class="entry-section">
+                    <div class="card quick-smart-card">
+                        <div class="quick-smart-head">
+                            <div>
+                                <b>⚡ พิมพ์รายการแบบง่าย</b>
+                                <div class="muted">พิมพ์อะไรก็ได้ หนึ่งบรรทัดต่อหนึ่งรายการ ระบบแยกหมวด รับ-จ่าย ให้ทันที</div>
+                            </div>
+                            <span class="pill">เร็วที่สุด · Zero Delay</span>
+                        </div>
+                        <div class="format-chip">
+                            ตัวอย่าง: มะนาว 50 · หมู 2 กก 180 · ค่าจ้างน้อย 3500 · ยอดขาย 4500 · ค่าไฟ 1200 · เบิกเงิน 500
+                        </div>
+                        <textarea id="smartQuickInput" rows="5" placeholder="พิมพ์รายการที่นี่ เช่น:&#10;มะนาว 50&#10;หมู 2 กก 180&#10;ค่าจ้างน้อย 3500&#10;ยอดขาย 4500&#10;ค่าไฟ 1200"></textarea>
+                        <div class="row" style="margin-top:10px">
+                            <div>
+                                <label class="label">วันที่</label>
+                                <input id="smartQuickDate" type="date">
+                            </div>
+                            <div>
+                                <label class="label">บัญชี</label>
+                                <select id="smartQuickAccount"></select>
+                            </div>
+                        </div>
+                        <button class="btn full" style="margin-top:10px" onclick="parseSmartQuickInput()">✨ แยกรายการให้อัตโนมัติ</button>
+
+                        <div id="smartParsedContainer" class="hidden" style="margin-top:14px">
+                            <div class="item-head">
+                                <b>รายการที่แยกได้ (<span id="smartParsedCount">0</span> รายการ)</b>
+                                <button class="mini-btn" onclick="clearSmartParsed()">ล้าง</button>
+                            </div>
+                            <div id="smartParsedList" class="smart-parsed-list" style="margin-top:8px"></div>
+                            <div class="card hero" style="margin-top:12px; padding:12px 14px">
+                                <div class="row">
+                                    <div>
+                                        <small>รายรับ: <b id="smartTotalIncome" class="positive">฿0.00</b></small><br>
+                                        <small>รายจ่าย: <b id="smartTotalExpense" class="negative">฿0.00</b></small>
+                                    </div>
+                                    <div style="text-align:right">
+                                        <small>ยอดสุทธิ</small>
+                                        <strong id="smartNetTotal" class="money" style="font-size:22px">฿0.00</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <button id="smartSaveBtn" class="btn full" style="margin-top:10px" onclick="saveSmartParsed()">💾 บันทึกทุกรายการทันที</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-section 2: Standard Form Entry -->
+                <div id="entrySectionForm" class="entry-section hidden">
+                    <form id="txForm" class="card"><input id="txId" type="hidden"><div id="txEditBanner" class="edit-banner hidden">กำลังแก้ไขรายการ <button type="button" onclick="clearTransactionForm()">ยกเลิก</button></div><label class="label">ประเภท</label><select id="txType"
+                            onchange="renderCategories()">
+                            <option value="INCOME">รายรับ</option>
+                            <option value="EXPENSE">รายจ่าย</option>
+                        </select><label class="label">วันที่</label><input id="txDate" type="date"><label
+                            class="label">หมวดหมู่</label><select id="txCategory"></select><label
+                            class="label">รับ/จ่ายเข้าบัญชี</label><select id="txAccount"></select><label
+                            class="label">จำนวนเงิน</label><input id="txAmount" inputmode="decimal" type="number" min="0.01"
+                            step="0.01" placeholder="0.00"><label class="label">รายละเอียด</label><textarea id="txNote"
+                            rows="2"></textarea>
+                        <div class="spacer"></div><button id="txSubmitBtn" class="btn full">บันทึกรายการ</button>
+                    </form>
+                </div>
+
+                <!-- Sub-section 3: Purchases & Price Checker -->
+                <div id="entrySectionBuy" class="entry-section hidden">
+                    <div class="card">
+                        <div class="buy-toolbar"><div><label class="label">วันที่ซื้อ</label><input id="buyDate" type="date"></div><button class="btn price-check-btn" onclick="openPriceChecker()">⌕ เช็กราคาและจัดการสินค้า</button></div>
+                        <label class="label">แตะเลือกบัญชีที่ใช้จ่าย</label><input id="buyAccount" type="hidden"><div id="buyAccountPicker" class="buy-account-picker"></div>
+                        <div class="quick-entry"><div class="quick-head"><div><b>พิมพ์รายการซื้อของแบบละเอียด</b><div class="muted">หนึ่งบรรทัดต่อหนึ่งรายการ</div></div><span class="pill">เร็วที่สุด</span></div><div class="format-chip">ชื่อสินค้า&nbsp; จำนวน&nbsp; หน่วย&nbsp; ราคา</div><textarea
+                                id="quickItems" rows="4"
+                                placeholder="มะม่วง 1 กก 40 บาท&#10;มะพร้าว 1 ลูก 20&#10;นมสด 2 ขวด 90 บาท"></textarea><button
+                                class="btn full" style="margin-top:8px" onclick="parseQuickItemsV2()">✨
+                                แยกรายการให้ฉัน</button>
+                        </div>
+                        <div id="buyItems"></div><button class="btn light full" onclick="addItem()">＋
+                            เพิ่มรายการเอง</button><details id="catalogManager" class="card catalog-manager"><summary>⚙ จัดการหน่วยและหมวดสินค้า</summary><div class="catalog-grid"><div><b>หมวดสินค้า</b><input id="productCategoryId" type="hidden"><div class="inline-form"><input id="productCategoryName" placeholder="ชื่อหมวดใหม่"><button class="btn" onclick="saveProductCategory()">บันทึก</button></div><div id="productCategoryList" class="compact-list"></div></div><div><b>หน่วยสินค้า</b><input id="unitId" type="hidden"><div class="inline-form"><input id="unitName" placeholder="เช่น โหล"><input id="unitFactor" type="number" step="0.001" value="1" placeholder="ตัวคูณ"><input id="unitBase" placeholder="หน่วยฐาน"><button class="btn" onclick="saveUnit()">บันทึก</button></div><div id="unitList" class="compact-list"></div></div></div></details><label class="label">หมายเหตุ</label><textarea id="buyNote"
+                            rows="2"></textarea>
+                        <div class="card hero" style="margin-top:14px">
+                            <div class="row"><span><b id="itemCount">0</b> รายการ</span><strong
+                                    id="draftTotal">฿0.00</strong></div>
+                        </div><button class="btn full" onclick="openReview()">ตรวจสอบก่อนยืนยัน</button>
+                    </div>
+                </div>
+
+                <!-- Sub-section 4: Payroll & Wages -->
+                <div id="entrySectionPayroll" class="entry-section hidden">
+                    <div id="payrollWeek" class="payroll-week"></div><div class="payroll-tool-tabs"><button id="payrollScheduleTab" class="btn" onclick="openPayrollSchedule()"><span>▦</span>กำหนดรอบจ่าย</button><button id="partTimeSetupBtn" class="btn light" onclick="showPayrollTool('parttime')"><span>◷</span>กำหนด Part-time</button><button id="employeeSetupTab" class="btn light" onclick="openEmployeeForm()"><span>＋</span>เพิ่มพนักงาน</button></div><div id="payrollControls" class="card"><div class="muted">กำลังเตรียมรอบจ่าย...</div></div><div id="partTimePanel" class="card hidden"></div><div id="employeeEditor" class="card hidden"><input id="employeeId" type="hidden"><b id="employeeFormTitle">เพิ่มพนักงาน</b><div class="row"><div><label class="label">ชื่อพนักงาน</label><input id="employeeName" placeholder="ชื่อหรือชื่อเล่น"></div><div><label class="label">ตำแหน่ง</label><input id="employeePosition" placeholder="เช่น ครัว, บาร์น้ำ, ดูแลเด็ก"></div></div><div class="row"><div><label class="label">ประเภทการจ้าง</label><select id="employeeType"><option value="FULL_TIME">พนักงานประจำ</option><option value="PART_TIME">Part-time</option></select></div><div><label class="label">ค่าจ้างต่อสัปดาห์/รอบ</label><input id="employeeWage" type="number" min="0.01" step="0.01" inputmode="decimal"></div></div><div class="spacer"></div><div class="row"><button class="btn light" onclick="closeEmployeeForm()">ยกเลิก</button><button class="btn" onclick="saveEmployee()">บันทึกพนักงาน</button></div></div><div class="title">สถานะพนักงานในสัปดาห์ที่เลือก</div><div id="payrollList"></div>
+                </div>
+
+                <div class="title" style="margin-top:24px">ประวัติรายรับ–รายจ่าย</div>
+                <div id="transactionHistory" class="activity-list"></div>
                 <details id="categoryManager" class="card catalog-manager"><summary>⚙ จัดการหมวดรายรับ–รายจ่าย</summary><div class="spacer"></div><input id="categoryId" type="hidden"><label class="label">ชื่อหมวด</label><input id="categoryName" placeholder="เช่น ค่าการตลาด"><label class="label">ประเภท</label><select id="categoryType"><option value="INCOME">รายรับ</option><option value="EXPENSE">รายจ่าย</option></select><div class="spacer"></div><div class="row"><button class="btn light" onclick="clearCategoryForm()">ล้าง</button><button class="btn" onclick="saveCategory()">บันทึกหมวด</button></div><div id="categoryList"></div></details>
             </section>
             <section id="page-users" class="hidden">
@@ -587,13 +828,11 @@
                 </div>
                 <div id="userList"></div>
             </section>
-            <section id="page-payroll" class="hidden"><div class="title">ค่าจ้างพนักงาน</div><div id="payrollWeek" class="payroll-week"></div><div class="payroll-tool-tabs"><button id="payrollScheduleTab" class="btn" onclick="openPayrollSchedule()"><span>▦</span>กำหนดรอบจ่าย</button><button id="partTimeSetupBtn" class="btn light" onclick="showPayrollTool('parttime')"><span>◷</span>กำหนด Part-time</button><button id="employeeSetupTab" class="btn light" onclick="openEmployeeForm()"><span>＋</span>เพิ่มพนักงาน</button></div><div id="payrollControls" class="card"><div class="muted">กำลังเตรียมรอบจ่าย...</div></div><div id="partTimePanel" class="card hidden"></div><div id="employeeEditor" class="card hidden"><input id="employeeId" type="hidden"><b id="employeeFormTitle">เพิ่มพนักงาน</b><div class="row"><div><label class="label">ชื่อพนักงาน</label><input id="employeeName" placeholder="ชื่อหรือชื่อเล่น"></div><div><label class="label">ตำแหน่ง</label><input id="employeePosition" placeholder="เช่น ครัว, บาร์น้ำ, ดูแลเด็ก"></div></div><div class="row"><div><label class="label">ประเภทการจ้าง</label><select id="employeeType"><option value="FULL_TIME">พนักงานประจำ</option><option value="PART_TIME">Part-time</option></select></div><div><label class="label">ค่าจ้างต่อสัปดาห์/รอบ</label><input id="employeeWage" type="number" min="0.01" step="0.01" inputmode="decimal"></div></div><div class="spacer"></div><div class="row"><button class="btn light" onclick="closeEmployeeForm()">ยกเลิก</button><button class="btn" onclick="saveEmployee()">บันทึกพนักงาน</button></div></div><div class="title">สถานะพนักงานในสัปดาห์ที่เลือก</div><div id="payrollList"></div></section>
             <section id="page-dividends" class="hidden"><div class="title">ปันผลเจ้าของร้าน</div><div class="card"><div class="notice">ยอดที่บันทึกจะถูกหักออกจากบัญชีจริง และเก็บในประวัติรายรับ–รายจ่ายทันที</div><label class="label">แตะเลือกเจ้าของร้านผู้รับปันผล</label><input id="dividendOwner" type="hidden"><div id="dividendOwnerPicker" class="owner-picker"></div><div class="row"><div><label class="label">วันที่จ่าย</label><input id="dividendDate" type="date"></div><div><label class="label">หักจากบัญชี</label><select id="dividendAccount"></select></div></div><label class="label">ยอดปันผล</label><input id="dividendAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"><label class="label">รายละเอียด (ถ้ามี)</label><input id="dividendNote" placeholder="เช่น ปันผลเดือนสิงหาคม"><div class="spacer"></div><button class="btn full" onclick="saveDividend()">ตรวจสอบและจ่ายปันผล</button></div><div class="title">ประวัติการปันผล</div><div id="dividendHistory"></div></section>
         </div>
         <nav class="tabs"><button class="tab active" data-page="home"
-                onclick="showPage('home',this)"><span>⌂</span>ภาพรวม</button><button class="tab" data-page="buy"
-                onclick="showPage('buy',this)"><span>＋</span>ซื้อของ</button><button class="tab" data-page="entry"
-                onclick="showPage('entry',this)"><span>฿</span>รับ–จ่าย</button><button class="tab" data-page="payroll" onclick="showPage('payroll',this)"><span>฿</span>ค่าจ้าง</button><button class="tab" data-page="dividends" onclick="showPage('dividends',this)"><span>↗</span>ปันผล</button><button class="tab" data-page="users"
+                onclick="showPage('home',this)"><span>⌂</span>ภาพรวม</button><button class="tab" data-page="entry"
+                onclick="showPage('entry',this)"><span>฿</span>รับ–จ่าย</button><button class="tab" data-page="dividends" onclick="showPage('dividends',this)"><span>↗</span>ปันผล</button><button class="tab" data-page="users"
                 onclick="showPage('users',this)"><span>♙</span>ผู้ใช้</button></nav>
     </main>
     <div id="review" class="overlay hidden">
@@ -614,11 +853,319 @@
         function notifyHost(message){try{if(parent!==window)parent.postMessage(message,'*')}catch(e){}try{if(top!==window&&top!==parent)top.postMessage(message,'*')}catch(e){}}
         window.addEventListener('message',event=>{if(!event.data||event.data.type!=='WD_RESTORE_TOKEN'||!event.data.token)return;S.hostTokenAt=Date.now();if(event.data.token===S.token){if(!S.data&&!appLoading)loadApp();return}S.restoring=true;S.token=event.data.token;S.remember=event.data.remember!==false;localStorage.setItem('wd_remember_login',S.remember?'1':'0');localStorage.removeItem('wd_token');sessionStorage.removeItem('wd_token');(S.remember?localStorage:sessionStorage).setItem('wd_token',S.token);const rem=$('rememberLogin');if(rem)rem.checked=S.remember;if(S.data)loadApp(true).finally(()=>S.restoring=false);else loadApp().finally(()=>S.restoring=false)});
         notifyHost({type:'WD_TOKEN_REQUEST'});
-        document.querySelector('.logo').innerHTML = '<img src="' + BRAND_LOGO + '" alt="Wonder Duck">'; document.querySelector('.brand').innerHTML = '<img src="' + BRAND_LOGO + '" alt=""><span>Wonder Duck</span>'; $('loadingLogo').src=BRAND_LOGO;
-        let pending = 0; function loading(on, text = 'กำลังประมวลผล...') { pending = Math.max(0, pending + (on ? 1 : -1)); $('loadingText').textContent = text; $('loading').classList.toggle('hidden', pending === 0) }
+        if (document.querySelector('.logo')) document.querySelector('.logo').innerHTML = '<img src="' + BRAND_LOGO + '" alt="Wonder Duck">';
+        if (document.querySelector('.brand')) document.querySelector('.brand').innerHTML = '<img src="' + BRAND_LOGO + '" alt=""><span>Wonder Duck</span>';
+        if ($('loadingLogo')) $('loadingLogo').src = BRAND_LOGO;
+        let pending = 0, loadingTick = null, toastTimeout = null;
+        function setProgress(pct) {
+            const fill = $('topProgressFill'), pText = $('topStatusPercent');
+            const val = Math.min(100, Math.max(0, Math.round(pct)));
+            if (fill) fill.style.width = val + '%';
+            if (pText) pText.textContent = val + '%';
+        }
+        function showTopStatus(text, icon = '✓', initialPct = 100, isError = false) {
+            clearTimeout(toastTimeout);
+            const box = $('topStatusBox'), tText = $('topStatusText'), tIcon = $('topStatusIcon');
+            if (!box) return;
+            if (tText) tText.textContent = text;
+            if (tIcon) {
+                tIcon.textContent = icon;
+                tIcon.className = 'top-status-icon' + (isError ? ' error' : '');
+            }
+            setProgress(initialPct);
+            box.classList.toggle('error', isError);
+            box.classList.add('visible');
+        }
+        function hideTopStatus(delay = 400) {
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                if (pending > 0) return;
+                const box = $('topStatusBox');
+                if (box) box.classList.remove('visible');
+            }, delay);
+        }
+        function loading(on, text = 'กำลังประมวลผล...') {
+            pending = Math.max(0, pending + (on ? 1 : -1));
+            clearInterval(loadingTick);
+            if (on) {
+                showTopStatus(text, '⏳', 28);
+                let curr = 28;
+                loadingTick = setInterval(() => {
+                    if (pending > 0 && curr < 88) {
+                        curr += Math.floor(Math.random() * 8) + 4;
+                        setProgress(curr);
+                    }
+                }, 100);
+            } else {
+                if (pending === 0) {
+                    setProgress(100);
+                    const tIcon = $('topStatusIcon');
+                    if (tIcon) tIcon.textContent = '✓';
+                    hideTopStatus(350);
+                }
+            }
+        }
+        function toast(msg, icon = 'success') {
+            const isError = icon === 'error', isWarn = icon === 'warning';
+            const ico = isError ? '✕' : isWarn ? '!' : '✓';
+            showTopStatus(msg, ico, 100, isError);
+            hideTopStatus(1800);
+        }
+        function alertError(msg) {
+            showTopStatus(msg, '✕', 100, true);
+            hideTopStatus(2800);
+        }
+        window.Swal = {
+            fire: function(opts = {}) {
+                if (opts.toast) {
+                    toast(opts.title || opts.text || '', opts.icon || 'success');
+                    return Promise.resolve({ isConfirmed: true });
+                }
+                return new Promise(resolve => {
+                    const overlay = $('nativeModal'), titleEl = $('nativeModalTitle'), bodyEl = $('nativeModalBody'),
+                          inputWrap = $('nativeModalInputBox'), inputEl = $('nativeModalInput'), valEl = $('nativeModalValidation'),
+                          confirmBtn = $('nativeModalConfirm'), cancelBtn = $('nativeModalCancel');
+                    if (titleEl) titleEl.textContent = opts.title || '';
+                    if (bodyEl) bodyEl.innerHTML = opts.html || (opts.text ? `<p style="margin:0">${esc(opts.text)}</p>` : '');
+                    if (valEl) { valEl.classList.add('hidden'); valEl.textContent = ''; }
+                    if (opts.input) {
+                        if (inputWrap) inputWrap.classList.remove('hidden');
+                        if (inputEl) {
+                            inputEl.type = opts.input === 'password' ? 'password' : 'text';
+                            inputEl.placeholder = opts.inputPlaceholder || '';
+                            inputEl.value = opts.inputValue || '';
+                            setTimeout(() => inputEl.focus(), 20);
+                        }
+                    } else {
+                        if (inputWrap) inputWrap.classList.add('hidden');
+                    }
+                    if (confirmBtn) {
+                        confirmBtn.classList.toggle('hidden', opts.showConfirmButton === false);
+                        confirmBtn.textContent = opts.confirmButtonText || 'ตกลง';
+                        confirmBtn.style.background = opts.confirmButtonColor || '';
+                    }
+                    if (cancelBtn) {
+                        cancelBtn.textContent = opts.cancelButtonText || (opts.showConfirmButton === false ? 'ปิด' : 'ยกเลิก');
+                        cancelBtn.classList.toggle('hidden', opts.showCancelButton === false && opts.showConfirmButton !== false && !opts.showCloseButton);
+                    }
+                    const cleanup = () => {
+                        if (overlay) overlay.classList.add('hidden');
+                        if (confirmBtn) confirmBtn.onclick = null;
+                        if (cancelBtn) cancelBtn.onclick = null;
+                    };
+                    if (cancelBtn) {
+                        cancelBtn.onclick = () => { cleanup(); resolve({ isConfirmed: false, isDismissed: true }); };
+                    }
+                    if (confirmBtn) {
+                        confirmBtn.onclick = async () => {
+                            let val = opts.input && inputEl ? inputEl.value : true;
+                            if (typeof opts.preConfirm === 'function') {
+                                try {
+                                    const res = await opts.preConfirm(val);
+                                    if (res === false) return;
+                                    if (res !== undefined) val = res;
+                                } catch (err) {
+                                    window.Swal.showValidationMessage(err.message || 'ข้อมูลไม่ถูกต้อง');
+                                    return;
+                                }
+                            }
+                            cleanup();
+                            resolve({ isConfirmed: true, value: val });
+                        };
+                    }
+                    if (overlay) overlay.classList.remove('hidden');
+                    if (typeof opts.didOpen === 'function') setTimeout(opts.didOpen, 10);
+                });
+            },
+            close: function() { const overlay = $('nativeModal'); if (overlay) overlay.classList.add('hidden'); },
+            showValidationMessage: function(msg) {
+                const valEl = $('nativeModalValidation');
+                if (valEl) { valEl.textContent = msg; valEl.classList.remove('hidden'); }
+            }
+        };
+        function switchEntrySubTab(tab) {
+            ['quick', 'form', 'buy', 'payroll'].forEach(t => {
+                const btn = $('entrySubTab' + t.charAt(0).toUpperCase() + t.slice(1));
+                const sec = $('entrySection' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (btn) btn.classList.toggle('active', t === tab);
+                if (sec) sec.classList.toggle('hidden', t !== tab);
+            });
+            if (tab === 'payroll' && S.data && S.data.payroll) openPayrollSchedule();
+        }
+        function showPageAndSub(pageName, subName) {
+            const tab = document.querySelector(`[data-page="${pageName}"]`);
+            showPage(pageName, tab);
+            if (pageName === 'entry' && subName) switchEntrySubTab(subName);
+        }
+        function initSmartQuickInputs() {
+            const d = S.data; if (!d) return;
+            const dateInput = $('smartQuickDate'); if (dateInput && !dateInput.value) dateInput.value = today();
+            const accSelect = $('smartQuickAccount');
+            if (accSelect && d.accounts) accSelect.innerHTML = d.accounts.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+        }
+        let smartParsedItems = [];
+        function parseSmartQuickInput() {
+            const raw = ($('smartQuickInput').value || '').trim();
+            if (!raw) { toast('กรุณาพิมพ์รายการก่อน เช่น มะนาว 50 หรือ ยอดขาย 4500', 'warning'); $('smartQuickInput').focus(); return; }
+            const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            const date = $('smartQuickDate').value || today();
+            const accountId = $('smartQuickAccount').value || (S.data.accounts[0] && S.data.accounts[0].id) || '';
+            const cats = S.data.categories || [];
+            const incomeCats = cats.filter(c => c.type === 'INCOME');
+            const expenseCats = cats.filter(c => c.type === 'EXPENSE');
+            const defaultIncomeCat = (incomeCats[0] && incomeCats[0].id) || '';
+            const defaultExpenseCat = (expenseCats[0] && expenseCats[0].id) || '';
+            const incomeKeywords = ['ยอดขาย', 'ขาย', 'รายได้', 'รับเงิน', 'โอนเข้า', 'เงินเข้า', 'ทิป', 'ดอกเบี้ย', 'เงินรับ', 'บิลขาย', 'กำไร'];
+            const payrollKeywords = ['ค่าจ้าง', 'เงินเดือน', 'ค่าแรง', 'เบิก', 'โอที', 'ot', 'ล่วงเวลา', 'เบิกเงิน'];
+
+            smartParsedItems = lines.map((line, idx) => {
+                const matches = [...line.matchAll(/(?:^|[^\d.,])(\d+(?:[.,]\d+)?)(?:\s*(?:บาท|บ\.?|.-)?(?:\s*$|\s+))/g)];
+                let amount = 0, title = line;
+                if (matches.length > 0) {
+                    const lastMatch = matches[matches.length - 1];
+                    amount = parseFloat(lastMatch[1].replace(',', '.'));
+                    const matchIndex = lastMatch.index + (lastMatch[0].startsWith(' ') || lastMatch[0].startsWith('\t') ? 1 : 0);
+                    title = (line.slice(0, matchIndex) + ' ' + line.slice(matchIndex + lastMatch[0].length)).trim().replace(/\s+/g, ' ');
+                }
+                if (!title) title = line;
+                const lowerTitle = line.toLowerCase();
+                const isIncome = incomeKeywords.some(kw => lowerTitle.includes(kw));
+                const type = isIncome ? 'INCOME' : 'EXPENSE';
+                let categoryId = '';
+                if (isIncome) {
+                    const matchCat = incomeCats.find(c => lowerTitle.includes(c.name.toLowerCase()));
+                    categoryId = matchCat ? matchCat.id : defaultIncomeCat;
+                } else {
+                    if (payrollKeywords.some(kw => lowerTitle.includes(kw))) {
+                        const wageCat = expenseCats.find(c => c.name.includes('จ้าง') || c.name.includes('แรง') || c.name.includes('เดือน'));
+                        if (wageCat) categoryId = wageCat.id;
+                    }
+                    if (!categoryId) {
+                        const matchCat = expenseCats.find(c => lowerTitle.includes(c.name.toLowerCase()));
+                        if (matchCat) categoryId = matchCat.id;
+                        else {
+                            const guessedName = typeof guessCategory === 'function' ? guessCategory(title) : 'อื่น ๆ';
+                            const catByGuess = expenseCats.find(c => c.name.includes(guessedName) || guessedName.includes(c.name));
+                            categoryId = catByGuess ? catByGuess.id : defaultExpenseCat;
+                        }
+                    }
+                }
+                return {
+                    id: 'smart_' + Date.now() + '_' + idx,
+                    title: title || line,
+                    amount: isNaN(amount) ? 0 : amount,
+                    type: type,
+                    categoryId: categoryId,
+                    accountId: accountId,
+                    date: date
+                };
+            });
+            renderSmartParsed();
+            $('smartParsedContainer').classList.remove('hidden');
+            toast(`แยกรายการสำเร็จ ${smartParsedItems.length} รายการ`);
+        }
+        function renderSmartParsed() {
+            const listEl = $('smartParsedList'); if (!listEl) return;
+            const cats = S.data.categories || [], accounts = S.data.accounts || [];
+            $('smartParsedCount').textContent = smartParsedItems.length;
+            if (smartParsedItems.length === 0) {
+                listEl.innerHTML = '<div class="notice">ไม่มีรายการ</div>';
+                $('smartParsedContainer').classList.add('hidden');
+                updateSmartTotals();
+                return;
+            }
+            listEl.innerHTML = smartParsedItems.map((item, idx) => {
+                const itemCats = cats.filter(c => c.type === item.type);
+                return `
+                <div class="smart-parsed-item" id="smartItem_${idx}">
+                    <div class="smart-item-row">
+                        <span class="${item.type === 'INCOME' ? 'type-badge-income' : 'type-badge-expense'}" onclick="toggleSmartItemType(${idx})" title="คลิกเพื่อสลับ รับ/จ่าย">
+                            ${item.type === 'INCOME' ? '🟢 รายรับ' : '🔴 รายจ่าย'} ⇆
+                        </span>
+                        <input style="flex:1;font-weight:700;margin:0;padding:6px 10px;height:38px" value="${esc(item.title)}" onchange="updateSmartItemField(${idx},'title',this.value)" placeholder="ชื่อรายการ">
+                        <input style="width:105px;font-weight:800;text-align:right;margin:0;padding:6px 10px;height:38px" type="number" step="0.01" value="${item.amount||''}" onchange="updateSmartItemField(${idx},'amount',parseFloat(this.value)||0)" placeholder="0.00">
+                        <button class="mini-btn delete" style="padding:6px 8px;min-height:38px" onclick="removeSmartItem(${idx})">✕</button>
+                    </div>
+                    <div class="smart-item-row">
+                        <select style="flex:1;height:34px;font-size:12px;margin:0;padding:4px 8px" onchange="updateSmartItemField(${idx},'categoryId',this.value)">
+                            ${itemCats.map(c => `<option value="${c.id}" ${c.id === item.categoryId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+                        </select>
+                        <select style="flex:1;height:34px;font-size:12px;margin:0;padding:4px 8px" onchange="updateSmartItemField(${idx},'accountId',this.value)">
+                            ${accounts.map(a => `<option value="${a.id}" ${a.id === item.accountId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>`;
+            }).join('');
+            updateSmartTotals();
+        }
+        function toggleSmartItemType(idx) {
+            if (!smartParsedItems[idx]) return;
+            const item = smartParsedItems[idx];
+            item.type = item.type === 'INCOME' ? 'EXPENSE' : 'INCOME';
+            const cats = (S.data.categories || []).filter(c => c.type === item.type);
+            item.categoryId = (cats[0] && cats[0].id) || '';
+            renderSmartParsed();
+        }
+        function updateSmartItemField(idx, field, val) {
+            if (!smartParsedItems[idx]) return;
+            smartParsedItems[idx][field] = val;
+            updateSmartTotals();
+        }
+        function removeSmartItem(idx) {
+            smartParsedItems.splice(idx, 1);
+            renderSmartParsed();
+        }
+        function clearSmartParsed() {
+            smartParsedItems = [];
+            renderSmartParsed();
+        }
+        function updateSmartTotals() {
+            let inc = 0, exp = 0;
+            smartParsedItems.forEach(item => {
+                const amt = Number(item.amount) || 0;
+                if (item.type === 'INCOME') inc += amt;
+                else exp += amt;
+            });
+            const net = inc - exp;
+            if ($('smartTotalIncome')) $('smartTotalIncome').textContent = money(inc);
+            if ($('smartTotalExpense')) $('smartTotalExpense').textContent = money(exp);
+            const netEl = $('smartNetTotal');
+            if (netEl) {
+                netEl.textContent = money(net);
+                netEl.className = 'money ' + (net < 0 ? 'negative' : 'positive');
+            }
+        }
+        async function saveSmartParsed() {
+            if (!smartParsedItems.length) return;
+            const invalid = smartParsedItems.filter(x => !x.title || !x.amount || x.amount <= 0);
+            if (invalid.length > 0) return alertError('มีรายการที่ยังไม่ได้กรอกชื่อหรือจำนวนเงินไม่ถูกต้อง');
+            const payload = smartParsedItems.map(x => ({
+                type: x.type,
+                date: x.date || today(),
+                categoryId: x.categoryId,
+                accountId: x.accountId,
+                amount: x.amount,
+                note: x.title
+            }));
+            const saveBtn = $('smartSaveBtn');
+            if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'กำลังบันทึก...'; }
+            try {
+                const res = await call('saveBatchTransactions', { data: payload });
+                if (res.refresh) applyAppData(res.refresh);
+                else await loadApp(true);
+                $('smartQuickInput').value = '';
+                smartParsedItems = [];
+                renderSmartParsed();
+                $('smartParsedContainer').classList.add('hidden');
+                toast(`บันทึกสำเร็จเรียบร้อย ${res.count || payload.length} รายการ`);
+            } catch (e) {
+                alertError(e.message || 'บันทึกรายการไม่สำเร็จ');
+            } finally {
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 บันทึกทุกรายการทันที'; }
+            }
+        }
         const activeMutations=new Set();function call(action, payload = {}) {const mutation=/^(save|create|update|delete|toggle|move|reorder|pay)/.test(action);if(mutation&&activeMutations.has(action))return Promise.reject(new Error('กำลังบันทึกรายการนี้อยู่ กรุณารอสักครู่'));if(mutation)activeMutations.add(action);loading(true, action === 'login' ? 'กำลังเข้าสู่ระบบ...' : action === 'savePurchase' ? 'กำลังบันทึกรายการ...' : 'กำลังโหลดข้อมูล...'); return new Promise((resolve, reject) => google.script.run.withSuccessHandler(r => { loading(false);if(mutation)activeMutations.delete(action);r && r.ok ? resolve(r.data) : reject(new Error(r && r.error || 'เกิดข้อผิดพลาด')) }).withFailureHandler(e => { loading(false);if(mutation)activeMutations.delete(action);reject(new Error(e.message)) }).api(action, { ...payload, token: S.token })) }
         function callSilent(action,payload={}){return new Promise((resolve,reject)=>google.script.run.withSuccessHandler(r=>r&&r.ok?resolve(r.data):reject(new Error(r&&r.error||'เกิดข้อผิดพลาด'))).withFailureHandler(e=>reject(new Error(e&&e.message||'เชื่อมต่อระบบไม่สำเร็จ'))).api(action,{...payload,token:S.token}))}
-        function toast(msg, icon = 'success') { return Swal.fire({ toast: true, position: 'top', icon, title: msg, showConfirmButton: false, timer: 2400, timerProgressBar: true }) } function alertError(msg) { return Swal.fire({ icon: 'error', title: 'ไม่สำเร็จ', text: msg, confirmButtonText: 'ตกลง' }) }
         function appCacheKey(){return 'wd_app_cache_'+String(S.token||'').slice(-12)}
         function readAppCache(){try{const saved=JSON.parse(sessionStorage.getItem(appCacheKey())||'null');return saved&&Date.now()-saved.savedAt<300000?saved.data:null}catch(e){return null}}
         function writeAppCache(data){try{if(S.token)sessionStorage.setItem(appCacheKey(),JSON.stringify({savedAt:Date.now(),data}))}catch(e){}}
@@ -628,7 +1175,7 @@
         function applyAppData(data){S.data=data;S.revision=String(data.revision||'0');writeAppCache(data);const allowed=(S.data.productCategories||[]).map(x=>x.name);S.data.products.forEach(p=>{if(!allowed.includes(p.category))p.category=''});$('auth').classList.add('hidden');$('app').classList.remove('hidden');const finance=!!S.data.permissions.canViewFinance;$('financeDashboard').classList.toggle('hidden',!finance);$('limitedDashboard').classList.toggle('hidden',finance);render();if(finance)renderDashboardPeriod(($('dashboardPeriod')||{}).value||'DAY');renderCategoryManagerV2();renderTransactionLists();renderAccountSettings();renderCatalogManager();renderAnalyticsAccess();renderPayroll();renderDividends();if(S.items.length)renderItemsV2();updateRoleLayout();renderManagerDonut()}
         async function recoverSession(expiredToken){if(S.recoveringSession)return;S.recoveringSession=true;const requested=Date.now();notifyHost({type:'WD_TOKEN_REQUEST'});while(Date.now()-requested<900&&S.hostTokenAt<requested)await new Promise(resolve=>setTimeout(resolve,60));try{for(let attempt=0;attempt<3;attempt++){try{if(S.token){applyAppData(await callSilent('bootstrap'));return}}catch(e){if(e.message!=='SESSION_EXPIRED')throw e}await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)))}if(!S.data)await logout();else toast('ยังเชื่อมต่อ Session ไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ','warning')}finally{S.recoveringSession=false}}
         let appLoading=false; async function loadApp(silent=false) { if(appLoading)return; appLoading=true; try { applyAppData(await (silent?callSilent('bootstrap'):call('bootstrap'))) } catch (e) { if (e.message === 'SESSION_EXPIRED')await recoverSession(S.token); else { if(!silent)alertError(e.message||'เชื่อมต่อข้อมูลไม่สำเร็จ'); throw e; } } finally { appLoading=false; } }
-        function render() { const d = S.data,txAccount=$('txAccount').value,buyAccount=$('buyAccount').value,txDate=$('txDate').value,buyDate=$('buyDate').value; $('who').textContent = d.user.name + ' · ' + roleName(d.user.role); const sum = d.balances.reduce((s, x) => s + x.balance, 0); $('totalBalance').textContent = money(sum); requestAnimationFrame(fitBalanceAmount); $('balances').innerHTML = d.balances.map(x => `<div class="metric">${esc(x.name)}<b class="${x.balance < 0 ? 'negative' : ''}">${money(x.balance)}</b></div>`).join(''); $('monthIncome').textContent = money(d.month.income); $('monthExpense').textContent = money(d.month.expense); $('monthNet').textContent = money(d.month.net); $('monthNet').className = 'money ' + (d.month.net < 0 ? 'negative' : 'positive'); $('incomeChange').textContent = changeText(d.month.income, d.previousMonth.income); $('expenseChange').textContent = changeText(d.month.expense, d.previousMonth.expense); const opts = d.accounts.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join(''); $('txAccount').innerHTML = opts;if(txAccount&&d.accounts.some(x=>x.id===txAccount))$('txAccount').value=txAccount;renderBuyAccounts();if(buyAccount&&d.accounts.some(x=>x.id===buyAccount)){$('buyAccount').value=buyAccount;renderBuyAccounts()} $('buyDate').value = buyDate||today();$('txDate').value = txDate||today(); renderCategories(); renderUsers() }
+        function render() { const d = S.data,txAccount=$('txAccount').value,buyAccount=$('buyAccount').value,txDate=$('txDate').value,buyDate=$('buyDate').value; $('who').textContent = d.user.name + ' · ' + roleName(d.user.role); const sum = d.balances.reduce((s, x) => s + x.balance, 0); $('totalBalance').textContent = money(sum); requestAnimationFrame(fitBalanceAmount); $('balances').innerHTML = d.balances.map(x => `<div class="metric">${esc(x.name)}<b class="${x.balance < 0 ? 'negative' : ''}">${money(x.balance)}</b></div>`).join(''); $('monthIncome').textContent = money(d.month.income); $('monthExpense').textContent = money(d.month.expense); $('monthNet').textContent = money(d.month.net); $('monthNet').className = 'money ' + (d.month.net < 0 ? 'negative' : 'positive'); $('incomeChange').textContent = changeText(d.month.income, d.previousMonth.income); $('expenseChange').textContent = changeText(d.month.expense, d.previousMonth.expense); const opts = d.accounts.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join(''); $('txAccount').innerHTML = opts;if(txAccount&&d.accounts.some(x=>x.id===txAccount))$('txAccount').value=txAccount;renderBuyAccounts();if(buyAccount&&d.accounts.some(x=>x.id===buyAccount)){$('buyAccount').value=buyAccount;renderBuyAccounts()} $('buyDate').value = buyDate||today();$('txDate').value = txDate||today(); renderCategories(); renderUsers(); initSmartQuickInputs(); }
         function renderBuyAccounts(){const accounts=S.data.accounts||[],current=$('buyAccount').value||accounts[0]?.id||'';$('buyAccount').value=current;$('buyAccountPicker').innerHTML=accounts.map(x=>`<button type="button" class="buy-account-choice ${x.id===current?'active':''}" onclick="selectBuyAccount('${x.id}',this)">${esc(x.name)}</button>`).join('')}
         function selectBuyAccount(id,button){$('buyAccount').value=id;document.querySelectorAll('.buy-account-choice').forEach(x=>x.classList.toggle('active',x===button))}
         function priceProductRows(query=''){const canManage=!!S.data.permissions.canManageCatalog,q=String(query).trim().toLowerCase(),rows=(S.data.products||[]).filter(x=>!q||String(x.name).toLowerCase().includes(q)).slice(0,40);return rows.length?rows.map(x=>{const hasPrice=x.latestPrice!==null&&x.latestPrice!==undefined,change=x.priceChange,trend=change===null||change===undefined?'ยังไม่มีราคาครั้งก่อน':change>0?`แพงขึ้น ${Math.abs(change).toFixed(1)}%`:change<0?`ถูกลง ${Math.abs(change).toFixed(1)}%`:'ราคาเท่าเดิม',trendClass=change>0?'negative':change<0?'positive':'';return`<div class="price-product-row"><div class="price-product-main"><b>${esc(x.name)}</b><small>${esc(x.category||'ยังไม่ระบุหมวด')}</small><div class="price-inline-value">${hasPrice?`<strong>${money(x.latestPrice)} / 1 ${esc(x.baseUnit||'หน่วย')}</strong><span class="price-trend ${trendClass}">${trend}</span>`:'<span class="muted">ยังไม่มีประวัติการซื้อ</span>'}</div></div>${canManage?`<div class="price-manage-actions"><button class="mini-btn" onclick="editPriceProduct('${x.id}')">แก้ไข</button><button class="mini-btn delete" onclick="deletePriceProduct('${x.id}')">ลบ</button></div>`:''}</div>`}).join(''):'<div class="notice">ไม่พบสินค้า ลองพิมพ์ชื่อให้สั้นลงหรือเพิ่มสินค้าใหม่</div>'}
@@ -689,8 +1236,8 @@
         async function retryPayrollRefresh(){for(let attempt=0;attempt<3;attempt++){try{const fresh=await callSilent('bootstrap');applyAppData(fresh);return true}catch(e){if(e.message==='SESSION_EXPIRED'){logout();return false}await new Promise(resolve=>setTimeout(resolve,300*(attempt+1)))}}return false}
         async function syncPayrollAfterPayment(employeeId,paidWeek,quote,refresh){await loadPayrollWeekStatus(paidWeek);return true}
         function dateAdd(value,days){const d=new Date(value+'T12:00:00');d.setDate(d.getDate()+days);return d.toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'})}
-        function showPage(name, el) { document.querySelectorAll('[id^="page-"]').forEach(x => x.classList.add('hidden')); $('page-' + name).classList.remove('hidden'); document.querySelectorAll('.tab').forEach(x => x.classList.remove('active')); el.classList.add('active');if(name==='payroll'&&S.data&&S.data.payroll)openPayrollSchedule() }
-        function goToPage(name){const tab=document.querySelector(`[data-page="${name}"]`);if(tab&&!tab.classList.contains('hidden'))showPage(name,tab)}
+        function showPage(name, el) { if(name==='buy')return showPageAndSub('entry','buy');if(name==='payroll')return showPageAndSub('entry','payroll');document.querySelectorAll('[id^="page-"]').forEach(x => x.classList.add('hidden')); const target=$('page-' + name); if(target)target.classList.remove('hidden'); document.querySelectorAll('.tab').forEach(x => x.classList.remove('active')); if(el)el.classList.add('active');if(name==='entry')initSmartQuickInputs();if(name==='payroll'&&S.data&&S.data.payroll)openPayrollSchedule() }
+        function goToPage(name){if(name==='buy')return showPageAndSub('entry','buy');if(name==='payroll')return showPageAndSub('entry','payroll');const tab=document.querySelector(`[data-page="${name}"]`);if(tab&&!tab.classList.contains('hidden'))showPage(name,tab);else showPage(name,null)}
         function updateRoleLayout(){const role=S.data.user.role,visible=[...document.querySelectorAll('.tabs .tab:not(.hidden)')];document.querySelector('.tabs').style.gridTemplateColumns=`repeat(${visible.length},minmax(0,1fr))`;const copy={MANAGER:['พื้นที่ผู้จัดการ','จัดการรายการซื้อ รายรับ–รายจ่าย และหมวดสำหรับงานประจำวัน'],STAFF:['พื้นที่พนักงาน','บันทึกรายการได้รวดเร็ว และดูประวัติรายการของคุณเอง']};if(copy[role]){$('roleHomeTitle').textContent=copy[role][0];$('roleHomeText').textContent=copy[role][1]}document.body.dataset.role=role}
 function addItem() { const u=(S.data&&S.data.units&&S.data.units[0])||{name:'ชิ้น',factor:1,baseUnit:'ชิ้น'};S.items.push({name:'',category:'อื่น ๆ',quantity:1,unit:u.name,unitFactor:Number(u.factor),baseUnit:u.baseUnit,lineTotal:''});renderItemsV2() }
 function guessCategory(name) { const n = name.toLowerCase(); const saved = S.data && S.data.products.find(p => String(p.name).toLowerCase() === n); if (saved && saved.category) return saved.category; const rules = [['อาหารสัตว์', ['อาหารเป็ด', 'อาหารปลา', 'อาหารสัตว์', 'อาหารนก', 'หนอนอบ', 'เมล็ดทานตะวัน']], ['ถุงเท้า/เครื่องแต่งกาย', ['ถุงเท้า', 'เสื้อ', 'กางเกง', 'หมวก', 'ผ้ากันเปื้อน']], ['ของเล่น', ['ของเล่น', 'ตุ๊กตา', 'ลูกบอล', 'เลโก้', 'สติ๊กเกอร์', 'สีเทียน']], ['ทำความสะอาด', ['น้ำยาล้าง', 'น้ำยาถู', 'ผงซัก', 'สบู่', 'ถุงขยะ', 'ไม้กวาด', 'ฟองน้ำ', 'ฆ่าเชื้อ']], ['บรรจุภัณฑ์', ['แก้วพลาสติก', 'แก้วกระดาษ', 'หลอด', 'กล่องอาหาร', 'ช้อนพลาสติก', 'ส้อมพลาสติก', 'ถุงหิ้ว', 'ฝาแก้ว', 'กระดาษรอง']], ['เนื้อสัตว์และอาหารทะเล', ['เนื้อ', 'หมู', 'ไก่', 'ปลา', 'กุ้ง', 'หมึก', 'ปู', 'แฮม', 'เบคอน', 'ไส้กรอก', 'ไข่']], ['บาร์น้ำและเครื่องดื่ม', ['กาแฟ', 'ชา', 'โกโก้', 'นม', 'ไซรัป', 'โซดา', 'น้ำแข็ง', 'น้ำผลไม้', 'น้ำดื่ม', 'ครีมเทียม']], ['ขนมและเบเกอรี่', ['ขนม', 'เค้ก', 'คุกกี้', 'บราวนี่', 'เบเกอรี่', 'ไอศกรีม', 'ช็อกโกแลต', 'เยลลี่']], ['ผักและผลไม้', ['ผัก', 'ผลไม้', 'มะม่วง', 'มะพร้าว', 'มะเขือ', 'มะนาว', 'มะกรูด', 'แตง', 'กะหล่ำ', 'คะน้า', 'แครอท', 'หอม', 'กระเทียม', 'มันฝรั่ง', 'ข้าวโพด', 'กล้วย', 'ส้ม', 'แอปเปิล', 'องุ่น', 'สับปะรด', 'เห็ด', 'พริก', 'กะเพรา']], ['วัตถุดิบครัว/ของแห้ง', ['ข้าว', 'แป้ง', 'น้ำตาล', 'น้ำมัน', 'เกลือ', 'ซอส', 'ซีอิ๊ว', 'น้ำปลา', 'เครื่องปรุง', 'เส้น', 'พาสต้า', 'กะทิ', 'เนย', 'ชีส']]]; for (const [cat, words] of rules) if (words.some(w => n.includes(w))) return cat; return 'อื่น ๆ' }
@@ -747,7 +1294,7 @@ function openReview() { for (let i = 0; i < S.items.length; i++) { const x = S.i
         function transactionPeriodRange(key){const now=new Date(),fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'),one=new Date(now);if(key==='YESTERDAY'){one.setDate(now.getDate()-1);return{start:fmt(one),end:fmt(one),label:'เมื่อวาน'}}if(key==='TODAY')return{start:fmt(now),end:fmt(now),label:'วันนี้'};if(key==='THIS_WEEK'||key==='LAST_WEEK'){const start=new Date(now),day=(now.getDay()+6)%7;start.setDate(now.getDate()-day-(key==='LAST_WEEK'?7:0));const end=new Date(start);end.setDate(start.getDate()+6);return{start:fmt(start),end:fmt(end),label:key==='LAST_WEEK'?'สัปดาห์ที่แล้ว':'สัปดาห์นี้'}}const month=new Date(now.getFullYear(),now.getMonth()-(key==='LAST_MONTH'?1:0),1),end=new Date(month.getFullYear(),month.getMonth()+1,0);return{start:fmt(month),end:fmt(end),label:key==='LAST_MONTH'?'เดือนที่แล้ว':'เดือนนี้'}}
         async function selectTransactionHistoryPeriod(key,button){let range;if(key==='CUSTOM'){const r=await Swal.fire({customClass:{popup:'compact-modal'},title:'กำหนดช่วงย้อนหลัง',html:'<div class="modal-grid"><div class="modal-field"><label>วันที่เริ่มต้น</label><input id="historyStart" type="date"></div><div class="modal-field"><label>วันที่สิ้นสุด</label><input id="historyEnd" type="date"></div></div>',showCancelButton:true,confirmButtonText:'แสดงรายการ',cancelButtonText:'ยกเลิก',preConfirm:()=>{const start=$('historyStart').value,end=$('historyEnd').value;if(!start||!end||start>end){Swal.showValidationMessage('กรุณาเลือกช่วงวันที่ให้ถูกต้อง');return false}return{start,end,label:start+' – '+end}}});if(!r.isConfirmed)return;range=r.value}else range=transactionPeriodRange(key);const note=$('transactionHistoryNote'),old=note&&note.textContent;if(note)note.textContent='กำลังอัปเดตข้อมูลล่าสุด…';button.disabled=true;try{const history=await callSilent('getTransactionHistory',{data:range});S.data.transactionHistory=history;S.transactionHistoryLabel=range.label;S.transactionHistoryRange=range;document.querySelectorAll('.history-period-btn').forEach(x=>x.classList.toggle('active',x===button));renderTransactionLists()}catch(e){if(note)note.textContent=old;alertError(e.message)}finally{button.disabled=false}}
         renderTransactionLists=function(){const recent=S.data.recentToday||[],history=S.data.transactionHistory||[],todayKey=today(),shown=S.transactionHistoryLabel?history:history.filter(x=>x.date===todayKey);$('recentToday').innerHTML=recent.length?recent.map(x=>transactionCard(x,false)).join(''):'<div class="muted">วันนี้ยังไม่มีรายการ</div>';$('transactionHistory').innerHTML=shown.length?shown.map(x=>transactionCard(x,true)).join(''):'<div class="card muted">ไม่มีรายการในช่วงนี้</div>';const note=$('transactionHistoryNote');if(note)note.textContent=(S.transactionHistoryLabel||'วันนี้')+' · '+shown.length+(shown.length===500?' รายการแรก':' รายการ')};
-        async function logout() { const token=S.token;localStorage.removeItem('wd_token');sessionStorage.removeItem('wd_token');clearAppCache();S.token='';notifyHost({type:'WD_TOKEN',token:''});try{if(token){loading(true,'กำลังออกจากระบบ...');await new Promise(resolve=>google.script.run.withSuccessHandler(resolve).withFailureHandler(resolve).api('logout',{token}))}}finally{S.data=null;S.initialized=true;pending=0;$('loading').classList.add('hidden');$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('authForm').reset();$('rememberLogin').checked=S.remember;setTimeout(()=>{$('username').focus()},80);toast('ออกจากระบบและล้างสิทธิ์เครื่องแล้ว')}} function roleName(r) { return { STAFF: 'พนักงาน', MANAGER: 'ผู้จัดการ', ADMIN:'แอดมิน', OWNER: 'เจ้าของร้าน' }[r] || r } function esc(s) { return String(s ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c])) } installYesterdayShortcuts(); installTransactionHistoryControl();
+        async function logout() { const token=S.token;localStorage.removeItem('wd_token');sessionStorage.removeItem('wd_token');clearAppCache();S.token='';notifyHost({type:'WD_TOKEN',token:''});try{if(token){loading(true,'กำลังออกจากระบบ...');await new Promise(resolve=>google.script.run.withSuccessHandler(resolve).withFailureHandler(resolve).api('logout',{token}))}}finally{S.data=null;S.initialized=true;pending=0;if($('loading'))$('loading').classList.add('hidden');$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('authForm').reset();$('rememberLogin').checked=S.remember;setTimeout(()=>{$('username').focus()},80);toast('ออกจากระบบและล้างสิทธิ์เครื่องแล้ว')}} function roleName(r) { return { STAFF: 'พนักงาน', MANAGER: 'ผู้จัดการ', ADMIN:'แอดมิน', OWNER: 'เจ้าของร้าน' }[r] || r } function esc(s) { return String(s ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c])) } installYesterdayShortcuts(); installTransactionHistoryControl();
         const renderPayrollBase=renderPayroll;renderPayroll=function(){renderPayrollBase();const p=S.data&&S.data.payroll;if(!p)return;const button=$('partTimeSetupBtn');if(button)button.classList.remove('hidden')};
         function renderPartTimeDays(){const p=S.data.payroll,e=(p.partTimeEmployees||[]).find(x=>x.id===$('ptEmployee').value);if(!e)return;const names=['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.'];$('ptDays').innerHTML=names.map((name,i)=>{const date=dateAdd(p.week.start,i),checked=(e.selectedDates||[]).includes(date);return`<label style="display:flex;align-items:center;gap:8px;padding:9px 4px"><input class="pt-day" type="checkbox" value="${date}" ${checked?'checked':''} style="width:18px;height:18px"><b>${name}</b><span class="muted">${date}</span></label>`}).join('')}
         async function savePartTimeDays(){const employeeId=$('ptEmployee').value,dates=[...document.querySelectorAll('.pt-day:checked')].map(x=>x.value);try{const r=await call('savePartTimeWorkDays',{data:{employeeId,dates}});applyAppData(r.refresh);toast('บันทึกวันจ้าง Part-time แล้ว')}catch(e){alertError(e.message)}}

@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.4.12',
+  version: '3.5.0',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -158,6 +158,7 @@ function api(action, payload) {
       revision: () => ok({revision:PropertiesService.getScriptProperties().getProperty('DATA_REVISION')||'0'}),
       savePurchase: () => savePurchase_(user, payload.data),
       saveTransaction: () => saveTransaction_(user, payload.data),
+      saveBatchTransactions: () => saveBatchTransactions_(user, payload.data),
       deleteTransaction: () => deleteTransaction_(user, payload.data),
       createUser: () => createUser_(user, payload.data),
       updateUser: () => updateUser_(user, payload.data),
@@ -620,6 +621,54 @@ function saveTransaction_(user, data) {
     const txId = id_('TX'); append_('Transactions',[txId,date,data.type,category.id,account.id,rounded,note,'',now_(),user.id,user.name,'CONFIRMED']);
     SpreadsheetApp.flush();invalidateRows_('Transactions');try{audit_(user,'CREATE','TRANSACTION',txId,data.type+' '+amount+' บาท')}catch(e){}return ok({id:txId});
   }finally{lock.releaseLock()}
+}
+
+function saveBatchTransactions_(user, data) {
+  const list = Array.isArray(data) ? data : (data && Array.isArray(data.transactions) ? data.transactions : []);
+  if (!list.length) {
+    throw new Error('กรุณาระบุรายการอย่างน้อย 1 รายการ');
+  }
+  const defaultAccount = rows_('Accounts').find(x => truthy_(x.active));
+  const categories = rows_('Categories');
+  const accounts = rows_('Accounts');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const stamp = now_();
+    const rowsToAdd = [];
+    const defaultDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    list.forEach((tx, idx) => {
+      const type = tx.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+      const amount = round_(num_(tx.amount));
+      if (amount <= 0) throw new Error('รายการที่ ' + (idx + 1) + ' (' + (tx.note || tx.name || '') + ') จำนวนเงินไม่ถูกต้อง');
+      const txDate = validDate_(tx.date || (data && data.date) || defaultDate);
+      const accountId = tx.accountId && accounts.some(a => a.id === tx.accountId) ? tx.accountId : (defaultAccount ? defaultAccount.id : 'ACC-CASH');
+      let catId = tx.categoryId || tx.category;
+      let cat = categories.find(c => c.id === catId);
+      if (!cat) {
+        cat = categories.find(c => c.type === type && truthy_(c.active));
+        catId = cat ? cat.id : (type === 'INCOME' ? 'CAT-SALES' : 'CAT-RAW');
+      }
+      const note = clean_(tx.note || tx.name || '');
+      const txId = id_('TX');
+      rowsToAdd.push([txId, txDate, type, catId, accountId, amount, note, '', stamp, user.id, user.name, 'CONFIRMED']);
+      if (type === 'INCOME') totalIncome += amount;
+      else totalExpense += amount;
+    });
+
+    appendRows_('Transactions', rowsToAdd);
+    SpreadsheetApp.flush();
+    invalidateRows_('Transactions');
+    try {
+      audit_(user, 'CREATE', 'BATCH_TRANSACTIONS', rowsToAdd[0][0], 'บันทึกด่วน ' + rowsToAdd.length + ' รายการ รวม ' + (totalIncome + totalExpense) + ' บาท');
+    } catch(e) {}
+    return ok({ count: rowsToAdd.length, totalIncome, totalExpense, refresh: bootstrap_(user).data });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function deleteTransaction_(user,data){
