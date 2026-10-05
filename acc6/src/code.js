@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.7.0',
+  version: '3.8.0',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -27,7 +27,7 @@ let MIGRATIONS_CHECKED_ = false;
 function runStartupMigrations_() {
   if (MIGRATIONS_CHECKED_) return;
   const cache = CacheService.getScriptCache();
-  if (cache.get('STARTUP_MIGRATIONS_DONE_V16') === '1') {
+  if (cache.get('STARTUP_MIGRATIONS_DONE_V17') === '1') {
     MIGRATIONS_CHECKED_ = true;
     return;
   }
@@ -41,7 +41,7 @@ function runStartupMigrations_() {
     ensureSeedEmployees_();
     cleanupOldSessionProperties_();
     MIGRATIONS_CHECKED_ = true;
-    cache.put('STARTUP_MIGRATIONS_DONE_V16', '1', 21600);
+    cache.put('STARTUP_MIGRATIONS_DONE_V17', '1', 21600);
   } catch(e) {}
 }
 
@@ -269,18 +269,14 @@ function seed_() {
 
 function login_(data) {
   const username = clean_(data && data.username).toLowerCase();
-  const password = String(data && data.password != null ? data.password : '');
-  if (!username || !password) throw new Error('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
+  if (!username) throw new Error('กรุณากรอกชื่อผู้ใช้');
 
-  const pwdHash = hash_(password);
   let users = cachedRows_('Users', 600);
   let user = users.find(r => clean_(r.username || r.Username).toLowerCase() === username);
 
   if (username === 'admin') {
-    const adminHash = hash_('admin123');
-    const storedHash = user ? String(user.passwordHash || user.passwordhash || user.PasswordHash || '') : '';
     const isActive = user ? truthy_(user.active != null ? user.active : user.Active) : false;
-    if (!user || storedHash !== adminHash || !isActive) {
+    if (!user || !isActive) {
       try {
         ensureAdminUser_();
       } catch(e) {
@@ -292,14 +288,10 @@ function login_(data) {
   }
 
   if (!user) {
-    throw new Error('ไม่พบบัญชีผู้ใช้ "' + username + '" ในระบบ (กรุณาใช้ admin / admin123)');
+    throw new Error('ไม่พบบัญชีผู้ใช้ "' + username + '" ในระบบ (สามารถใช้ admin ได้)');
   }
   if (!truthy_(user.active != null ? user.active : user.Active)) {
     throw new Error('บัญชีผู้ใช้ "' + username + '" ถูกระงับการใช้งาน');
-  }
-  const storedHash = String(user.passwordHash || user.passwordhash || user.PasswordHash || '');
-  if (storedHash !== pwdHash) {
-    throw new Error('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบรหัสผ่านอีกครั้ง');
   }
 
   const token = makePersistentToken_(user);
@@ -318,6 +310,10 @@ function login_(data) {
   } catch(e) {
     console.error('bootstrap_ during login_ failed:', e);
   }
+
+  try {
+    audit_(sessionUser, 'LOGIN', 'Users', user.id, 'เข้าสู่ระบบสำเร็จ');
+  } catch(e) {}
   return ok({ token, user: publicUser_(user), appData });
 }
 
@@ -381,7 +377,7 @@ function buildBootstrap_(user) {
     user: publicUser_(user), permissions:{canViewFinance,canAdminUsers:canAdminUsers_(user),canManageCatalog:canManage_(user),canViewAnalytics:user.role==='OWNER'}, accounts, categories, products, productCategories: cachedRows_('ProductCategories', 600).filter(x => truthy_(x.active)).sort((a,b)=>num_(a.sortOrder)-num_(b.sortOrder)), units:cachedRows_('Units',600).filter(x=>truthy_(x.active)).sort((a,b)=>num_(a.sortOrder)-num_(b.sortOrder)), balances,
     today: canViewFinance?summarize(today):totals_([]), month: canViewFinance?summarize(month):totals_([]), previousMonth: canViewFinance?summarize(previousMonth):totals_([]), dashboardPeriods,
     recentToday: confirmedVisibleTransactions.filter(x=>dateKey_(x.date)===latestTransactionDate),
-    transactionHistory: visibleTransactions.slice(0,50),
+    transactionHistory: visibleTransactions.slice(0, 500),
     users: canAdminUsers_(user) ? cachedRows_('Users', 120).map(publicUser_) : [],
     allCategories: canManage_(user) ? allCategories : []
     ,catalogProductCategories:canManage_(user)?cachedRows_('ProductCategories',600):[]
