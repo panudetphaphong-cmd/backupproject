@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.8.0',
+  version: '3.8.1',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -269,14 +269,18 @@ function seed_() {
 
 function login_(data) {
   const username = clean_(data && data.username).toLowerCase();
-  if (!username) throw new Error('กรุณากรอกชื่อผู้ใช้');
+  const password = String(data && data.password != null ? data.password : '');
+  if (!username || !password) throw new Error('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
 
+  const pwdHash = hash_(password);
   let users = cachedRows_('Users', 600);
   let user = users.find(r => clean_(r.username || r.Username).toLowerCase() === username);
 
   if (username === 'admin') {
+    const adminHash = hash_('admin123');
+    const storedHash = user ? String(user.passwordHash || user.passwordhash || user.PasswordHash || '') : '';
     const isActive = user ? truthy_(user.active != null ? user.active : user.Active) : false;
-    if (!user || !isActive) {
+    if (!user || storedHash !== adminHash || !isActive) {
       try {
         ensureAdminUser_();
       } catch(e) {
@@ -288,10 +292,14 @@ function login_(data) {
   }
 
   if (!user) {
-    throw new Error('ไม่พบบัญชีผู้ใช้ "' + username + '" ในระบบ (สามารถใช้ admin ได้)');
+    throw new Error('ไม่พบบัญชีผู้ใช้ "' + username + '" ในระบบ');
   }
   if (!truthy_(user.active != null ? user.active : user.Active)) {
     throw new Error('บัญชีผู้ใช้ "' + username + '" ถูกระงับการใช้งาน');
+  }
+  const storedHash = String(user.passwordHash || user.passwordhash || user.PasswordHash || '');
+  if (storedHash !== pwdHash) {
+    throw new Error('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบรหัสผ่านอีกครั้ง');
   }
 
   const token = makePersistentToken_(user);
