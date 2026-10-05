@@ -1,0 +1,14 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const html=fs.readFileSync('src/Index.html','utf8');
+const q={id:'Q1',quoteNo:'QT001',issueDate:'2026-09-22',customerName:'ลูกค้า & <ทดสอบ>',customerTaxId:'0012345678901',customerPhone:'0812345678',customerAddress:'บ้าน\nจังหวัด',projectName:'=1+1',workType:'Solar Cell',subtotal:1000,vatAmount:70,grandTotal:1070,status:'SENT'};
+const invoice={id:'I1',invoiceNo:'IV001',quotationId:q.id,quoteNo:q.quoteNo,issueDate:'2026-09-23',installment:1,subtotal:500,vatAmount:35,grandTotal:535,snapshot:{...q,customerName:'ลูกค้าตอนออกเอกสาร'}};
+const c={TextEncoder,Blob,S:{data:{quotations:[q,{...q,id:'Q2',quoteNo:'QT002',customerTaxId:'999',workType:'EV Charger',issueDate:'2025-01-01'}],invoices:[invoice],receipts:[]}},quotationStatus:s=>s};vm.createContext(c);
+vm.runInContext(html.split(/\r?\n/).filter(l=>/^function (documentArchive|documentMatches|documentExportRecords|documentExcelRows|documentExcelFile)\(/.test(l)).join('\n'),c);
+const original=JSON.stringify(c.S.data);assert.equal(c.documentExportRecords().length,3);
+c.S.documentWorkType='Solar Cell';assert.equal(c.documentExportRecords().length,2);
+c.S.documentQuery='IV001';assert.equal(c.documentExportRecords().length,1);
+c.S.documentQuery='';c.S.documentCustomer='tax:0012345678901';c.S.documentTab='invoices';assert.equal(c.documentExportRecords()[0].id,'I1');
+c.S.documentTab='all';c.S.documentYear='2025';assert.equal(c.documentExportRecords().length,0);
+c.S.documentYear='';c.S.documentChain='Q1';assert.equal(c.documentExportRecords().length,2);
+const rows=c.documentExcelRows(c.documentExportRecords());assert.equal(rows[1][3],'ลูกค้าตอนออกเอกสาร');assert.equal(typeof rows[1][14],'number');assert.equal(rows[1][6],'0012345678901');assert.equal(rows[1][7],'0812345678');assert.equal(JSON.stringify(c.S.data),original);
+c.documentExcelFile(rows).arrayBuffer().then(b=>{fs.writeFileSync('tests/document-history-test.xlsx',Buffer.from(b));console.log('PASS: export filters, customer scope, snapshots, numbers, leading zeroes and unchanged data');});

@@ -3,7 +3,7 @@ const source=fs.readFileSync('src/Index.html','utf8');
 const styles=(source.replace(/<script>[\s\S]*?<\/script>/g,'').match(/<style[^>]*>[\s\S]*?<\/style>/g)||[]).join('\n');
 let content='',popup='';
 const ctx={S:{data:{quotations:[],quotePresets:[]}},QUOTE_DEFAULTS:{warranty:'Warranty',scope:'Scope'},structuredClone,setTimeout(){},today:()=> '2026-09-12',money:n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:2}),esc:s=>String(s??'').replace(/</g,'&lt;').replace(/"/g,'&quot;'),modal:(t,h,c)=>{content=h;popup=c;}};
-vm.createContext(ctx);
+ctx.documentPanel=ctx.modal;vm.createContext(ctx);
 const names=['quotationSolarStamp','quotationWarrantyText','quotationDocumentRows','quotationPackageRows','quotationDescriptionHtml','quotationCompanyAddress','quotationSignatureUpload','quotationProjectTitle','quotationCompany','quotationCompanyForm','quotationCompanyFromForm','fitQuotationPrint','quotationColumns','quotationLineAmount','quotationRowData','quotationPriceLabel','quotationFormDefaults','quotationSetPicker','quotationItemRow','openQuotation','quotationLibraryTools','openQuotationSets'];
 vm.runInContext(source.split(/\r?\n/).filter(l=>names.some(n=>l.startsWith('function '+n+'('))).join('\n'),ctx);
 const backend={};vm.createContext(backend);vm.runInContext(fs.readFileSync('src/Code.js','utf8'),backend);

@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const html=fs.readFileSync('src/Index.html','utf8'),elements={};
+const c={TextEncoder,Blob,S:{data:{projects:[{id:'P1',name:'โครงการหนึ่ง'}],income:[{projectId:'P1',date:'2026-09-22',description:'รับเงิน',amountExVat:1000,vat:70,total:1070,account:'ธนาคาร'},{projectId:'P2',date:'2025-08-01',description:'เก่า',total:100}],expenses:[{projectId:'P1',date:'2026-09-21',description:'=1+1',amountExVat:500,vat:35,total:535,paidBy:'เงินสด'}]}},$:id=>elements[id]||(elements[id]={value:'',innerHTML:''}),pname:id=>id==='P1'?'โครงการหนึ่ง':'-',esc:s=>String(s||''),money:String,displayDate:String,thaiMonths:[],batchExpenseFormHtml:()=>'',dividendContent:()=>'',balanceSettingsContent:()=>''};vm.createContext(c);
+vm.runInContext(html.split(/\r?\n/).filter(l=>/^function (financeExportRows|documentExcelFile|renderFinance)\(/.test(l)).join('\n'),c);
+c.renderFinance();const section=elements['page-finance'].innerHTML.split('id="finance-history"')[1].split('</section>')[0];assert(section.includes('onclick="exportFinanceHistory()"'));assert(section.includes('ส่งออก Excel'));
+const before=JSON.stringify(c.S.data);assert.equal(c.financeExportRows().length,4);
+elements.financeHistoryProject={value:'P1'};elements.financeHistoryMonth={value:'09'};elements.financeHistoryYear={value:'2026'};assert.equal(c.financeExportRows().length,3);
+elements.financeHistoryType={value:'รายจ่าย'};let rows=c.financeExportRows();assert.equal(rows.length,2);assert.equal(rows[1][3],'=1+1');assert.equal(rows[1][8],535);assert.equal(rows[1][5],'เงินสด');
+elements.financeHistoryYear.value='2024';assert.equal(c.financeExportRows().length,1);elements.financeHistoryYear.value='2026';assert.equal(JSON.stringify(c.S.data),before);
+c.documentExcelFile(rows,'ประวัติการเงิน').arrayBuffer().then(b=>{fs.writeFileSync('tests/finance-history-test.xlsx',Buffer.from(b));console.log('PASS: export button in finance history, all four filters, numeric VAT/total, payment channel, empty result and unchanged data');});

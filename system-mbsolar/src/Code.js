@@ -1,5 +1,5 @@
 const APP = {
-  version: '2.27.0',
+  version: '2.33.0',
   maintenanceMode: true,
   spreadsheetId: '15wNWYPRNU3ozpuaQI4r_g2rYfwKSRwvWZV93jZGrDl4',
   sheets: {
@@ -17,25 +17,62 @@ const APP = {
     BalanceAccounts: ['id','name','type','openingBalance','active','sortOrder','createdAt','createdBy'],
     Partners: ['id','name','active','createdAt'],
     Dividends: ['id','partnerId','date','amount','paidFrom','note','createdAt','createdBy','projectId'],
-    Quotations: ['id','quoteNo','issueDate','customerName','customerPhone','customerAddress','customerTaxId','workType','itemsJson','vatRate','paymentTerms','deliveryTerms','warrantyText','scopeText','note','status','subtotal','vatAmount','grandTotal','createdAt','updatedAt','createdBy','logoData','noteColor','companyJson'],
+    Quotations: ['id','quoteNo','issueDate','customerName','customerPhone','customerAddress','customerTaxId','workType','itemsJson','vatRate','paymentTerms','deliveryTerms','warrantyText','scopeText','note','status','subtotal','vatAmount','grandTotal','createdAt','updatedAt','createdBy','logoData','noteColor','companyJson','projectName'],
     QuotePresets: ['id','kind','workType','name','dataJson','updatedAt','createdBy'],
     Invoices: ['id','invoiceNo','issueDate','quotationId','quoteNo','installment','percent','subtotal','vatRate','vatAmount','grandTotal','paymentTerms','deliveryTerms','poNo','snapshotJson','itemsJson','logoData','createdAt','createdBy'],
     Receipts: ['id','receiptNo','issueDate','invoiceId','invoiceNo','quotationId','quoteNo','installment','subtotal','vatRate','vatAmount','grandTotal','snapshotJson','itemsJson','logoData','createdAt','createdBy'],
+    Attendance: ['id','employeeId','employeeName','date','checkInTime','checkOutTime','locationName','latitude','longitude','photoData','penaltyAmount','penaltyReason','otHours','otAmount','status','note','createdAt','createdBy'],
+    ProductCosts: ['id','code','name','category','subCategory','brand','model','supplier','unit','unitPrice','minPrice','maxPrice','lastPurchaseDate','note','createdAt','createdBy'],
     AuditLog: ['id','date','userId','action','entity','entityId','detail']
   }
 };
 
 function doGet() {
-  ensureSchemaOnce_();
-  const initialData=JSON.stringify(bootstrap_(maintenanceUser_())).replace(/</g,'\\u003c');
-  const source=HtmlService.createTemplateFromFile('Index').getRawContent().replace('<?!= initialData ?>',()=>initialData);
-  const html=source.replace(/<script>([\s\S]*?)<\/script>/g,(_,script)=>{
-    const encoded=Utilities.base64Encode(script,Utilities.Charset.UTF_8);
-    return '<script>const appScript=document.createElement("script");appScript.textContent=new TextDecoder().decode(Uint8Array.from(atob("'+encoded+'"),c=>c.charCodeAt(0)));document.head.appendChild(appScript);</script>';
-  });
-  return HtmlService.createHtmlOutput(html).setTitle('MB Solar Project Profit')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+  try {
+    ensureSchemaOnce_();
+    const initialData = JSON.stringify(initialClientPayload_(getBootstrapData_())).replace(/</g, '\\u003c');
+    const source = HtmlService.createTemplateFromFile('Index').getRawContent().replace('<?!= initialData ?>', () => initialData);
+    const html = source.replace(/<script>([\s\S]*?)<\/script>/g, (_, script) => {
+      const encoded = Utilities.base64Encode(script, Utilities.Charset.UTF_8);
+      return '<script>const appScript=document.createElement("script");appScript.textContent=new TextDecoder().decode(Uint8Array.from(atob("' + encoded + '"),c=>c.charCodeAt(0)));document.head.appendChild(appScript);</script>';
+    });
+    return HtmlService.createHtmlOutput(html).setTitle('MB Solar Project Profit')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+  } catch (err) {
+    return HtmlService.createHtmlOutput('<div style="padding:24px;font-family:sans-serif;color:#c00;"><h2>เกิดข้อผิดพลาดในการโหลดหน้าเว็บ</h2><p>' + (err.stack || err.message || String(err)) + '</p></div>')
+      .setTitle('MB Solar - Error')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+  }
+}
+
+function getBootstrapData_() {
+  const cacheKey = 'MB_BOOTSTRAP_CACHE_V3';
+  try {
+    if (typeof CacheService !== 'undefined' && CacheService.getScriptCache()) {
+      const cached = CacheService.getScriptCache().get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    }
+  } catch (e) {}
+  const data = bootstrap_(maintenanceUser_());
+  try {
+    if (typeof CacheService !== 'undefined' && CacheService.getScriptCache()) {
+      const payloadStr = JSON.stringify(data);
+      if (payloadStr.length < 95000) {
+        CacheService.getScriptCache().put(cacheKey, payloadStr, 21600);
+      }
+    }
+  } catch (e) {}
+  return data;
+}
+
+function clearBootstrapCache_() {
+  try {
+    if (typeof CacheService !== 'undefined' && CacheService.getScriptCache()) {
+      CacheService.getScriptCache().remove('MB_BOOTSTRAP_CACHE_V3');
+    }
+  } catch (e) {}
 }
 
 function api(action, payload) {
@@ -44,15 +81,21 @@ function api(action, payload) {
   if (action === 'login') return clientSafe_(login_(payload));
   const user = APP.maintenanceMode && !payload.token ? maintenanceUser_() : sessionUser_(payload.token);
   if (action === 'bootstrap') return clientSafe_(bootstrap_(user));
-  if (action === 'createInvoice') return clientSafe_(createInvoice_(user, payload.data || {}));
-  if (action === 'createReceipt') return clientSafe_(createReceipt_(user, payload.data || {}));
-  const routes = {saveProject:saveProject_,deleteProject:deleteProject_,saveIncome:saveIncome_,saveExpense:saveExpense_,saveExpensesBatch:saveExpensesBatch_,saveTransactionsBatch:saveTransactionsBatch_,updateTransaction:updateTransaction_,deleteTransaction:deleteTransaction_,saveEmployee:saveEmployee_,deleteEmployee:deleteEmployee_,saveOvertime:saveOvertime_,saveSalaryAdvance:saveSalaryAdvance_,payMonthlySalary:payMonthlySalary_,distributeProjectDividend:distributeProjectDividend_,saveQuotation:saveQuotation_,saveQuotePreset:saveQuotePreset_,deleteQuotePreset:deleteQuotePreset_,deleteQuotation:deleteQuotation_,saveUser:saveUser_,saveCategory:saveCategory_,deleteCategory:deleteCategory_,savePaymentMethod:savePaymentMethod_,deletePaymentMethod:deletePaymentMethod_,saveBalanceAccount:saveBalanceAccount_,deleteBalanceAccount:deleteBalanceAccount_};
+  if (action === 'createInvoice') { const res = createInvoice_(user, payload.data || {}); clearBootstrapCache_(); return clientSafe_(res); }
+  if (action === 'updateInvoice') { const res = updateInvoice_(user, payload.data || {}); clearBootstrapCache_(); return clientSafe_(res); }
+  if (action === 'deleteInvoice') { const res = deleteInvoice_(user, payload.data || {}); clearBootstrapCache_(); return clientSafe_(res); }
+  if (action === 'createReceipt') { const res = createReceipt_(user, payload.data || {}); clearBootstrapCache_(); return clientSafe_(res); }
+  if (action === 'updateReceipt') { const res = updateReceipt_(user, payload.data || {}); clearBootstrapCache_(); return clientSafe_(res); }
+  if (action === 'deleteReceipt') { const res = deleteReceipt_(user, payload.data || {}); clearBootstrapCache_(); return clientSafe_(res); }
+  const routes = {saveProject:saveProject_,deleteProject:deleteProject_,saveIncome:saveIncome_,saveExpense:saveExpense_,saveExpensesBatch:saveExpensesBatch_,saveTransactionsBatch:saveTransactionsBatch_,updateTransaction:updateTransaction_,deleteTransaction:deleteTransaction_,saveEmployee:saveEmployee_,deleteEmployee:deleteEmployee_,saveOvertime:saveOvertime_,saveSalaryAdvance:saveSalaryAdvance_,payMonthlySalary:payMonthlySalary_,distributeProjectDividend:distributeProjectDividend_,saveQuotation:saveQuotation_,saveQuotePreset:saveQuotePreset_,deleteQuotePreset:deleteQuotePreset_,deleteQuotation:deleteQuotation_,saveUser:saveUser_,saveCategory:saveCategory_,deleteCategory:deleteCategory_,reorderCategories:reorderCategories_,savePaymentMethod:savePaymentMethod_,deletePaymentMethod:deletePaymentMethod_,reorderPaymentMethods:reorderPaymentMethods_,saveBalanceAccount:saveBalanceAccount_,deleteBalanceAccount:deleteBalanceAccount_,saveAttendance:saveAttendance_,checkInAttendance:checkInAttendance_,checkOutAttendance:checkOutAttendance_,deleteAttendance:deleteAttendance_,saveProductCost:saveProductCost_,deleteProductCost:deleteProductCost_,saveCostEstimateToExpenses:saveCostEstimateToExpenses_};
   if (!routes[action]) throw new Error('ไม่พบคำสั่งที่ร้องขอ');
-  return clientSafe_(routes[action](user, payload.data || {}));
+  const result = routes[action](user, payload.data || {});
+  clearBootstrapCache_();
+  return clientSafe_(result);
 }
 
 function ensureSchemaOnce_(){
-  const props=PropertiesService.getScriptProperties();if(props.getProperty('MB_SCHEMA_VERSION')==='26')return;
+  const props=PropertiesService.getScriptProperties();if(props.getProperty('MB_SCHEMA_VERSION')==='29')return;
   const ss=db_();Object.keys(APP.sheets).forEach(name=>{let sh=ss.getSheetByName(name);if(!sh)sh=ss.insertSheet(name);const expected=APP.sheets[name];if(sh.getLastRow()===0){sh.getRange(1,1,1,expected.length).setValues([expected]);sh.setFrozenRows(1)}else{const lastCol=Math.max(1,sh.getLastColumn()),existing=sh.getRange(1,1,1,lastCol).getValues()[0];expected.filter(h=>existing.indexOf(h)<0).forEach(h=>{sh.getRange(1,sh.getLastColumn()+1).setValue(h)})}sh.getRange(1,1,1,sh.getLastColumn()).setFontWeight('bold').setBackground('#dff5e8')});
   if(readSheet_(ss,'Partners').length===0){append_('Partners',['PART-BAS','บาส',true,new Date()]);append_('Partners',['PART-GOLF','กอล์ฟ',true,new Date()])}
   if(readSheet_(ss,'BalanceAccounts').length===0){append_('BalanceAccounts',['BAL-CASH','เงินสด','CASH',0,true,1,new Date(),'SYSTEM']);append_('BalanceAccounts',['BAL-COMPANY','บัญชีบริษัท','COMPANY',0,true,2,new Date(),'SYSTEM'])}
@@ -65,7 +108,8 @@ function ensureSchemaOnce_(){
   migrateSolarBank_();
   migrateSavedSolarBanks_();
   migrateInvoiceNumbers_();
-  props.setProperty('MB_SCHEMA_VERSION','26');
+  seedProductCosts_();
+  props.setProperty('MB_SCHEMA_VERSION','29');
 }
 
 function migrateSavedSolarBanks_(){const props=PropertiesService.getScriptProperties(),key='SAVED_SOLAR_BANKS_V1',lock=LockService.getScriptLock();lock.waitLock(30000);try{if(props.getProperty(key)==='done')return;const bank=solarCompanyDefaults_();rows_('Quotations').filter(x=>x.workType==='Solar Cell').forEach(row=>{const company=JSON.parse(row.companyJson||'{}');if(String(company.bankAccount||'').trim())return;append_('AuditLog',[id_('AUD'),new Date(),'SYSTEM','BACKUP','QUOTATION_COMPANY',row.id,row.companyJson||'{}']);const updated={...bank,...company,bankName:bank.bankName,bankAccount:bank.bankAccount,accountName:bank.accountName};updateRow_('Quotations',row.id,{companyJson:JSON.stringify(updated),updatedAt:new Date()})});props.setProperty(key,'done')}finally{lock.releaseLock()}}
@@ -246,8 +290,9 @@ function sessionUser_(token) {
   const user=JSON.parse(raw); CacheService.getScriptCache().put('session:'+token,raw,21600); return user;
 }
 
-function bootstrap_(user) {
-  const ss=db_(),projects=readSheet_(ss,'Projects'),income=readSheet_(ss,'Income'),expenses=readSheet_(ss,'Expenses'),employeeRows=readSheet_(ss,'Employees').filter(x=>truthy_(x.active)),overtime=readSheet_(ss,'Overtime'),salaryAdvances=readSheet_(ss,'SalaryAdvances'),salaryPayments=readSheet_(ss,'SalaryPayments'),month=monthInfo_(),dividends=readSheet_(ss,'Dividends'),partnerRows=readSheet_(ss,'Partners').filter(x=>truthy_(x.active));
+function bootstrap_(user, startupOnly=false) {
+  migrateLegacyFinanceChannelNames_(user);
+  const ss=db_(),projects=readSheet_(ss,'Projects'),income=readSheet_(ss,'Income'),expenses=readSheet_(ss,'Expenses'),allEmployees=startupOnly?[]:readSheet_(ss,'Employees'),employeeRows=allEmployees.filter(x=>truthy_(x.active)),overtime=readSheet_(ss,'Overtime'),salaryAdvances=startupOnly?[]:readSheet_(ss,'SalaryAdvances'),salaryPayments=startupOnly?[]:readSheet_(ss,'SalaryPayments'),month=monthInfo_(),dividends=readSheet_(ss,'Dividends'),partnerRows=startupOnly?[]:readSheet_(ss,'Partners').filter(x=>truthy_(x.active));
   const partners=partnerRows.map(p=>Object.assign({},p,{totalPaid:round_(dividends.filter(x=>x.partnerId===p.id).reduce((s,x)=>s+num_(x.amount),0)),payments:dividends.filter(x=>x.partnerId===p.id).sort((a,b)=>String(b.date).localeCompare(String(a.date)))}));
   const employees=employeeRows.map(e=>{const advances=salaryAdvances.filter(x=>x.employeeId===e.id&&x.monthKey===month.key),advanceTotal=round_(advances.reduce((s,x)=>s+num_(x.amount),0)),employeeOt=overtime.filter(x=>x.employeeId===e.id&&String(x.date).slice(0,7)===month.key),otTotal=round_(employeeOt.reduce((s,x)=>s+num_(x.amount),0)),payment=salaryPayments.find(x=>x.employeeId===e.id&&x.monthKey===month.key),salary=num_(e.wageRate),earned=round_(salary+otTotal),remaining=payment?0:round_(Math.max(0,earned-advanceTotal)),progress=earned?round_(remaining/earned*100):0;return Object.assign({},e,{salary:{monthKey:month.key,dueDate:month.dueDate,baseSalary:salary,otTotal,totalEarned:earned,advanceTotal,remaining,progress,paid:!!payment,netPaid:payment?num_(payment.netPaid):0,advances}})});
   const projectSummaries=projects.map(p=>{
@@ -258,9 +303,9 @@ function bootstrap_(user) {
     return Object.assign({},p,{income:round_(inc),expenses:round_(exp+ot),profit:round_(inc-exp-ot),otCost:round_(ot),dividendPaid:round_(dividendPaid),profitAfterDividend:round_(inc-exp-ot-dividendPaid)});
   });
   const totals=projectSummaries.reduce((a,p)=>({contract:a.contract+num_(p.contractValue),income:a.income+p.income,expenses:a.expenses+p.expenses,profit:a.profit+p.profit}),{contract:0,income:0,expenses:0,profit:0});
-  const banks=readSheet_(ss,'Banks').filter(x=>truthy_(x.active)),categories=sortActiveRows_(readSheet_(ss,'Categories')),paymentMethods=sortActiveRows_(readSheet_(ss,'PaymentMethods')),balanceAccounts=sortActiveRows_(readSheet_(ss,'BalanceAccounts'));
-  const employeeNames=readSheet_(ss,'Employees').reduce((o,e)=>(o[e.id]=e.name,o),{}),wageHistory=[...salaryPayments.map(x=>({id:x.id,type:'SALARY',date:x.paidDate||x.dueDate,monthKey:x.monthKey,employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',baseSalary:num_(x.baseSalary),otTotal:num_(x.otTotal),advanceTotal:num_(x.advanceTotal),amount:num_(x.netPaid),note:x.note||''})),...overtime.map(x=>({id:x.id,type:'OT',date:x.date,monthKey:String(x.date).slice(0,7),employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',projectId:x.projectId,hours:num_(x.hours),rate:num_(x.rate),amount:num_(x.amount),note:x.note||''})),...salaryAdvances.map(x=>({id:x.id,type:'ADVANCE',date:x.date,monthKey:x.monthKey,employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',amount:num_(x.amount),note:x.note||''}))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  return {appVersion:APP.version,user:publicUser_(user),permissions:permissions_(user),totals,projects:projectSummaries,income,expenses,employees,overtime,wageHistory,banks,categories,paymentMethods,balanceAccounts,payrollMonth:month,partners,dividends,users:allowed_(user,'USERS_MANAGE')?readSheet_(ss,'Users').map(publicUser_):[],quotations:quotationRows_(ss),quotePresets:quotePresetRows_(ss),invoices:invoiceRows_(ss),receipts:receiptRows_(ss)};
+  const banks=startupOnly?[]:readSheet_(ss,'Banks').filter(x=>truthy_(x.active)),categories=startupOnly?[]:sortActiveRows_(readSheet_(ss,'Categories')),paymentMethods=startupOnly?[]:sortActiveRows_(readSheet_(ss,'PaymentMethods')),balanceAccounts=sortActiveRows_(readSheet_(ss,'BalanceAccounts'));
+  const employeeNames=allEmployees.reduce((o,e)=>(o[e.id]=e.name,o),{}),wageHistory=[...salaryPayments.map(x=>({id:x.id,type:'SALARY',date:x.paidDate||x.dueDate,monthKey:x.monthKey,employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',baseSalary:num_(x.baseSalary),otTotal:num_(x.otTotal),advanceTotal:num_(x.advanceTotal),amount:num_(x.netPaid),note:x.note||''})),...overtime.map(x=>({id:x.id,type:'OT',date:x.date,monthKey:String(x.date).slice(0,7),employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',projectId:x.projectId,hours:num_(x.hours),rate:num_(x.rate),amount:num_(x.amount),note:x.note||''})),...salaryAdvances.map(x=>({id:x.id,type:'ADVANCE',date:x.date,monthKey:x.monthKey,employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',amount:num_(x.amount),note:x.note||''}))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  return {startupOnly,appVersion:APP.version,user:publicUser_(user),permissions:permissions_(user),totals,projects:projectSummaries,income,expenses,employees,overtime,wageHistory,banks,categories,paymentMethods,balanceAccounts,payrollMonth:month,partners,dividends,users:!startupOnly&&allowed_(user,'USERS_MANAGE')?readSheet_(ss,'Users').map(publicUser_):[],quotations:startupOnly?[]:quotationRows_(ss),quotePresets:startupOnly?[]:quotePresetRows_(ss),invoices:startupOnly?[]:invoiceRows_(ss),receipts:startupOnly?[]:receiptRows_(ss),attendance:startupOnly?[]:attendanceRows_(ss),productCosts:startupOnly?[]:productCostRows_(ss)};
 }
 
 function saveProject_(user,d) {
@@ -309,10 +354,177 @@ function updateTransaction_(user,d){const type=clean_(d.type)==='INCOME'?'INCOME
 function deleteTransaction_(user,d){const type=clean_(d.type)==='INCOME'?'INCOME':'EXPENSE',sheet=type==='INCOME'?'Income':'Expenses';require_(user,type==='INCOME'?'FINANCE_EDIT':'EXPENSE_EDIT');const row=rows_(sheet).find(x=>x.id===d.id);if(!row)throw new Error('ไม่พบรายการที่ต้องการลบ');deleteRow_(sheet,d.id);audit_(user,'DELETE',type,d.id,String(row.description||row.amountExVat||''));return businessPayload_(db_())}
 function saveEmployee_(user,d) {
   require_(user,'EMPLOYEE_MANAGE');if(!clean_(d.name)||!clean_(d.position))throw new Error('กรุณากรอกชื่อและตำแหน่งงาน');const ss=db_();
-  if(d.id){updateRow_('Employees',d.id,{name:clean_(d.name),position:clean_(d.position),type:clean_(d.type)||'PART_TIME',wageRate:num_(d.wageRate)});return payrollPayload_(ss)}
-  const id=id_('EMP');ss.getSheetByName('Employees').appendRow([id,clean_(d.name),clean_(d.type)||'PART_TIME',num_(d.wageRate),num_(d.otRate),true,clean_(d.note),new Date(),clean_(d.position)]);return payrollPayload_(ss);
+  if(d.id){updateRow_('Employees',d.id,{name:clean_(d.name),position:clean_(d.position),type:clean_(d.type)||'PART_TIME',wageRate:num_(d.wageRate),otRate:num_(d.otRate),note:clean_(d.note)});return Object.assign({},payrollPayload_(ss),attendancePayload_(ss))}
+  const id=id_('EMP');ss.getSheetByName('Employees').appendRow([id,clean_(d.name),clean_(d.type)||'PART_TIME',num_(d.wageRate),num_(d.otRate),true,clean_(d.note),new Date(),clean_(d.position)]);return Object.assign({},payrollPayload_(ss),attendancePayload_(ss));
 }
-function deleteEmployee_(user,d){require_(user,'EMPLOYEE_MANAGE');const ss=db_(),employee=readSheet_(ss,'Employees').find(x=>x.id===d.id);if(!employee)throw new Error('ไม่พบพนักงาน');const hasHistory=readSheet_(ss,'Overtime').some(x=>x.employeeId===d.id)||readSheet_(ss,'SalaryAdvances').some(x=>x.employeeId===d.id)||readSheet_(ss,'SalaryPayments').some(x=>x.employeeId===d.id);if(hasHistory)updateRow_('Employees',d.id,{active:false});else deleteRow_('Employees',d.id);return payrollPayload_(ss)}
+function deleteEmployee_(user,d){require_(user,'EMPLOYEE_MANAGE');const ss=db_(),employee=readSheet_(ss,'Employees').find(x=>x.id===d.id);if(!employee)throw new Error('ไม่พบพนักงาน');const hasHistory=readSheet_(ss,'Overtime').some(x=>x.employeeId===d.id)||readSheet_(ss,'SalaryAdvances').some(x=>x.employeeId===d.id)||readSheet_(ss,'SalaryPayments').some(x=>x.employeeId===d.id)||readSheet_(ss,'Attendance').some(x=>x.employeeId===d.id);if(hasHistory)updateRow_('Employees',d.id,{active:false});else deleteRow_('Employees',d.id);return Object.assign({},payrollPayload_(ss),attendancePayload_(ss))}
+function attendanceRows_(ss){return readSheet_(ss,'Attendance').map(row=>({...row,penaltyAmount:num_(row.penaltyAmount),otHours:num_(row.otHours),otAmount:num_(row.otAmount)})).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(b.checkInTime||'').localeCompare(String(a.checkInTime||''))||String(b.createdAt||'').localeCompare(String(a.createdAt||'')))}
+function attendancePayload_(ss){return {partial:true,attendance:attendanceRows_(ss),employees:readSheet_(ss,'Employees').filter(x=>truthy_(x.active))}}
+function saveAttendance_(user,d){
+  const ss=db_(),emp=rows_('Employees').find(x=>x.id===d.employeeId),employeeName=emp?.name||clean_(d.employeeName)||'พนักงาน',date=date_(d.date||new Date()),checkInTime=clean_(d.checkInTime),checkOutTime=clean_(d.checkOutTime),otHours=num_(d.otHours),otRate=emp?num_(emp.otRate):num_(d.otRate),otAmount=d.otAmount!=null?round_(num_(d.otAmount)):round_(otHours*otRate),penaltyAmount=round_(num_(d.penaltyAmount)),penaltyReason=clean_(d.penaltyReason),status=clean_(d.status)||(checkOutTime?'CHECKED_OUT':'CHECKED_IN'),locationName=clean_(d.locationName),latitude=clean_(d.latitude),longitude=clean_(d.longitude),photoData=String(d.photoData||'').slice(0,45000),note=clean_(d.note);
+  if(d.id){
+    const existing=rows_('Attendance').find(x=>x.id===d.id);if(!existing)throw new Error('ไม่พบข้อมูลการลงเวลาที่ต้องการแก้ไข');
+    const changes={employeeId:d.employeeId||existing.employeeId,employeeName,date,checkInTime,checkOutTime,locationName,latitude,longitude,penaltyAmount,penaltyReason,otHours,otAmount,status,note};
+    if(photoData)changes.photoData=photoData;
+    updateRow_('Attendance',d.id,changes);
+    audit_(user,'UPDATE','ATTENDANCE',d.id,employeeName+' '+date+' '+checkInTime);
+  }else{
+    const id=id_('ATT');
+    append_('Attendance',[id,clean_(d.employeeId),employeeName,date,checkInTime,checkOutTime,locationName,latitude,longitude,photoData,penaltyAmount,penaltyReason,otHours,otAmount,status,note,new Date(),user.id]);
+    audit_(user,'CREATE','ATTENDANCE',id,employeeName+' '+date+' '+checkInTime);
+  }
+  return attendancePayload_(ss);
+}
+function checkInAttendance_(user,d){
+  if(!clean_(d.employeeId))throw new Error('กรุณาเลือกพนักงาน');
+  const ss=db_(),emp=rows_('Employees').find(x=>x.id===d.employeeId&&truthy_(x.active));
+  if(!emp)throw new Error('ไม่พบข้อมูลพนักงานที่เลือก');
+  const date=date_(d.date||new Date()),now=new Date(),timeStr=clean_(d.checkInTime)||Utilities.formatDate(now,Session.getScriptTimeZone(),'HH:mm:ss');
+  const allAtt=rows_('Attendance'),existingToday=allAtt.find(x=>x.employeeId===d.employeeId&&x.date===date);
+  if(existingToday&&!d.allowMultiple)throw new Error(emp.name+' เช็คชื่อเข้างานวันนี้ไปแล้ว ('+existingToday.checkInTime+' น.)');
+  const id=id_('ATT'),penaltyAmount=round_(num_(d.penaltyAmount)),penaltyReason=clean_(d.penaltyReason),locationName=clean_(d.locationName)||'หน้างาน',latitude=clean_(d.latitude),longitude=clean_(d.longitude),photoData=String(d.photoData||'').slice(0,45000),note=clean_(d.note);
+  append_('Attendance',[id,emp.id,emp.name,date,timeStr,'',locationName,latitude,longitude,photoData,penaltyAmount,penaltyReason,0,0,'CHECKED_IN',note,new Date(),user.id]);
+  audit_(user,'CHECKIN','ATTENDANCE',id,emp.name+' เช็คอิน '+date+' '+timeStr);
+  return attendancePayload_(ss);
+}
+function checkOutAttendance_(user,d){
+  const ss=db_(),allAtt=rows_('Attendance'),existing=d.id?allAtt.find(x=>x.id===d.id):null;
+  const empId=clean_(d.employeeId)||(existing?existing.employeeId:'');
+  if(!empId)throw new Error('กรุณาเลือกพนักงาน');
+  const emp=rows_('Employees').find(x=>x.id===empId);
+  if(!emp)throw new Error('ไม่พบข้อมูลพนักงาน');
+  const date=date_(d.date||(existing?existing.date:new Date())),now=new Date(),timeStr=clean_(d.checkOutTime)||Utilities.formatDate(now,Session.getScriptTimeZone(),'HH:mm:ss');
+  const att=existing||allAtt.find(x=>x.employeeId===empId&&x.date===date);
+  if(!att)throw new Error('ไม่พบรายการเช็คอินของ '+emp.name+' ในวันนี้ กรุณาเช็คอินก่อน');
+  const otHours=num_(d.otHours),otRate=num_(emp.otRate)||0,otAmount=d.otAmount!=null?round_(num_(d.otAmount)):round_(otHours*otRate),penaltyAmount=d.penaltyAmount!=null?round_(num_(d.penaltyAmount)):num_(att.penaltyAmount),penaltyReason=clean_(d.penaltyReason)||att.penaltyReason||'';
+  const changes={checkOutTime:timeStr,otHours,otAmount,penaltyAmount,penaltyReason,status:'CHECKED_OUT'};
+  if(clean_(d.locationName))changes.locationName=clean_(d.locationName);
+  if(clean_(d.latitude))changes.latitude=clean_(d.latitude);
+  if(clean_(d.longitude))changes.longitude=clean_(d.longitude);
+  if(d.photoData)changes.photoData=String(d.photoData).slice(0,45000);
+  if(clean_(d.note))changes.note=clean_(d.note);
+  updateRow_('Attendance',att.id,changes);
+  audit_(user,'CHECKOUT','ATTENDANCE',att.id,emp.name+' เช็คเอาท์ '+date+' '+timeStr+' (OT: '+otHours+' ชม.)');
+  return attendancePayload_(ss);
+}
+function deleteAttendance_(user,d){
+  require_(user,'EMPLOYEE_MANAGE');
+  const ss=db_(),item=rows_('Attendance').find(x=>x.id===d.id);
+  if(!item)throw new Error('ไม่พบรายการลงเวลาที่ต้องการลบ');
+  deleteRow_('Attendance',d.id);
+  audit_(user,'DELETE','ATTENDANCE',d.id,item.employeeName+' '+item.date);
+  return attendancePayload_(ss);
+}
+function productCostRows_(ss){
+  const rows=readSheet_(ss,'ProductCosts').map(r=>({...r,unitPrice:num_(r.unitPrice),minPrice:num_(r.minPrice),maxPrice:num_(r.maxPrice)}));
+  const priceMap={};
+  rows.forEach(r=>{
+    const key=(r.name||'').trim().toLowerCase();
+    if(!key)return;
+    if(!priceMap[key])priceMap[key]={min:r.unitPrice,max:r.unitPrice};
+    else{
+      if(r.unitPrice<priceMap[key].min)priceMap[key].min=r.unitPrice;
+      if(r.unitPrice>priceMap[key].max)priceMap[key].max=r.unitPrice;
+    }
+  });
+  return rows.map(r=>{
+    const key=(r.name||'').trim().toLowerCase();
+    const stats=priceMap[key]||{min:r.unitPrice,max:r.unitPrice};
+    return {...r,minPrice:stats.min,maxPrice:stats.max};
+  }).sort((a,b)=>String(a.category||'').localeCompare(String(b.category||''),'th')||String(a.name||'').localeCompare(String(b.name||''),'th')||a.unitPrice-b.unitPrice);
+}
+function productCostsPayload_(ss){
+  return {partial:true,productCosts:productCostRows_(ss)};
+}
+function saveProductCost_(user,d){
+  require_(user,'EXPENSE_EDIT');
+  const ss=db_(),name=clean_(d.name),category=clean_(d.category)||'Solar Cell',unitPrice=positive_(d.unitPrice,'ราคาต่อหน่วย');
+  if(!name)throw new Error('กรุณากรอกชื่อสินค้าหรืออุปกรณ์');
+  const code=clean_(d.code)||id_('PRC').slice(4),subCategory=clean_(d.subCategory),brand=clean_(d.brand),model=clean_(d.model),supplier=clean_(d.supplier)||'ร้านค้าทั่วไป',unit=clean_(d.unit)||'ชิ้น',note=clean_(d.note),lastPurchaseDate=date_(d.lastPurchaseDate||new Date());
+  if(d.id){
+    const existing=rows_('ProductCosts').find(x=>x.id===d.id);
+    if(!existing)throw new Error('ไม่พบรายการสินค้าที่ต้องการแก้ไข');
+    updateRow_('ProductCosts',d.id,{code,name,category,subCategory,brand,model,supplier,unit,unitPrice,minPrice:Math.min(num_(existing.minPrice)||unitPrice,unitPrice),maxPrice:Math.max(num_(existing.maxPrice)||unitPrice,unitPrice),lastPurchaseDate,note});
+    audit_(user,'UPDATE','PRODUCT_COST',d.id,name+' ('+supplier+') '+unitPrice);
+  }else{
+    const id=id_('PRC');
+    append_('ProductCosts',[id,code,name,category,subCategory,brand,model,supplier,unit,unitPrice,unitPrice,unitPrice,lastPurchaseDate,note,new Date(),user.id]);
+    audit_(user,'CREATE','PRODUCT_COST',id,name+' ('+supplier+') '+unitPrice);
+  }
+  return productCostsPayload_(ss);
+}
+function deleteProductCost_(user,d){
+  require_(user,'EXPENSE_EDIT');
+  const ss=db_(),existing=rows_('ProductCosts').find(x=>x.id===d.id);
+  if(!existing)throw new Error('ไม่พบรายการสินค้าที่ต้องการลบ');
+  deleteRow_('ProductCosts',d.id);
+  audit_(user,'DELETE','PRODUCT_COST',d.id,existing.name);
+  return productCostsPayload_(ss);
+}
+function saveCostEstimateToExpenses_(user,d){
+  require_(user,'EXPENSE_EDIT');
+  const ss=db_();
+  project_(d.projectId);
+  const items=Array.isArray(d.items)?d.items:[];
+  if(!items.length)throw new Error('ไม่มีรายการสำหรับบันทึกลงโปรเจกต์');
+  items.forEach((item,i)=>{
+    const desc=clean_(item.name||item.description);
+    if(!desc)return;
+    const amount=positive_(item.amount||(num_(item.quantity)*num_(item.unitPrice)),'ยอดเงินรายการที่ '+(i+1));
+    const id=id_('EXP'),cat=clean_(item.category)||'อุปกรณ์และวัสดุ',supplier=clean_(item.supplier)||'เงินสด/โอน';
+    append_('Expenses',[id,d.projectId,date_(d.date||new Date()),cat,desc+(item.quantity?' ('+item.quantity+' '+(item.unit||'หน่วย')+' @ '+item.unitPrice+')':''),amount,0,amount,supplier,false,new Date(),user.id]);
+    audit_(user,'CREATE','EXPENSE_ESTIMATE',id,String(amount));
+  });
+  return businessPayload_(ss);
+}
+function seedProductCosts_(){
+  const ss=db_();
+  if(readSheet_(ss,'ProductCosts').length>0)return;
+  const initial=[
+    ['PRC-001','SLR-PV-01','แผงโซล่าเซลล์ AIKO 670W N-Type ABC','Solar Cell','แผงโซล่าเซลล์','AIKO','AK-A670-N','ตัวแทนจำหน่ายตรง','แผง',3450,3450,3800,new Date(),'ประสิทธิภาพ 23.8% รับประกันกำลังผลิต 30 ปี'],
+    ['PRC-002','SLR-PV-02','แผงโซล่าเซลล์ AIKO 670W N-Type ABC','Solar Cell','แผงโซล่าเซลล์','AIKO','AK-A670-N','ไทวัสดุ','แผง',3800,3450,3800,new Date(),'ซื้อหน้าร้าน มีของพร้อมส่งทันที'],
+    ['PRC-003','SLR-PV-03','แผงโซล่าเซลล์ Trina Solar 720W Vertex N','Solar Cell','แผงโซล่าเซลล์','Trina','TSM-NEG21C.20','ตัวแทนจำหน่ายตรง','แผง',3600,3600,3950,new Date(),'Bifacial สองหน้า เหมาะสำหรับงานอุตสาหกรรม'],
+    ['PRC-004','SLR-PV-04','แผงโซล่าเซลล์ Trina Solar 720W Vertex N','Solar Cell','แผงโซล่าเซลล์','Trina','TSM-NEG21C.20','ร้านแสงทองการไฟฟ้า','แผง',3950,3600,3950,new Date(),'สั่งยกล็อต 50 แผงขึ้นไปลดเพิ่ม 3%'],
+    ['PRC-005','SLR-INV-01','Inverter Huawei SUN2000-5KTL-L1 (1 Phase)','Solar Cell','อินเวอร์เตอร์','Huawei','SUN2000-5KTL-L1','Huawei Distributor','เครื่อง',32500,32500,35000,new Date(),'On-grid 5kW 1P รับประกันศูนย์ไทย 10 ปี'],
+    ['PRC-006','SLR-INV-02','Inverter Huawei SUN2000-5KTL-L1 (1 Phase)','Solar Cell','อินเวอร์เตอร์','Huawei','SUN2000-5KTL-L1','เมกาโฮม','เครื่อง',35000,32500,35000,new Date(),'ศูนย์บริการใกล้บ้าน เคลมด่วนได้'],
+    ['PRC-007','SLR-INV-03','Inverter Huawei SUN2000-10KTL-M1 (3 Phase)','Solar Cell','อินเวอร์เตอร์','Huawei','SUN2000-10KTL-M1','Huawei Distributor','เครื่อง',54000,54000,57500,new Date(),'On-grid 10kW 3P ประสิทธิภาพ 98.6%'],
+    ['PRC-008','SLR-INV-04','Inverter Solis Hybrid 10kW (3 Phase)','Solar Cell','อินเวอร์เตอร์','Solis','S6-EH3P10K-H','Solis Direct','เครื่อง',62000,62000,66500,new Date(),'Hybrid รองรับ Battery High-Voltage'],
+    ['PRC-009','SLR-BAT-01','Battery Solis 16 kWh IntelliHome (IP66)','Solar Cell','แบตเตอรี่กักเก็บพลังงาน','Solis','314Ah 51.2V','Solis Direct','ชุด',125000,125000,132000,new Date(),'LiFePO4 ปลอดภัยสูง รอบชาร์จมากกว่า 6,000 ครั้ง'],
+    ['PRC-010','SLR-MTR-01','Smart Power Sensor Huawei DDSU666-H (1P)','Solar Cell','สมาร์ทมิเตอร์','Huawei','DDSU666-H','Huawei Distributor','ชุด',2800,2800,3100,new Date(),'มิเตอร์กันย้อน 1 เฟส เชื่อมต่อ RS485'],
+    ['PRC-011','SLR-MTR-02','Smart Power Sensor Huawei DTSU666-H (3P)','Solar Cell','สมาร์ทมิเตอร์','Huawei','DTSU666-H','Huawei Distributor','ชุด',4500,4500,4900,new Date(),'มิเตอร์กันย้อน 3 เฟส พร้อม CT ในชุด'],
+    ['PRC-012','EVC-CHG-01','เครื่องชาร์จ EV Charger 7.4 kW 1 Phase','EV Charger','เครื่องชาร์จรถยนต์ไฟฟ้า','ABB','Terra AC Wallbox','ABB Direct','เครื่อง',24500,24500,27900,new Date(),'Type 2 สายยาว 5 เมตร มาตรฐานสากล'],
+    ['PRC-013','EVC-CHG-02','เครื่องชาร์จ EV Charger 7.4 kW 1 Phase','EV Charger','เครื่องชาร์จรถยนต์ไฟฟ้า','ABB','Terra AC Wallbox','ไทวัสดุ','เครื่อง',27900,24500,27900,new Date(),'รวมโปรโมชั่นรูดบัตรผ่อน 0% 10 เดือน'],
+    ['PRC-014','EVC-CHG-03','เครื่องชาร์จ EV Charger 22 kW 3 Phase','EV Charger','เครื่องชาร์จรถยนต์ไฟฟ้า','ABB','Terra AC Wallbox 22k','ABB Direct','เครื่อง',36000,36000,39500,new Date(),'Type 2 รองรับ RFID, Wi-Fi, Ethernet'],
+    ['PRC-015','EVC-CHG-04','เครื่องชาร์จ EV Wallbox Pulsar Plus 22kW','EV Charger','เครื่องชาร์จรถยนต์ไฟฟ้า','Wallbox','Pulsar Plus 22kW','ตัวแทนจำหน่าย','เครื่อง',41000,41000,44500,new Date(),'ขนาดกะทัดรัด ดีไซน์หรู จัดการผ่านแอป'],
+    ['PRC-016','EVC-RCD-01','เบรกเกอร์กันดูด RCD Type B 40A 2P','EV Charger','อุปกรณ์ป้องกันไฟฟ้า','CNC','Type B 40A 30mA','ร้านแสงทองการไฟฟ้า','ตัว',2400,2400,2750,new Date(),'มาตรฐานสำหรับติดตั้ง EV Charger ป้องกันไฟรั่ว DC'],
+    ['PRC-017','EVC-COL-01','แท่นเสาตั้งเครื่องชาร์จ EV Pedestal สแตนเลส','EV Charger','เสาติดตั้งและแท่นวาง','MB Fabricate','MB-EV-STAND-01','โรงงานสั่งผลิต','ต้น',3500,3500,4200,new Date(),'สแตนเลส 304 ทนแดด ทนฝน ไม่เป็นสนิม'],
+    ['PRC-018','STR-RAL-01','รางอลูมิเนียม Solar Mounting 4.2 เมตร','โครงสร้างและท่อร้อยสาย','รางยึดแผงโซล่าเซลล์','MB Aluminum','RAIL-4200-AL','โรงงานอลูมิเนียม','เส้น',320,320,410,new Date(),'อลูมิเนียมเกรด AL6005-T5 หนา แข็งแรง'],
+    ['PRC-019','STR-RAL-02','รางอลูมิเนียม Solar Mounting 4.2 เมตร','โครงสร้างและท่อร้อยสาย','รางยึดแผงโซล่าเซลล์','MB Aluminum','RAIL-4200-AL','ไทวัสดุ','เส้น',390,320,410,new Date(),'มีสต็อกพร้อมขนย้ายหน้างาน'],
+    ['PRC-020','STR-CLP-01','L-Feet สแตนเลสพร้อมยางกันซึม EPDM','โครงสร้างและท่อร้อยสาย','อุปกรณ์ยึดหลังคา','Sunfix','L-FEET-SS','ตัวแทนจำหน่าย','ชุด',35,35,48,new Date(),'ใช้กับหลังคา Metal Sheet กันน้ำซึม 100%'],
+    ['PRC-021','STR-CLP-02','L-Feet สแตนเลสพร้อมยางกันซึม EPDM','โครงสร้างและท่อร้อยสาย','อุปกรณ์ยึดหลังคา','Sunfix','L-FEET-SS','ไทวัสดุ','ชุด',48,35,48,new Date(),'ซื้อปลีกหน้าสาขา'],
+    ['PRC-022','STR-CLP-03','Mid Clamp อลูมิเนียม 35/40 มม.','โครงสร้างและท่อร้อยสาย','อุปกรณ์ยึดแผง','Sunfix','MC-3540-AL','ตัวแทนจำหน่าย','ตัว',16,16,25,new Date(),'ตัวยึดระหว่างแผง พร้อมสกรูสแตนเลส'],
+    ['PRC-023','STR-CLP-04','End Clamp อลูมิเนียม 35/40 มม.','โครงสร้างและท่อร้อยสาย','อุปกรณ์ยึดแผง','Sunfix','EC-3540-AL','ตัวแทนจำหน่าย','ตัว',16,16,25,new Date(),'ตัวยึดริมแผง พร้อมสกรูสแตนเลส'],
+    ['PRC-024','STR-PIP-01','ท่อเหล็กร้อยสายไฟ EMT 1/2 นิ้ว (ยาว 3 ม.)','โครงสร้างและท่อร้อยสาย','ท่อร้อยสายไฟฟ้า','PAT','EMT-050','ร้านแสงทองการไฟฟ้า','ท่อน',125,125,145,new Date(),'ท่อเหล็กชุบสังกะสี มาตรฐาน มอก.'],
+    ['PRC-025','STR-PIP-02','ท่อเหล็กร้อยสายไฟ EMT 1/2 นิ้ว (ยาว 3 ม.)','โครงสร้างและท่อร้อยสาย','ท่อร้อยสายไฟฟ้า','PAT','EMT-050','ไทวัสดุ','ท่อน',145,125,145,new Date(),'ซื้อเฉพาะงานด่วนขาดของ'],
+    ['PRC-026','STR-PIP-03','ท่อเหล็กร้อยสายไฟ IMC 3/4 นิ้ว (ยาว 3 ม.)','โครงสร้างและท่อร้อยสาย','ท่อร้อยสายไฟฟ้า','PAT','IMC-075','ร้านแสงทองการไฟฟ้า','ท่อน',280,280,320,new Date(),'ท่อหนาเกลียวหัวท้าย สำหรับภายนอกอาคาร'],
+    ['PRC-027','STR-CBL-01','สายไฟ Solar DC Cable 1x4 sq.mm (100 ม.)','โครงสร้างและท่อร้อยสาย','สายไฟฟ้าโซล่าเซลล์','Link','CB-1040-BK','Link Direct','ม้วน',2100,2100,2450,new Date(),'ทนแรงดัน 1500VDC ฉนวน 2 ชั้น ทน UV'],
+    ['PRC-028','STR-CBL-02','สายไฟ Solar DC Cable 1x4 sq.mm (100 ม.)','โครงสร้างและท่อร้อยสาย','สายไฟฟ้าโซล่าเซลล์','Link','CB-1040-BK','ไทวัสดุ','ม้วน',2450,2100,2450,new Date(),'มีสต็อกหน้าสาขา'],
+    ['PRC-029','STR-CBL-03','สายไฟ Solar DC Cable 1x6 sq.mm (100 ม.)','โครงสร้างและท่อร้อยสาย','สายไฟฟ้าโซล่าเซลล์','Link','CB-1060-BK','Link Direct','ม้วน',2900,2900,3350,new Date(),'สำหรับระยะสายไกลกว่า 30 เมตร ลด Loss'],
+    ['PRC-030','SRV-LAB-01','ค่าแรงติดตั้งระบบ Solar Cell (รวมโครงสร้างและระบบไฟ)','ค่าแรงและงานบริการ','งานติดตั้งระบบ Solar','ทีมช่าง MB','LABOR-SLR-KW','ทีมช่างประจำ MB','กิโลวัตต์ (kW)',1200,1200,1500,new Date(),'ติดตั้งตามมาตรฐานวิศวกรรมของ MB Solar'],
+    ['PRC-031','SRV-LAB-02','ค่าแรงติดตั้งระบบ Solar Cell (รวมโครงสร้างและระบบไฟ)','ค่าแรงและงานบริการ','งานติดตั้งระบบ Solar','Subcontract','LABOR-SLR-SUB','ผู้รับเหมาช่วง','กิโลวัตต์ (kW)',1500,1200,1500,new Date(),'สำหรับกรณีคิวงานช่างประจำเต็ม'],
+    ['PRC-032','SRV-LAB-03','ค่าแรงติดตั้งเครื่องชาร์จ EV Charger มาตรฐาน','ค่าแรงและงานบริการ','งานติดตั้ง EV Charger','ทีมช่าง MB','LABOR-EVC-PT','ทีมช่างประจำ MB','จุด',3500,3500,4500,new Date(),'รวมเดินสายท่อ EMT ระยะไม่เกิน 15 เมตร'],
+    ['PRC-033','SRV-ENG-01','ค่าวิศวกรจัดทำแบบ SLD และลงนามรับรองโครงสร้าง/ไฟฟ้า','ค่าแรงและงานบริการ','งานวิศวกรรมรับรอง','วิศวกรวิชาชีพ','ENG-SLD-SIGN','วิศวกรภาคี/สามัญ','โครงการ',3000,3000,4500,new Date(),'สำหรับยื่นขอขนานไฟ PEA และ MEA'],
+    ['PRC-034','SRV-FEE-01','ค่าธรรมเนียมยื่นขอขนานไฟ PEA/MEA','ค่าแรงและงานบริการ','ค่าธรรมเนียมราชการ','การไฟฟ้า','FEE-GRID-TIE','การไฟฟ้าส่วนภูมิภาค/นครหลวง','โครงการ',3500,3500,3500,new Date(),'ค่าตรวจสอบระบบและการเปลี่ยนมิเตอร์ไฟฟ้าแบบสองทิศทาง'],
+    ['PRC-035','MSC-GRD-01','แท่งกราวด์ร็อดทองแดง 5/8 นิ้ว ยาว 2.4 เมตร','เบ็ดเตล็ดและสิ้นเปลือง','ระบบสายดิน Grounding','Kumwell','GR-58-24','ร้านแสงทองการไฟฟ้า','ต้น',220,220,260,new Date(),'แท่งกราวด์ทองแดงแท้ มอก.'],
+    ['PRC-036','MSC-GRD-02','แท่งกราวด์ร็อดทองแดง 5/8 นิ้ว ยาว 2.4 เมตร','เบ็ดเตล็ดและสิ้นเปลือง','ระบบสายดิน Grounding','Kumwell','GR-58-24','ไทวัสดุ','ต้น',260,220,260,new Date(),'ซื้อหน้าร้าน'],
+    ['PRC-037','MSC-CON-01','เทปพันสายไฟ 3M Scotch 33+ ทนความร้อนสูง','เบ็ดเตล็ดและสิ้นเปลือง','วัสดุสิ้นเปลือง','3M','Scotch 33+','ร้านแสงทองการไฟฟ้า','ม้วน',65,65,79,new Date(),'เกรดงานอุตสาหกรรม ทนอุณหภูมิ 105 องศาเซลเซียส'],
+    ['PRC-038','MSC-CON-02','ซิลิโคนกันน้ำ Weatherproof Sealant สเปคงานกลางแจ้ง','เบ็ดเตล็ดและสิ้นเปลือง','วัสดุสิ้นเปลือง','Dowsil','791-WEATHER','ไทวัสดุ','หลอด',135,130,140,new Date(),'กันรังสี UV ยึดเกาะโลหะและคอนกรีตดีเยี่ยม'],
+    ['PRC-039','MSC-WNG-01','ชุดป้ายเตือน Warning Signs ระบบ Solar ตามแบบ PEA','เบ็ดเตล็ดและสิ้นเปลือง','ป้ายเตือนความปลอดภัย','MB Sign','SIGN-PEA-SET','โรงพิมพ์ป้าย','ชุด',450,450,550,new Date(),'แผ่นอะคริลิกสะท้อนแสง ทนแดด 5 ปี']
+  ];
+  initial.forEach(row=>{
+    append_('ProductCosts',[row[0],row[1],row[2],row[3],row[4],row[5],row[6],row[7],row[8],row[9],row[10],row[11],row[12],row[13],new Date(),'SYSTEM']);
+  });
+}
 function saveOvertime_(user,d) {
   require_(user,'OT_EDIT'); project_(d.projectId); const employee=rows_('Employees').find(x=>x.id===d.employeeId); if(!employee)throw new Error('ไม่พบพนักงาน');
   const hours=positive_(d.hours,'จำนวนชั่วโมง'),rate=positive_(d.rate,'อัตรา OT'),amount=round_(hours*rate),id=id_('OT');
@@ -324,13 +536,13 @@ function distributeProjectDividend_(user,d){require_(user,'FINANCE_EDIT');const 
 function quotePresetRows_(ss){return readSheet_(ss,'QuotePresets').map(x=>{let data={};try{data=JSON.parse(x.dataJson||'{}')}catch(e){}return Object.assign({},x,{data})})}
 function saveQuotePreset_(user,d){
   require_(user,'FINANCE_EDIT');
-  if(!['TEMPLATE','SET'].includes(d.kind)||!['EV Charger','Solar Cell'].includes(d.workType))throw new Error('ประเภทฟอร์มไม่ถูกต้อง');
+  if(!['TEMPLATE','SET','FORM'].includes(d.kind)||!['EV Charger','Solar Cell','Other'].includes(d.workType))throw new Error('ประเภทฟอร์มไม่ถูกต้อง');
   const name=clean_(d.name),long=v=>String(v==null?'':v).trim().slice(0,5000),all=rows_('QuotePresets');
   if(!name)throw new Error('กรุณาระบุชื่อชุด');
   const items=(Array.isArray(d.items)?d.items:[]).map(x=>({description:long(x.description),quantity:Number(x.quantity),unit:clean_(x.unit)||'ชุด',unitPrice:Number(x.unitPrice),packagePrice:x.packagePrice===true,packageIncluded:x.packageIncluded===true}));
-  if(d.kind==='SET'&&(!items.length||items.length>100||items.some(x=>!x.description||!Number.isFinite(x.quantity)||x.quantity<=0||!Number.isFinite(x.unitPrice)||x.unitPrice<0)))throw new Error('กรุณากรอกรายละเอียด จำนวน และราคาให้ถูกต้อง (สูงสุด 100 รายการ)');
+  if((d.kind==='SET'||d.kind==='FORM')&&((d.kind==='SET'&&!items.length)||items.length>100||items.some(x=>!x.description||!Number.isFinite(x.quantity)||x.quantity<=0||!Number.isFinite(x.unitPrice)||x.unitPrice<0)))throw new Error('กรุณากรอกรายละเอียด จำนวน และราคาให้ถูกต้อง (สูงสุด 100 รายการ)');
   const data=d.kind==='SET'?{items}:Object.fromEntries(['paymentTerms','deliveryTerms','warrantyText','scopeText','note'].map(k=>[k,long(d[k])]));
-  if(d.kind==='TEMPLATE'){data.company=quotationCompany_(d);data.logoData=String(d.logoData||'').slice(0,45000);data.noteColor=d.noteColor==='red'?'red':'black';data.vatRate=Number(d.vatRate);if(!Number.isFinite(data.vatRate)||data.vatRate<0)throw new Error('VAT ไม่ถูกต้อง')}
+  if(d.kind==='FORM')data.items=items;if(['TEMPLATE','FORM'].includes(d.kind)){data.company=quotationCompany_(d);data.logoData=String(d.logoData||'').slice(0,45000);data.noteColor=d.noteColor==='red'?'red':'black';data.vatRate=Number(d.vatRate);if(!Number.isFinite(data.vatRate)||data.vatRate<0)throw new Error('VAT ไม่ถูกต้อง')}
   const dataJson=JSON.stringify(data);if(dataJson.length>49000)throw new Error('ข้อมูลชุดหรือรูปโลโก้มีขนาดใหญ่เกินไป กรุณาลดขนาด');
   const lock=LockService.getScriptLock();lock.waitLock(30000);
   try{const fresh=rows_('QuotePresets'),existing=d.id?fresh.find(x=>x.id===d.id):d.kind==='TEMPLATE'?fresh.find(x=>x.kind===d.kind&&x.workType===d.workType):null;
@@ -342,14 +554,14 @@ function saveQuotePreset_(user,d){
   }finally{lock.releaseLock()}
   return {partial:true,quotePresets:quotePresetRows_(db_())};
 }
-function deleteQuotePreset_(user,d){require_(user,'FINANCE_EDIT');const x=rows_('QuotePresets').find(x=>x.id===d.id);if(!x||x.kind!=='SET')throw new Error('ไม่พบชุดรายการ');deleteRow_('QuotePresets',d.id);audit_(user,'DELETE','QUOTE_PRESET',d.id,x.name);return {partial:true,quotePresets:quotePresetRows_(db_())}}
+function deleteQuotePreset_(user,d){require_(user,'FINANCE_EDIT');const x=rows_('QuotePresets').find(x=>x.id===d.id);if(!x||!['SET','FORM'].includes(x.kind))throw new Error('ไม่พบชุดรายการ');deleteRow_('QuotePresets',d.id);audit_(user,'DELETE','QUOTE_PRESET',d.id,x.name);return {partial:true,quotePresets:quotePresetRows_(db_())}}
 function quotationRows_(ss){return readSheet_(ss,'Quotations').map(x=>{let items=[],company={};try{company=JSON.parse(x.companyJson||'{}')}catch(e){}try{items=JSON.parse(String(x.itemsJson||'[]'))}catch(e){}return Object.assign({},x,{items:Array.isArray(items)?items:[],company})}).sort((a,b)=>String(b.issueDate).localeCompare(String(a.issueDate))||String(b.createdAt).localeCompare(String(a.createdAt)))}
 function documentNumber_(prefix,sequence,issueDate){const date=String(issueDate||'').match(/^(\d{4})-(\d{2})-(\d{2})$/),number=Number(sequence);if(!['QT','IV','RC'].includes(prefix)||!date||!Number.isSafeInteger(number)||number<1)throw new Error('ข้อมูลเลขเอกสารไม่ถูกต้อง');return prefix+String(number).padStart(2,'0')+date[3]+date[2]+String(Number(date[1])+543)}
 function quotationSequence_(quoteNo){const text=String(quoteNo||''),current=text.match(/^QT(\d+)\d{8}$/),legacy=text.match(/^QT(?:SO|EV)-\d{6}-(\d+)$/);return Number(current?.[1]||legacy?.[1]||0)}
 function relatedDocumentNumber_(prefix,q,installment,issueDate){if(!['IV','RC'].includes(prefix))throw new Error('ประเภทเอกสารไม่ถูกต้อง');const reference=String(q.quoteNo||''),modern=/^QT\d{9,}$/.test(reference),sequence=quotationSequence_(reference);if(!sequence)throw new Error('กรุณาปรับเลขใบเสนอราคาเป็นรูปแบบ QT เช่น QT8013092569 ก่อนออกเอกสาร');const base=issueDate?documentNumber_(prefix,sequence,issueDate):modern?prefix+reference.slice(2):documentNumber_(prefix,sequence,q.issueDate);if(installment!==undefined&&![1,2].includes(Number(installment)))throw new Error('งวดเอกสารไม่ถูกต้อง');return base+(installment===undefined?'':'-'+Number(installment))}
 function nextQuotationNo_(workType,issueDate){const props=PropertiesService.getScriptProperties(),max=rows_('Quotations').reduce((n,q)=>Math.max(n,quotationSequence_(q.quoteNo)),Number(props.getProperty('DOCUMENT_QT_SEQUENCE'))||0),next=max+1;props.setProperty('DOCUMENT_QT_SEQUENCE',String(next));return documentNumber_('QT',next,issueDate)}
 function saveQuotation_(user,d){require_(user,'FINANCE_EDIT');const lock=LockService.getScriptLock();lock.waitLock(30000);try{const result=saveQuotationLocked_(user,d),props=PropertiesService.getScriptProperties(),sequence=quotationSequence_(d.quoteNo);if(sequence>(Number(props.getProperty('DOCUMENT_QT_SEQUENCE'))||0))props.setProperty('DOCUMENT_QT_SEQUENCE',String(sequence));return result}finally{lock.releaseLock()}}
-function saveQuotationLocked_(user,d){require_(user,'FINANCE_EDIT');const long=v=>String(v==null?'':v).trim().slice(0,5000),customerName=clean_(d.customerName),issueDate=date_(d.issueDate),workType=clean_(d.workType)==='Solar Cell'?'Solar Cell':'EV Charger',rawItems=Array.isArray(d.items)?d.items:[],items=rawItems.map(x=>({description:long(x.description),quantity:round_(x.quantity),unit:clean_(x.unit)||'ชุด',unitPrice:round_(x.unitPrice),packagePrice:x.packagePrice===true,packageIncluded:x.packageIncluded===true})).filter(x=>x.description||x.quantity||x.unitPrice);if(!customerName)throw new Error('กรุณากรอกชื่อลูกค้า');if(!items.length)throw new Error('กรุณาเพิ่มรายละเอียดงานอย่างน้อย 1 รายการ');if(items.length>100)throw new Error('เพิ่มรายละเอียดได้สูงสุด 100 รายการต่อเอกสาร');items.forEach((x,i)=>{if(!x.description)throw new Error('กรุณากรอกรายละเอียดรายการที่ '+(i+1));if(x.quantity<=0)throw new Error('จำนวนรายการที่ '+(i+1)+' ต้องมากกว่า 0');if(x.unitPrice<0)throw new Error('ราคาต่อหน่วยไม่ถูกต้อง')});const vatRate=Math.max(0,round_(d.vatRate==null?7:d.vatRate)),subtotal=round_(items.reduce((s,x)=>s+quotationLineAmount_(x),0)),vatAmount=round_(subtotal*vatRate/100),grandTotal=round_(subtotal+vatAmount),all=rows_('Quotations'),quoteNo=clean_(d.quoteNo)||all.find(x=>x.id===d.id)?.quoteNo||nextQuotationNo_(workType,issueDate);if(all.some(x=>x.id!==d.id&&String(x.quoteNo).toLowerCase()===quoteNo.toLowerCase()))throw new Error('เลขที่ใบเสนอราคานี้มีอยู่แล้ว');const company=quotationCompany_(d),existing=all.find(x=>x.id===d.id),companyJson=Object.keys(company).length?JSON.stringify(company):existing?.companyJson||'{}';const values={companyJson,quoteNo,issueDate,customerName,customerPhone:clean_(d.customerPhone),customerAddress:long(d.customerAddress),customerTaxId:clean_(d.customerTaxId),workType,itemsJson:JSON.stringify(items),vatRate,paymentTerms:long(d.paymentTerms),deliveryTerms:long(d.deliveryTerms),warrantyText:long(d.warrantyText),scopeText:long(d.scopeText),note:long(d.note),noteColor:d.noteColor==='red'?'red':'black',logoData:String(d.logoData||'').slice(0,45000),status:['DRAFT','SENT','APPROVED'].indexOf(clean_(d.status))>=0?clean_(d.status):'DRAFT',subtotal,vatAmount,grandTotal,updatedAt:new Date()};if(d.id){if(!all.some(x=>x.id===d.id))throw new Error('ไม่พบใบเสนอราคาที่ต้องการแก้ไข');updateRow_('Quotations',d.id,values);audit_(user,'UPDATE','QUOTATION',d.id,quoteNo)}else{const id=id_('QTN');append_('Quotations',[id,values.quoteNo,values.issueDate,values.customerName,values.customerPhone,values.customerAddress,values.customerTaxId,values.workType,values.itemsJson,values.vatRate,values.paymentTerms,values.deliveryTerms,values.warrantyText,values.scopeText,values.note,values.status,values.subtotal,values.vatAmount,values.grandTotal,new Date(),values.updatedAt,user.id,values.logoData,values.noteColor,values.companyJson]);audit_(user,'CREATE','QUOTATION',id,quoteNo)}return quotationPayload_(db_())}
+function saveQuotationLocked_(user,d){require_(user,'FINANCE_EDIT');const long=v=>String(v==null?'':v).trim().slice(0,5000),customerName=clean_(d.customerName),issueDate=date_(d.issueDate),workType=['EV Charger','Solar Cell','Other'].includes(clean_(d.workType))?clean_(d.workType):'Other',rawItems=Array.isArray(d.items)?d.items:[],items=rawItems.map(x=>({description:long(x.description),quantity:round_(x.quantity),unit:clean_(x.unit)||'ชุด',unitPrice:round_(x.unitPrice),packagePrice:x.packagePrice===true,packageIncluded:x.packageIncluded===true})).filter(x=>x.description||x.quantity||x.unitPrice);if(!customerName)throw new Error('กรุณากรอกชื่อลูกค้า');if(!items.length)throw new Error('กรุณาเพิ่มรายละเอียดงานอย่างน้อย 1 รายการ');if(items.length>100)throw new Error('เพิ่มรายละเอียดได้สูงสุด 100 รายการต่อเอกสาร');items.forEach((x,i)=>{if(!x.description)throw new Error('กรุณากรอกรายละเอียดรายการที่ '+(i+1));if(x.quantity<=0)throw new Error('จำนวนรายการที่ '+(i+1)+' ต้องมากกว่า 0');if(x.unitPrice<0)throw new Error('ราคาต่อหน่วยไม่ถูกต้อง')});const vatRate=Math.max(0,round_(d.vatRate==null?7:d.vatRate)),subtotal=round_(items.reduce((s,x)=>s+quotationLineAmount_(x),0)),vatAmount=round_(subtotal*vatRate/100),grandTotal=round_(subtotal+vatAmount),all=rows_('Quotations'),quoteNo=clean_(d.quoteNo)||all.find(x=>x.id===d.id)?.quoteNo||nextQuotationNo_(workType,issueDate);if(all.some(x=>x.id!==d.id&&String(x.quoteNo).toLowerCase()===quoteNo.toLowerCase()))throw new Error('เลขที่ใบเสนอราคานี้มีอยู่แล้ว');const company=quotationCompany_(d),existing=all.find(x=>x.id===d.id),companyJson=Object.keys(company).length?JSON.stringify(company):existing?.companyJson||'{}';const values={projectName:clean_(d.projectName),companyJson,quoteNo,issueDate,customerName,customerPhone:clean_(d.customerPhone),customerAddress:long(d.customerAddress),customerTaxId:clean_(d.customerTaxId),workType,itemsJson:JSON.stringify(items),vatRate,paymentTerms:long(d.paymentTerms),deliveryTerms:long(d.deliveryTerms),warrantyText:long(d.warrantyText),scopeText:long(d.scopeText),note:long(d.note),noteColor:d.noteColor==='red'?'red':'black',logoData:String(d.logoData||'').slice(0,45000),status:['DRAFT','SENT','APPROVED'].indexOf(clean_(d.status))>=0?clean_(d.status):'DRAFT',subtotal,vatAmount,grandTotal,updatedAt:new Date()};if(d.id){if(!all.some(x=>x.id===d.id))throw new Error('ไม่พบใบเสนอราคาที่ต้องการแก้ไข');updateRow_('Quotations',d.id,values);audit_(user,'UPDATE','QUOTATION',d.id,quoteNo)}else{const id=id_('QTN');append_('Quotations',[id,values.quoteNo,values.issueDate,values.customerName,values.customerPhone,values.customerAddress,values.customerTaxId,values.workType,values.itemsJson,values.vatRate,values.paymentTerms,values.deliveryTerms,values.warrantyText,values.scopeText,values.note,values.status,values.subtotal,values.vatAmount,values.grandTotal,new Date(),values.updatedAt,user.id,values.logoData,values.noteColor,values.companyJson,values.projectName]);audit_(user,'CREATE','QUOTATION',id,quoteNo)}return quotationPayload_(db_())}
 function deleteQuotation_(user,d){require_(user,'FINANCE_EDIT');const item=rows_('Quotations').find(x=>x.id===d.id);if(!item)throw new Error('ไม่พบใบเสนอราคา');deleteRow_('Quotations',d.id);audit_(user,'DELETE','QUOTATION',d.id,item.quoteNo);return quotationPayload_(db_())}
 function saveUser_(user,d) {
   require_(user,'USERS_MANAGE'); if(!clean_(d.name)||!clean_(d.username)||String(d.password||'').length<4)throw new Error('กรุณากรอกข้อมูลผู้ใช้และรหัสผ่านอย่างน้อย 4 ตัว');
@@ -359,12 +571,16 @@ function saveUser_(user,d) {
 
 function saveCategory_(user,d){return saveLookup_(user,d,'Categories','CATEGORY','CAT')}
 function deleteCategory_(user,d){return deleteLookup_(user,d,'Categories','CATEGORY')}
+function reorderCategories_(user,d){return reorderLookup_(user,d,'Categories','CATEGORY')}
 function savePaymentMethod_(user,d){return saveLookup_(user,d,'PaymentMethods','PAYMENT_METHOD','PAYBY')}
 function deletePaymentMethod_(user,d){return deleteLookup_(user,d,'PaymentMethods','PAYMENT_METHOD')}
+function reorderPaymentMethods_(user,d){return reorderLookup_(user,d,'PaymentMethods','PAYMENT_METHOD')}
 function saveBalanceAccount_(user,d){require_(user,'SETTINGS_MANAGE');const name=clean_(d.name),type=clean_(d.type);if(!name)throw new Error('กรุณากรอกชื่อบัญชี');if(type!=='CASH'&&type!=='COMPANY')throw new Error('ประเภทบัญชีไม่ถูกต้อง');const accounts=rows_('BalanceAccounts');if(accounts.some(x=>x.id!==d.id&&String(x.name).toLowerCase()===name.toLowerCase()&&truthy_(x.active)))throw new Error('มีชื่อบัญชีนี้อยู่แล้ว');if(d.id){const old=accounts.find(x=>x.id===d.id);if(!old)throw new Error('ไม่พบบัญชีที่ต้องการแก้ไข');updateRow_('BalanceAccounts',d.id,{name,type,openingBalance:round_(d.openingBalance),sortOrder:num_(d.sortOrder)||99,active:true});if(old.name!==name){['Income','Expenses'].forEach(sheet=>{const field=sheet==='Income'?'account':'paidBy';rows_(sheet).filter(x=>x[field]===old.name).forEach(x=>updateRow_(sheet,x.id,{[field]:name}))});rows_('Dividends').filter(x=>x.paidFrom===old.name).forEach(x=>updateRow_('Dividends',x.id,{paidFrom:name}));const method=rows_('PaymentMethods').find(x=>x.name===old.name&&truthy_(x.active));if(method)updateRow_('PaymentMethods',method.id,{name})}audit_(user,'UPDATE','BALANCE_ACCOUNT',d.id,name)}else{const id=id_('BAL');append_('BalanceAccounts',[id,name,type,round_(d.openingBalance),true,num_(d.sortOrder)||99,new Date(),user.id]);if(!rows_('PaymentMethods').some(x=>String(x.name).toLowerCase()===name.toLowerCase()&&truthy_(x.active)))append_('PaymentMethods',[id_('PAYBY'),name,true,num_(d.sortOrder)||99,new Date(),user.id]);audit_(user,'CREATE','BALANCE_ACCOUNT',id,name)}return lookupPayload_(db_())}
 function deleteBalanceAccount_(user,d){require_(user,'SETTINGS_MANAGE');const item=rows_('BalanceAccounts').find(x=>x.id===d.id);if(!item)throw new Error('ไม่พบบัญชี');const used=rows_('Income').some(x=>x.account===item.name)||rows_('Expenses').some(x=>x.paidBy===item.name)||rows_('Dividends').some(x=>x.paidFrom===item.name);if(used)throw new Error('ลบบัญชีนี้ไม่ได้ เพราะมีรายการรับ–จ่ายหรือปันผลใช้งานอยู่ กรุณาแก้ไขชื่อแทน');updateRow_('BalanceAccounts',d.id,{active:false});const method=rows_('PaymentMethods').find(x=>x.name===item.name&&truthy_(x.active));if(method)updateRow_('PaymentMethods',method.id,{active:false});audit_(user,'DELETE','BALANCE_ACCOUNT',d.id,item.name);return lookupPayload_(db_())}
-function saveLookup_(user,d,sheet,entity,prefix){require_(user,'SETTINGS_MANAGE');const name=clean_(d.name);if(!name)throw new Error('กรุณากรอกชื่อรายการ');if(rows_(sheet).some(x=>x.id!==d.id&&String(x.name).toLowerCase()===name.toLowerCase()&&truthy_(x.active)))throw new Error('มีชื่อนี้อยู่แล้ว');if(d.id){updateRow_(sheet,d.id,{name,sortOrder:num_(d.sortOrder)||99,active:true});audit_(user,'UPDATE',entity,d.id,name)}else{const id=id_(prefix);append_(sheet,[id,name,true,num_(d.sortOrder)||99,new Date(),user.id]);audit_(user,'CREATE',entity,id,name)}return lookupPayload_(db_())}
+function saveLookup_(user,d,sheet,entity,prefix){require_(user,'SETTINGS_MANAGE');const name=clean_(d.name);if(!name)throw new Error('กรุณากรอกชื่อรายการ');const all=rows_(sheet);if(all.some(x=>x.id!==d.id&&String(x.name).toLowerCase()===name.toLowerCase()&&truthy_(x.active)))throw new Error('มีชื่อนี้อยู่แล้ว');if(d.id){const old=all.find(x=>x.id===d.id);if(!old)throw new Error('ไม่พบรายการที่ต้องการแก้ไข');const oldName=String(old.name);updateRow_(sheet,d.id,{name,sortOrder:num_(d.sortOrder)||99,active:true});if(oldName!==name){if(sheet==='Categories')rows_('Expenses').filter(x=>x.category===oldName).forEach(x=>updateRow_('Expenses',x.id,{category:name}));if(sheet==='PaymentMethods'){rows_('Income').filter(x=>x.account===oldName).forEach(x=>updateRow_('Income',x.id,{account:name}));rows_('Expenses').filter(x=>x.paidBy===oldName).forEach(x=>updateRow_('Expenses',x.id,{paidBy:name}))}}audit_(user,'UPDATE',entity,d.id,name)}else{const id=id_(prefix);append_(sheet,[id,name,true,num_(d.sortOrder)||99,new Date(),user.id]);audit_(user,'CREATE',entity,id,name)}return lookupPayload_(db_())}
 function deleteLookup_(user,d,sheet,entity){require_(user,'SETTINGS_MANAGE');const item=rows_(sheet).find(x=>x.id===d.id);if(!item)throw new Error('ไม่พบรายการ');updateRow_(sheet,d.id,{active:false});audit_(user,'DELETE',entity,d.id,item.name);return lookupPayload_(db_())}
+function migrateLegacyFinanceChannelNames_(user){if(typeof PropertiesService==='undefined')return;const props=PropertiesService.getScriptProperties(),key='FINANCE_CHANNEL_MB_LABEL_V1';if(props.getProperty(key)==='done')return;const methods=rows_('PaymentMethods'),target=methods.find(x=>truthy_(x.active)&&x.name==='บัญชีบริษัท MB');if(!target)return;const oldName='บัญชีบริษัท',updates=[...rows_('Income').filter(x=>x.account===oldName).map(x=>['Income',x.id,'account']),...rows_('Expenses').filter(x=>x.paidBy===oldName).map(x=>['Expenses',x.id,'paidBy'])];updates.forEach(([sheet,id,field])=>updateRow_(sheet,id,{[field]:target.name}));if(updates.length)audit_(user,'UPDATE','FINANCE_HISTORY_CHANNEL','',oldName+' → '+target.name+' ('+updates.length+')');props.setProperty(key,'done')}
+function reorderLookup_(user,d,sheet,entity){require_(user,'SETTINGS_MANAGE');const active=sortActiveRows_(rows_(sheet)),ids=Array.isArray(d.ids)?d.ids.map(String):[];if(ids.length!==active.length||new Set(ids).size!==ids.length||active.some(x=>ids.indexOf(String(x.id))<0))throw new Error('ลำดับรายการไม่ถูกต้อง กรุณาลองใหม่');ids.forEach((id,index)=>updateRow_(sheet,id,{sortOrder:index+1}));audit_(user,'REORDER',entity,'',ids.join(','));return lookupPayload_(db_())}
 
 function permissions_(u){const all=['DASHBOARD_VIEW','PROFIT_VIEW','PROJECT_EDIT','FINANCE_EDIT','EXPENSE_EDIT','EMPLOYEE_MANAGE','OT_EDIT','LOAN_USE','USERS_MANAGE','SETTINGS_MANAGE'];if(u.role==='OWNER'||u.permissions==='*')return all;return String(u.permissions||'').split(',').filter(Boolean)}
 function allowed_(u,p){return permissions_(u).indexOf(p)>=0} function require_(u,p){if(!allowed_(u,p))throw new Error('คุณไม่มีสิทธิ์ทำรายการนี้')}
@@ -373,11 +589,22 @@ function project_(id){const p=rows_('Projects').find(x=>x.id===id);if(!p)throw n
 function sortedActive_(name){return rows_(name).filter(x=>truthy_(x.active)).sort((a,b)=>num_(a.sortOrder)-num_(b.sortOrder)||String(a.name).localeCompare(String(b.name),'th'))}
 function sortActiveRows_(rows){return rows.filter(x=>truthy_(x.active)).sort((a,b)=>num_(a.sortOrder)-num_(b.sortOrder)||String(a.name).localeCompare(String(b.name),'th'))}
 function sheetValue_(key,value){if(value instanceof Date&&(key==='date'||/Date$/.test(String(key))))return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd');return value}
-function readSheet_(ss,name){const sh=ss.getSheetByName(name);if(!sh)throw new Error('ไม่พบตาราง '+name);const lastRow=sh.getLastRow(),lastCol=sh.getLastColumn();if(lastRow<2||lastCol<1)return[];const values=sh.getRange(1,1,lastRow,lastCol).getValues(),h=values[0];return values.slice(1).filter(r=>r.some(v=>v!=='')).map(r=>h.reduce((o,k,i)=>(o[k]=sheetValue_(k,r[i]),o),{}))}
+function getSheetByNameFast_(ss,name){
+  if(!ss)return null;
+  if(!ss._sheetMap){
+    ss._sheetMap={};
+    const sheets=typeof ss.getSheets==='function'?ss.getSheets():[];
+    (sheets||[]).forEach(sh=>{if(sh&&typeof sh.getName==='function')ss._sheetMap[sh.getName()]=sh;});
+  }
+  if(ss._sheetMap&&ss._sheetMap[name])return ss._sheetMap[name];
+  if(typeof ss.getSheetByName==='function')return ss.getSheetByName(name);
+  return null;
+}
+function readSheet_(ss,name){let sh=getSheetByNameFast_(ss,name);if(!sh){const expected=APP.sheets&&APP.sheets[name];if(expected&&ss&&typeof ss.insertSheet==='function'){try{sh=ss.insertSheet(name);sh.getRange(1,1,1,expected.length).setValues([expected]);sh.setFrozenRows(1);if(!ss._sheetMap)ss._sheetMap={};ss._sheetMap[name]=sh;return[]}catch(e){}}if(expected)return[];throw new Error('ไม่พบตาราง '+name)}const values=sh.getDataRange().getValues();if(values.length<2)return[];const h=values[0];return values.slice(1).filter(r=>r.some(v=>v!=='')).map(r=>h.reduce((o,k,i)=>(o[k]=sheetValue_(k,r[i]),o),{}))}
 function rows_(name){return readSheet_(db_(),name)}
-function append_(name,row){db_().getSheetByName(name).appendRow(row)} function audit_(u,a,e,id,d){append_('AuditLog',[id_('LOG'),new Date(),u.id,a,e,id,d])}
-function updateRow_(name,id,changes){const sh=db_().getSheetByName(name),values=sh.getDataRange().getValues(),h=values[0],index=values.findIndex((r,i)=>i>0&&r[0]===id);if(index<1)throw new Error('ไม่พบข้อมูลที่ต้องการแก้ไข');Object.keys(changes).forEach(k=>{const col=h.indexOf(k);if(col>=0)values[index][col]=changes[k]});sh.getRange(index+1,1,1,h.length).setValues([values[index]])}
-function deleteRow_(name,id){const sh=db_().getSheetByName(name),values=sh.getDataRange().getValues(),index=values.findIndex((r,i)=>i>0&&r[0]===id);if(index<1)throw new Error('ไม่พบข้อมูลที่ต้องการลบ');sh.deleteRow(index+1)}
+function append_(name,row){const ss=db_();let sh=getSheetByNameFast_(ss,name);if(!sh){const expected=APP.sheets&&APP.sheets[name];if(expected&&ss&&typeof ss.insertSheet==='function'){try{sh=ss.insertSheet(name);sh.getRange(1,1,1,expected.length).setValues([expected]);sh.setFrozenRows(1);if(!ss._sheetMap)ss._sheetMap={};ss._sheetMap[name]=sh}catch(e){}}}if(!sh)throw new Error('ไม่พบตาราง '+name);sh.appendRow(row)} function audit_(u,a,e,id,d){append_('AuditLog',[id_('LOG'),new Date(),u.id,a,e,id,d])}
+function updateRow_(name,id,changes){const sh=getSheetByNameFast_(db_(),name);if(!sh)throw new Error('ไม่พบตาราง '+name);const values=sh.getDataRange().getValues(),h=values[0],index=values.findIndex((r,i)=>i>0&&r[0]===id);if(index<1)throw new Error('ไม่พบข้อมูลที่ต้องการแก้ไข');Object.keys(changes).forEach(k=>{const col=h.indexOf(k);if(col>=0)values[index][col]=changes[k]});sh.getRange(index+1,1,1,h.length).setValues([values[index]])}
+function deleteRow_(name,id){const sh=getSheetByNameFast_(db_(),name);if(!sh)throw new Error('ไม่พบตาราง '+name);const values=sh.getDataRange().getValues(),index=values.findIndex((r,i)=>i>0&&r[0]===id);if(index<1)throw new Error('ไม่พบข้อมูลที่ต้องการลบ');sh.deleteRow(index+1)}
 function id_(p){return p+'-'+Utilities.getUuid().slice(0,8).toUpperCase()} function hash_(s){return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,s,Utilities.Charset.UTF_8))}
 function clean_(v){return String(v==null?'':v).trim().slice(0,500)} function num_(v){const n=Number(v);return isFinite(n)?n:0} function round_(n){return Math.round((num_(n)+Number.EPSILON)*100)/100}
 function positive_(v,label){const n=num_(v);if(n<=0)throw new Error(label+'ต้องมากกว่า 0');return round_(n)} function truthy_(v){return v===true||String(v).toLowerCase()==='true'||v===1}
@@ -386,7 +613,7 @@ function monthInfo_(){const now=new Date(),year=Number(Utilities.formatDate(now,
 function businessPayload_(ss){const projects=readSheet_(ss,'Projects'),income=readSheet_(ss,'Income'),expenses=readSheet_(ss,'Expenses'),overtime=readSheet_(ss,'Overtime'),dividends=readSheet_(ss,'Dividends'),projectSummaries=projects.map(p=>{const inc=income.filter(x=>x.projectId===p.id).reduce((s,x)=>s+num_(x.amountExVat),0),exp=expenses.filter(x=>x.projectId===p.id).reduce((s,x)=>s+num_(x.amountExVat),0),ot=overtime.filter(x=>x.projectId===p.id).reduce((s,x)=>s+num_(x.amount),0),dividendPaid=dividends.filter(x=>x.projectId===p.id).reduce((s,x)=>s+num_(x.amount),0);return Object.assign({},p,{income:round_(inc),expenses:round_(exp+ot),profit:round_(inc-exp-ot),otCost:round_(ot),dividendPaid:round_(dividendPaid),profitAfterDividend:round_(inc-exp-ot-dividendPaid)})}),totals=projectSummaries.reduce((a,p)=>({contract:a.contract+num_(p.contractValue),income:a.income+p.income,expenses:a.expenses+p.expenses,profit:a.profit+p.profit}),{contract:0,income:0,expenses:0,profit:0});return{partial:true,projects:projectSummaries,income,expenses,totals}}
 function payrollPayload_(ss){const month=monthInfo_(),allEmployees=readSheet_(ss,'Employees'),employeeRows=allEmployees.filter(x=>truthy_(x.active)),advances=readSheet_(ss,'SalaryAdvances'),payments=readSheet_(ss,'SalaryPayments'),overtime=readSheet_(ss,'Overtime');const employees=employeeRows.map(e=>{const own=advances.filter(x=>x.employeeId===e.id&&x.monthKey===month.key),advanceTotal=round_(own.reduce((s,x)=>s+num_(x.amount),0)),employeeOt=overtime.filter(x=>x.employeeId===e.id&&String(x.date).slice(0,7)===month.key),otTotal=round_(employeeOt.reduce((s,x)=>s+num_(x.amount),0)),payment=payments.find(x=>x.employeeId===e.id&&x.monthKey===month.key),salary=num_(e.wageRate),earned=round_(salary+otTotal),remaining=payment?0:round_(Math.max(0,earned-advanceTotal)),progress=earned?round_(remaining/earned*100):0;return Object.assign({},e,{salary:{monthKey:month.key,dueDate:month.dueDate,baseSalary:salary,otTotal,totalEarned:earned,advanceTotal,remaining,progress,paid:!!payment,netPaid:payment?num_(payment.netPaid):0,advances:own}})}),employeeNames=allEmployees.reduce((o,e)=>(o[e.id]=e.name,o),{}),wageHistory=[...payments.map(x=>({id:x.id,type:'SALARY',date:x.paidDate||x.dueDate,monthKey:x.monthKey,employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',baseSalary:num_(x.baseSalary),otTotal:num_(x.otTotal),advanceTotal:num_(x.advanceTotal),amount:num_(x.netPaid),note:x.note||''})),...overtime.map(x=>({id:x.id,type:'OT',date:x.date,monthKey:String(x.date).slice(0,7),employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',projectId:x.projectId,hours:num_(x.hours),rate:num_(x.rate),amount:num_(x.amount),note:x.note||''})),...advances.map(x=>({id:x.id,type:'ADVANCE',date:x.date,monthKey:x.monthKey,employeeId:x.employeeId,employeeName:employeeNames[x.employeeId]||'พนักงานเดิม',amount:num_(x.amount),note:x.note||''}))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));return{partial:true,employees,overtime,wageHistory,payrollMonth:month}}
 function dividendPayload_(ss){const dividends=readSheet_(ss,'Dividends'),partners=readSheet_(ss,'Partners').filter(x=>truthy_(x.active)).map(p=>Object.assign({},p,{totalPaid:round_(dividends.filter(x=>x.partnerId===p.id).reduce((s,x)=>s+num_(x.amount),0)),payments:dividends.filter(x=>x.partnerId===p.id).sort((a,b)=>String(b.date).localeCompare(String(a.date)))}));return Object.assign({},businessPayload_(ss),{partners,dividends})}
-function lookupPayload_(ss){return{partial:true,categories:sortActiveRows_(readSheet_(ss,'Categories')),paymentMethods:sortActiveRows_(readSheet_(ss,'PaymentMethods')),balanceAccounts:sortActiveRows_(readSheet_(ss,'BalanceAccounts'))}}
+function lookupPayload_(ss){return{partial:true,categories:sortActiveRows_(readSheet_(ss,'Categories')),paymentMethods:sortActiveRows_(readSheet_(ss,'PaymentMethods')),balanceAccounts:sortActiveRows_(readSheet_(ss,'BalanceAccounts')),income:readSheet_(ss,'Income'),expenses:readSheet_(ss,'Expenses')}}
 function migrateInvoiceNumbers_(){const props=PropertiesService.getScriptProperties(),key='INVOICE_ISSUE_DATE_NUMBERS_V1',lock=LockService.getScriptLock();lock.waitLock(30000);try{if(props.getProperty(key)==='done')return;const all=rows_('Invoices'),plan=all.filter(x=>/^(?:INVSO-\d{6}-\d+|IV\d{9,}-[12])$/.test(String(x.invoiceNo))&&quotationSequence_(x.quoteNo)>0).map(x=>({row:x,invoiceNo:relatedDocumentNumber_('IV',{quoteNo:x.quoteNo},Number(x.installment),x.issueDate)})),names=new Set();all.forEach(x=>{const number=(plan.find(p=>p.row.id===x.id)?.invoiceNo||String(x.invoiceNo)).toUpperCase();if(names.has(number))throw new Error('เลขใบแจ้งหนี้ซ้ำในการปรับรูปแบบ กรุณาตรวจสอบเอกสาร');names.add(number)});plan.filter(x=>x.row.invoiceNo!==x.invoiceNo).forEach(x=>{append_('AuditLog',[id_('AUD'),new Date(),'SYSTEM','BACKUP','INVOICE_NUMBER',x.row.id,JSON.stringify({invoiceNo:x.row.invoiceNo,newInvoiceNo:x.invoiceNo,quoteNo:x.row.quoteNo,issueDate:x.row.issueDate})]);updateRow_('Invoices',x.row.id,{invoiceNo:x.invoiceNo})});props.setProperty(key,'done')}finally{lock.releaseLock()}}
 function invoiceRows_(ss){return readSheet_(ss,'Invoices').map(row=>({...row,snapshot:{...JSON.parse(row.snapshotJson||'{}'),items:JSON.parse(row.itemsJson||'[]'),logoData:row.logoData||''}})).sort((a,b)=>String(b.issueDate).localeCompare(String(a.issueDate))||String(b.createdAt).localeCompare(String(a.createdAt)))}
 function receiptRows_(ss){return readSheet_(ss,'Receipts').map(row=>({...row,snapshot:{...JSON.parse(row.snapshotJson||'{}'),items:JSON.parse(row.itemsJson||'[]'),logoData:row.logoData||''}})).sort((a,b)=>String(b.issueDate).localeCompare(String(a.issueDate))||String(b.createdAt).localeCompare(String(a.createdAt)))}
@@ -415,8 +642,8 @@ function createInvoice_(user,d){
     const ss=db_(),all=invoiceRows_(ss),related=all.filter(x=>x.quotationId===d.quotationId),existing=related.find(x=>Number(x.installment)===installment);
     if(existing)return {partial:true,invoices:all,issuedInvoiceId:existing.id};
     const q=related.length?related[0].snapshot:quotationRows_(ss).find(x=>x.id===d.quotationId);
-    if(!q||q.workType!=='Solar Cell')throw new Error('กรุณาเลือกใบเสนอราคา Solar Cell');
-    const amounts=invoiceAmounts_(q,installment),terms=installment===1?'งวดที่ 1 50% เมื่อออกใบ PO และนัดวันติดตั้ง':'งวดที่ 2 50% หลังติดตั้งออนระบบและส่งมอบงานแล้วเสร็จ ก่อนยื่นขนานไฟจาก PEA',delivery='ระยะดำเนินการตามตกลงของหน้างานและสัญญาโครงการ';
+    if(!q)throw new Error('กรุณาเลือกใบเสนอราคา');
+    const amounts=invoiceAmounts_(q,installment),terms=clean_(d.paymentTerms)||(q.workType==='Solar Cell'?(installment===1?'งวดที่ 1 50% เมื่อออกใบ PO และนัดวันติดตั้ง':'งวดที่ 2 50% หลังติดตั้งออนระบบและส่งมอบงานแล้วเสร็จ ก่อนยื่นขนานไฟจาก PEA'):('งวดที่ '+installment+' 50%')),delivery=clean_(d.deliveryTerms)||'ระยะดำเนินการตามตกลงของหน้างานและสัญญาโครงการ';
     const invoiceNo=relatedDocumentNumber_('IV',q,installment,d.issueDate);if(all.some(x=>String(x.invoiceNo).toUpperCase()===invoiceNo.toUpperCase()))throw new Error('เลขใบแจ้งหนี้นี้มีอยู่แล้ว กรุณาตรวจเลขใบเสนอราคาอ้างอิง');
     const snapshot={...q};delete snapshot.items;delete snapshot.logoData;delete snapshot.itemsJson;delete snapshot.companyJson;
     const snapshotJson=JSON.stringify(snapshot),itemsJson=JSON.stringify(q.items||[]);if(snapshotJson.length>49000||itemsJson.length>49000)throw new Error('รายละเอียดใบเสนอราคายาวเกินไปสำหรับออกเอกสาร');
@@ -425,5 +652,86 @@ function createInvoice_(user,d){
     return {partial:true,invoices:invoiceRows_(ss),issuedInvoiceId:id};
   }finally{lock.releaseLock()}
 }
+
+function updateInvoice_(user,d){
+  require_(user,'FINANCE_EDIT');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    const ss=db_(),invoices=invoiceRows_(ss),inv=invoices.find(x=>x.id===d.id);
+    if(!inv)throw new Error('ไม่พบใบแจ้งหนี้ที่ต้องการแก้ไข');
+    const changes={};
+    if(d.issueDate&&/^\d{4}-\d{2}-\d{2}$/.test(d.issueDate))changes.issueDate=d.issueDate;
+    if(d.invoiceNo)changes.invoiceNo=clean_(d.invoiceNo).toUpperCase();
+    if(d.poNo!==undefined)changes.poNo=clean_(d.poNo);
+    if(d.paymentTerms!==undefined)changes.paymentTerms=clean_(d.paymentTerms);
+    if(d.deliveryTerms!==undefined)changes.deliveryTerms=clean_(d.deliveryTerms);
+    if(d.subtotal!==undefined)changes.subtotal=round_(d.subtotal);
+    if(d.vatRate!==undefined)changes.vatRate=num_(d.vatRate);
+    if(d.vatAmount!==undefined)changes.vatAmount=round_(d.vatAmount);
+    if(d.grandTotal!==undefined)changes.grandTotal=round_(d.grandTotal);
+    const snapshot={...inv.snapshot};let snapChanged=false;
+    ['customerName','customerPhone','customerTaxId','customerAddress','projectName'].forEach(k=>{
+      if(d[k]!==undefined&&d[k]!==snapshot[k]){snapshot[k]=clean_(d[k]);snapChanged=true}
+    });
+    if(snapChanged){delete snapshot.items;delete snapshot.logoData;changes.snapshotJson=JSON.stringify(snapshot)}
+    updateRow_('Invoices',d.id,changes);
+    audit_(user,'UPDATE','INVOICE',d.id,(changes.invoiceNo||inv.invoiceNo)+' แก้ไขข้อมูล');
+    return {partial:true,invoices:invoiceRows_(ss)};
+  }finally{lock.releaseLock()}
+}
+
+function deleteInvoice_(user,d){
+  require_(user,'FINANCE_EDIT');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    const ss=db_(),receipts=receiptRows_(ss);
+    if(receipts.some(r=>r.invoiceId===d.id))throw new Error('ไม่สามารถลบใบแจ้งหนี้นี้ได้ เนื่องจากมีใบเสร็จรับเงินอ้างอิงอยู่ กรุณาลบใบเสร็จก่อน');
+    const inv=invoiceRows_(ss).find(x=>x.id===d.id);
+    if(!inv)throw new Error('ไม่พบใบแจ้งหนี้ที่ต้องการลบ');
+    deleteRow_('Invoices',d.id);
+    audit_(user,'DELETE','INVOICE',d.id,inv.invoiceNo);
+    return {partial:true,invoices:invoiceRows_(ss)};
+  }finally{lock.releaseLock()}
+}
+
+function updateReceipt_(user,d){
+  require_(user,'FINANCE_EDIT');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    const ss=db_(),receipts=receiptRows_(ss),rc=receipts.find(x=>x.id===d.id);
+    if(!rc)throw new Error('ไม่พบใบเสร็จรับเงินที่ต้องการแก้ไข');
+    const changes={};
+    if(d.issueDate&&/^\d{4}-\d{2}-\d{2}$/.test(d.issueDate))changes.issueDate=d.issueDate;
+    if(d.receiptNo)changes.receiptNo=clean_(d.receiptNo).toUpperCase();
+    if(d.subtotal!==undefined)changes.subtotal=round_(d.subtotal);
+    if(d.vatRate!==undefined)changes.vatRate=num_(d.vatRate);
+    if(d.vatAmount!==undefined)changes.vatAmount=round_(d.vatAmount);
+    if(d.grandTotal!==undefined)changes.grandTotal=round_(d.grandTotal);
+    const snapshot={...rc.snapshot};let snapChanged=false;
+    ['customerName','customerPhone','customerTaxId','customerAddress','projectName'].forEach(k=>{
+      if(d[k]!==undefined&&d[k]!==snapshot[k]){snapshot[k]=clean_(d[k]);snapChanged=true}
+    });
+    if(snapChanged){delete snapshot.items;delete snapshot.logoData;changes.snapshotJson=JSON.stringify(snapshot)}
+    updateRow_('Receipts',d.id,changes);
+    audit_(user,'UPDATE','RECEIPT',d.id,(changes.receiptNo||rc.receiptNo)+' แก้ไขข้อมูล');
+    return {partial:true,receipts:receiptRows_(ss)};
+  }finally{lock.releaseLock()}
+}
+
+function deleteReceipt_(user,d){
+  require_(user,'FINANCE_EDIT');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    const ss=db_(),rc=receiptRows_(ss).find(x=>x.id===d.id);
+    if(!rc)throw new Error('ไม่พบใบเสร็จรับเงินที่ต้องการลบ');
+    deleteRow_('Receipts',d.id);
+    audit_(user,'DELETE','RECEIPT',d.id,rc.receiptNo);
+    return {partial:true,receipts:receiptRows_(ss)};
+  }finally{lock.releaseLock()}
+}
+
 function quotationPayload_(ss){return{partial:true,quotations:quotationRows_(ss),quotePresets:quotePresetRows_(ss)}}
 function clientSafe_(value){return JSON.parse(JSON.stringify(value))}
+
+// Parsed fields are already present; omit their duplicate storage representation in the initial response.
+function initialClientPayload_(data){const result={...data};for(const key of ['quotations','quotePresets','invoices','receipts'])result[key]=(data[key]||[]).map(row=>{const copy={...row};delete copy.itemsJson;delete copy.companyJson;delete copy.dataJson;delete copy.snapshotJson;return copy});return result}

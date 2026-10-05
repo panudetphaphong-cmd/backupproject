@@ -42,7 +42,7 @@ const client={S:{data:{quotePresets:server.quotePresetRows_(db),quotations:[]}},
  money:n=>Number(n).toFixed(2),thaiDocumentDate:s=>s||'-',thaiBahtText:n=>'WORDS-'+n,today:()=> '2026-09-12',
  modal:(title,body)=>{editor=body;},setTimeout(){},window:{open:()=>({document:{write:s=>{printed=s;},close(){}},addEventListener(){},focus(){}})}
 };
-vm.createContext(client);
+client.documentPanel=client.modal;vm.createContext(client);
 const names=['quotationSolarStamp','quotationWarrantyText','quotationDocumentRows','quotationPackageRows','quotationDescriptionHtml','quotationCompanyAddress','quotationSignatureUpload','quotationProjectTitle','quotationCompany','quotationCompanyForm','quotationCompanyFromForm','fitQuotationPrint','quotationColumns','quotationLineAmount','quotationRowData','quotationPriceLabel','quotationFormDefaults','quotationSetPicker','quotationItemRow','openQuotation','quotationTotals','quotationNote','quotationHeader','quotationTerms','quotationSignatures','nl2br','printQuotation'];
 vm.runInContext(html.split(/\r?\n/).filter(l=>names.some(n=>l.startsWith('function '+n+'('))).join('\n'),client);
 client.openQuotation(null,'EV Charger');assert(editor.includes('EV set'));assert(!editor.includes('Solar set'));
@@ -165,6 +165,7 @@ console.log('PASS: postcode correction preserves custom addresses; customer bloc
 assert(client.quotationCompanyAddress(oldCompanyAddress+' 44140').includes(' จ.มหาสารคาม 44140'));assert(!client.quotationCompanyAddress(oldCompanyAddress+' 44140').includes('<br>'));
 assert.equal(client.quotationCompanyAddress('อำเภอพล\nจ.ขอนแก่น 40120'),'อำเภอพล จ.ขอนแก่น 40120');
 assert.equal(client.quotationCompanyAddress('Custom address'),'Custom address');
+assert.equal(client.quotationCompanyAddress('เลขที่ 80 ม.10\r\nต.หัวขวาง\nอ.โกสุมพิสัย\nจ.มหาสารคาม\n44140'),oldCompanyAddress+' 44140');
 const signature='data:image/png;base64,iVBORw0KGgo=';
 assert.equal(server.quotationCompany_({company_signatureData:signature}).signatureData,signature);
 assert.throws(()=>server.quotationCompany_({company_signatureData:'https://example.com/image.png'}));
@@ -229,7 +230,7 @@ assert(newHeader.indexOf('quotation-company-block')<newHeader.indexOf('quotation
 assert(newHeader.indexOf('quotation-brand-heading')<newHeader.indexOf('quotation-customer-block'));
 assert(newHeader.includes('text-align:center;display:flex'));assert(newHeader.includes(';text-align:right'));assert(newHeader.includes('object-position:center top'));assert(!newHeader.includes('quotation-customer-strip'));
 const compactHeader=client.quotationHeader('',false,{customerAddress:'Street\nProvince',customerName:'<Customer>'});
-assert(compactHeader.includes('Street<br>Province'));assert(compactHeader.includes('&lt;Customer>'));
+assert(compactHeader.includes('Street Province'));assert(compactHeader.includes('&lt;Customer>'));
 console.log('PASS: onsite warranty preserved; left company, centered title/logo, right-aligned customer');
 const beforeSolar=JSON.stringify(db.QuotePresets),solarCatalog=server.solarPriceCatalog_();
 assert.equal(solarCatalog.length,17);assert.equal(solarCatalog.filter(x=>x.type==='On-grid').length,11);
