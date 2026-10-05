@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.4.9',
+  version: '3.4.11',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -39,31 +39,66 @@ function runStartupMigrations_() {
 }
 
 function ensureAdminUser_() {
-  try {
-    const sh = sheet_('Users');
-    const rows = sh.getDataRange().getValues();
-    const adminIdx = rows.findIndex((r, i) => i > 0 && String(r[1]).trim().toLowerCase() === 'admin');
-    const adminHash = hash_('admin123');
-    if (adminIdx > 0) {
-      const currentHash = rows[adminIdx][2];
-      const isActive = truthy_(rows[adminIdx][5]);
-      if (currentHash !== adminHash || !isActive) {
-        sh.getRange(adminIdx + 1, 3).setValue(adminHash);
-        sh.getRange(adminIdx + 1, 6).setValue(true);
-        SpreadsheetApp.flush();
-        invalidateRows_('Users');
-      }
+  const sh = sheet_('Users');
+  const vals = sh.getDataRange().getValues();
+  const adminHash = hash_('admin123');
+  if (!vals || vals.length === 0 || (vals.length === 1 && vals[0].every(x => x === ''))) {
+    const cols = APP.sheets.Users;
+    sh.getRange(1, 1, 1, cols.length).setValues([cols]).setFontWeight('bold').setBackground('#f6c90e');
+    append_('Users', [id_('USR'), 'admin', adminHash, 'บาส/แตงโม', 'OWNER', true, now_(), 'SYSTEM']);
+    SpreadsheetApp.flush();
+    invalidateRows_('Users');
+    return;
+  }
+  const head = vals[0].map(h => clean_(h).toLowerCase());
+  let uCol = head.indexOf('username');
+  let pCol = head.indexOf('passwordhash');
+  let nCol = head.indexOf('name');
+  let rCol = head.indexOf('role');
+  let aCol = head.indexOf('active');
+
+  if (uCol < 0) uCol = 1;
+  if (pCol < 0) pCol = 2;
+  if (nCol < 0) nCol = 3;
+  if (rCol < 0) rCol = 4;
+  if (aCol < 0) aCol = 5;
+
+  const rows = vals.slice(1);
+  const adminRowIdx = rows.findIndex(r => clean_(r[uCol]).toLowerCase() === 'admin');
+
+  if (adminRowIdx >= 0) {
+    const rowNum = adminRowIdx + 2;
+    sh.getRange(rowNum, pCol + 1).setValue(adminHash);
+    sh.getRange(rowNum, aCol + 1).setValue(true);
+    if (rCol >= 0) sh.getRange(rowNum, rCol + 1).setValue('OWNER');
+    if (nCol >= 0 && !clean_(rows[adminRowIdx][nCol])) sh.getRange(rowNum, nCol + 1).setValue('บาส/แตงโม');
+    SpreadsheetApp.flush();
+    invalidateRows_('Users');
+  } else {
+    const ownerRowIdx = rows.findIndex(r => clean_(r[rCol]).toUpperCase() === 'OWNER');
+    if (ownerRowIdx >= 0) {
+      const rowNum = ownerRowIdx + 2;
+      sh.getRange(rowNum, uCol + 1).setValue('admin');
+      sh.getRange(rowNum, pCol + 1).setValue(adminHash);
+      sh.getRange(rowNum, aCol + 1).setValue(true);
+      if (nCol >= 0 && !clean_(rows[ownerRowIdx][nCol])) sh.getRange(rowNum, nCol + 1).setValue('บาส/แตงโม');
     } else {
-      const ownerIdx = rows.findIndex((r, i) => i > 0 && r[4] === 'OWNER');
-      if (ownerIdx > 0) {
-        sh.getRange(ownerIdx + 1, 2, 1, 5).setValues([['admin', adminHash, 'บาส/แตงโม', 'OWNER', true]]);
-      } else {
-        append_('Users', [id_('USR'), 'admin', adminHash, 'บาส/แตงโม', 'OWNER', true, now_(), 'SYSTEM']);
-      }
-      SpreadsheetApp.flush();
-      invalidateRows_('Users');
+      const newRow = [];
+      const len = Math.max(8, head.length);
+      for (let c = 0; c < len; c++) newRow.push('');
+      newRow[0] = id_('USR');
+      newRow[uCol] = 'admin';
+      newRow[pCol] = adminHash;
+      newRow[nCol] = 'บาส/แตงโม';
+      newRow[rCol] = 'OWNER';
+      newRow[aCol] = true;
+      if (head.indexOf('createdat') >= 0) newRow[head.indexOf('createdat')] = now_();
+      if (head.indexOf('createdby') >= 0) newRow[head.indexOf('createdby')] = 'SYSTEM';
+      sh.appendRow(newRow);
     }
-  } catch(e) {}
+    SpreadsheetApp.flush();
+    invalidateRows_('Users');
+  }
 }
 
 function cleanupOldSessionProperties_() {
@@ -198,18 +233,36 @@ function login_(data) {
   const password = String(data && data.password != null ? data.password : '');
   if (!username || !password) throw new Error('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
 
-  let users = rows_('Users');
-  let user = users.find(r => String(r.username || '').trim().toLowerCase() === username);
-
-  if ((!user || String(user.passwordHash) !== hash_(password)) && username === 'admin' && password === 'admin123') {
-    ensureAdminUser_();
+  if (username === 'admin') {
+    try {
+      ensureAdminUser_();
+    } catch(e) {
+      console.error('ensureAdminUser_ failed:', e);
+    }
     invalidateRows_('Users');
-    users = rows_('Users');
-    user = users.find(r => String(r.username || '').trim().toLowerCase() === username);
   }
 
-  if (!user || !truthy_(user.active) || String(user.passwordHash) !== hash_(password)) {
-    throw new Error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+  let users = rows_('Users');
+  let user = users.find(r => clean_(r.username || r.Username).toLowerCase() === username);
+
+  if (username === 'admin' && (!user || String(user.passwordHash || '') !== hash_('admin123') || !truthy_(user.active != null ? user.active : user.Active))) {
+    try {
+      ensureAdminUser_();
+      invalidateRows_('Users');
+      users = rows_('Users');
+      user = users.find(r => clean_(r.username || r.Username).toLowerCase() === 'admin');
+    } catch(e) {}
+  }
+
+  if (!user) {
+    throw new Error('ไม่พบบัญชีผู้ใช้ "' + username + '" ในระบบ (กรุณาใช้ admin / admin123)');
+  }
+  if (!truthy_(user.active != null ? user.active : user.Active)) {
+    throw new Error('บัญชีผู้ใช้ "' + username + '" ถูกระงับการใช้งาน');
+  }
+  const storedHash = String(user.passwordHash || user.passwordhash || user.PasswordHash || '');
+  if (storedHash !== hash_(password)) {
+    throw new Error('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบรหัสผ่านอีกครั้ง');
   }
 
   const token = makePersistentToken_(user);
@@ -227,7 +280,9 @@ function login_(data) {
   let appData = null;
   try {
     appData = bootstrap_(sessionUser).data;
-  } catch(e) {}
+  } catch(e) {
+    console.error('bootstrap_ during login_ failed:', e);
+  }
   return ok({ token, user: publicUser_(user), appData });
 }
 
@@ -701,12 +756,26 @@ function ensureAllUserLoginRepair_(){
 
 function ensureSchema_(){
   const props=PropertiesService.getScriptProperties();
-  if(props.getProperty('SCHEMA_VERSION')==='12') return;
+  if(props.getProperty('SCHEMA_VERSION')==='14') return;
   const ss=db_();
+  const allSheets = ss.getSheets();
   Object.keys(APP.sheets).forEach(name=>{
-    let sh=ss.getSheetByName(name);
-    if(!sh){ sh=ss.insertSheet(name); sh.getRange(1,1,1,APP.sheets[name].length).setValues([APP.sheets[name]]).setFontWeight('bold').setBackground('#f6c90e'); sh.setFrozenRows(1); }
-    else { const current=sh.getRange(1,1,1,Math.max(1,sh.getLastColumn())).getValues()[0]; APP.sheets[name].forEach(h=>{ if(!current.includes(h)){ sh.getRange(1,sh.getLastColumn()+1).setValue(h).setFontWeight('bold').setBackground('#f6c90e'); current.push(h); } }); }
+    const target = clean_(name).toLowerCase();
+    let sh = allSheets.find(s => clean_(s.getName()).toLowerCase() === target);
+    if(!sh){
+      sh = ss.insertSheet(name);
+      sh.getRange(1, 1, 1, APP.sheets[name].length).setValues([APP.sheets[name]]).setFontWeight('bold').setBackground('#f6c90e');
+      sh.setFrozenRows(1);
+      allSheets.push(sh);
+    } else {
+      const current = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(clean_);
+      APP.sheets[name].forEach(h=>{
+        if(!current.map(c => c.toLowerCase()).includes(h.toLowerCase())){
+          sh.getRange(1, sh.getLastColumn() + 1).setValue(h).setFontWeight('bold').setBackground('#f6c90e');
+          current.push(h);
+        }
+      });
+    }
   });
   const pc=sheet_('ProductCategories');
   if(pc.getLastRow()===1){ const seed=productCategorySeed_(); pc.getRange(2,1,seed.length,seed[0].length).setValues(seed); }
@@ -714,7 +783,7 @@ function ensureSchema_(){
   const cats=sheet_('Categories');if(cats.getLastRow()>1){const vals=cats.getRange(2,5,cats.getLastRow()-1,1).getValues().map((r,i)=>[num_(r[0])||i+1]);cats.getRange(2,5,vals.length,1).setValues(vals)}
   const catRows=cats.getDataRange().getValues();if(!catRows.slice(1).some(r=>r[0]==='CAT-DIVIDEND'))append_('Categories',['CAT-DIVIDEND','เงินปันผลเจ้าของร้าน','EXPENSE',true,Math.max(0,...catRows.slice(1).map(r=>num_(r[4])))+1]);
   invalidateRows_('Categories');
-  props.setProperty('SCHEMA_VERSION','12');
+  props.setProperty('SCHEMA_VERSION','14');
 }
 
 function totals_(list) {
@@ -768,11 +837,13 @@ function getSessionVersion_(){
 }
 
 function legacyTokenSignature_(user,version){
-  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+user.passwordHash+'|'+version,sessionSecret_())).replace(/=+$/,'');
+  const pwdHash = String(user.passwordHash || user.passwordhash || '');
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+pwdHash+'|'+version,sessionSecret_())).replace(/=+$/,'');
 }
 
 function tokenSignature_(user,version,nonce){
-  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+user.passwordHash+'|'+version+'|'+(nonce||''),sessionSecret_())).replace(/=+$/,'');
+  const pwdHash = String(user.passwordHash || user.passwordhash || '');
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(user.id+'|'+pwdHash+'|'+version+'|'+(nonce||''),sessionSecret_())).replace(/=+$/,'');
 }
 
 function makePersistentToken_(user){
@@ -835,7 +906,16 @@ function requireSession_(token){
   cache.put('session:'+token,JSON.stringify(fresh),21600);
   return fresh;
 }
-function publicUser_(u) { return {id:u.id,name:u.name,username:u.username,role:u.role,active:truthy_(u.active)}; }
+function publicUser_(u) {
+  if (!u) return { id: '', name: '', username: '', role: 'STAFF', active: false };
+  return {
+    id: clean_(u.id || u.Id || u.ID),
+    name: clean_(u.name || u.Name) || clean_(u.username || u.Username),
+    username: clean_(u.username || u.Username).toLowerCase(),
+    role: String(u.role || u.Role || 'STAFF').toUpperCase(),
+    active: truthy_(u.active != null ? u.active : u.Active)
+  };
+}
 function canManage_(u) { return ['ADMIN','MANAGER','OWNER'].includes(u.role); }
 function canAdminUsers_(u) { return ['ADMIN','OWNER'].includes(u.role); }
 function canViewFinance_(u) { return ['ADMIN','OWNER'].includes(u.role); }
@@ -843,9 +923,96 @@ function validateUserInput_(d) { if(clean_(d.name).length<2) throw new Error('�
 function hash_(s) { return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(s))); }
 let DB_CACHE_;
 let ROWS_MEMO_ = {};
-function db_() { if(DB_CACHE_) return DB_CACHE_; DB_CACHE_=SpreadsheetApp.openById(PRIMARY_DB_ID); return DB_CACHE_; }
-function sheet_(name) { const sh=db_().getSheetByName(name); if(!sh) throw new Error('ไม่พบชีต '+name); return sh; }
-function rows_(name) { const sh=sheet_(name), vals=sh.getDataRange().getValues(), head=vals.shift(); return vals.filter(r=>r.some(v=>v!=='' )).map(r=>Object.fromEntries(head.map((h,i)=>[h,r[i]]))); }
+function db_() {
+  if (DB_CACHE_) return DB_CACHE_;
+  const props = PropertiesService.getScriptProperties();
+  const configuredId = props.getProperty('DB_ID');
+  const targetId = clean_(configuredId) || PRIMARY_DB_ID;
+  try {
+    DB_CACHE_ = SpreadsheetApp.openById(targetId);
+    return DB_CACHE_;
+  } catch(e) {
+    if (configuredId && configuredId !== PRIMARY_DB_ID) {
+      try {
+        DB_CACHE_ = SpreadsheetApp.openById(PRIMARY_DB_ID);
+        return DB_CACHE_;
+      } catch(e2) {}
+    }
+    throw new Error('ไม่สามารถเปิดฐานข้อมูล Google Sheet ได้ (' + (e.message || targetId) + ')');
+  }
+}
+function sheet_(name) {
+  const ss = db_();
+  let sh = ss.getSheetByName(name);
+  if (sh) return sh;
+  const cleanTarget = clean_(name).toLowerCase();
+  const allSheets = ss.getSheets();
+  sh = allSheets.find(s => clean_(s.getName()).toLowerCase() === cleanTarget);
+  if (sh) return sh;
+  const schemaKey = Object.keys(APP.sheets).find(k => clean_(k).toLowerCase() === cleanTarget);
+  if (schemaKey) {
+    const cols = APP.sheets[schemaKey];
+    sh = ss.insertSheet(schemaKey);
+    sh.getRange(1, 1, 1, cols.length).setValues([cols]).setFontWeight('bold').setBackground('#f6c90e');
+    sh.setFrozenRows(1);
+    SpreadsheetApp.flush();
+    return sh;
+  }
+  throw new Error('ไม่พบชีต ' + name);
+}
+function rows_(name) {
+  const sh = sheet_(name);
+  const vals = sh.getDataRange().getValues();
+  if (!vals || vals.length <= 1) return [];
+  const rawHead = vals.shift();
+  const head = rawHead.map(h => clean_(h));
+  return vals
+    .filter(r => r && r.some(v => v !== ''))
+    .map(r => {
+      const obj = {};
+      head.forEach((h, i) => {
+        if (!h) return;
+        const val = r[i];
+        obj[h] = val;
+        const lower = h.toLowerCase();
+        if (obj[lower] === undefined) obj[lower] = val;
+        if (lower === 'passwordhash') obj.passwordHash = val;
+        if (lower === 'createdat') obj.createdAt = val;
+        if (lower === 'createdby') obj.createdBy = val;
+        if (lower === 'createdbyname') obj.createdByName = val;
+        if (lower === 'openingbalance') obj.openingBalance = val;
+        if (lower === 'baseunit') obj.baseUnit = val;
+        if (lower === 'sortorder') obj.sortOrder = val;
+        if (lower === 'weeklywage') obj.weeklyWage = val;
+        if (lower === 'employmenttype') obj.employmentType = val;
+        if (lower === 'employeeid') obj.employeeId = val;
+        if (lower === 'weekstart') obj.weekStart = val;
+        if (lower === 'weekend') obj.weekEnd = val;
+        if (lower === 'accountid') obj.accountId = val;
+        if (lower === 'transactionid') obj.transactionId = val;
+        if (lower === 'purchaseid') obj.purchaseId = val;
+        if (lower === 'productid') obj.productId = val;
+        if (lower === 'productname') obj.productName = val;
+        if (lower === 'productcategory') obj.productCategory = val;
+        if (lower === 'linetotal') obj.lineTotal = val;
+        if (lower === 'basequantity') obj.baseQuantity = val;
+        if (lower === 'baseunitprice') obj.baseUnitPrice = val;
+        if (lower === 'previousprice') obj.previousPrice = val;
+        if (lower === 'pricechangepct') obj.priceChangePct = val;
+        if (lower === 'paydate') obj.payDate = val;
+        if (lower === 'dailyrate') obj.dailyRate = val;
+        if (lower === 'paymentid') obj.paymentId = val;
+        if (lower === 'owneruserid') obj.ownerUserId = val;
+        if (lower === 'ownername') obj.ownerName = val;
+        if (lower === 'basewage') obj.baseWage = val;
+        if (lower === 'advancetotal') obj.advanceTotal = val;
+        if (lower === 'netpaid') obj.netPaid = val;
+        if (lower === 'paidat') obj.paidAt = val;
+        if (lower === 'referenceid') obj.referenceId = val;
+      });
+      return obj;
+    });
+}
 function cachedRows_(name, seconds) { if(Object.prototype.hasOwnProperty.call(ROWS_MEMO_,name))return ROWS_MEMO_[name];const cache=CacheService.getScriptCache(), key='rows:'+name, hit=cache.get(key); if(hit)return ROWS_MEMO_[name]=JSON.parse(hit); const data=rows_(name);ROWS_MEMO_[name]=data; const raw=JSON.stringify(data); if(raw.length<95000) cache.put(key,raw,seconds||300); return data; }
 function invalidateRows_(name) { delete ROWS_MEMO_[name];CacheService.getScriptCache().remove('rows:'+name);PropertiesService.getScriptProperties().setProperty('DATA_REVISION',String(Date.now())); }
 function append_(name,row) { sheet_(name).appendRow(row); }
