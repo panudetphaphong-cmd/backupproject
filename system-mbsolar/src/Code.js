@@ -1,5 +1,5 @@
 const APP = {
-  version: '2.33.0',
+  version: '2.34.0',
   maintenanceMode: true,
   spreadsheetId: '15wNWYPRNU3ozpuaQI4r_g2rYfwKSRwvWZV93jZGrDl4',
   sheets: {
