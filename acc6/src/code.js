@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.6.0',
+  version: '3.7.0',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -27,7 +27,7 @@ let MIGRATIONS_CHECKED_ = false;
 function runStartupMigrations_() {
   if (MIGRATIONS_CHECKED_) return;
   const cache = CacheService.getScriptCache();
-  if (cache.get('STARTUP_MIGRATIONS_DONE_V15') === '1') {
+  if (cache.get('STARTUP_MIGRATIONS_DONE_V16') === '1') {
     MIGRATIONS_CHECKED_ = true;
     return;
   }
@@ -41,7 +41,7 @@ function runStartupMigrations_() {
     ensureSeedEmployees_();
     cleanupOldSessionProperties_();
     MIGRATIONS_CHECKED_ = true;
-    cache.put('STARTUP_MIGRATIONS_DONE_V15', '1', 21600);
+    cache.put('STARTUP_MIGRATIONS_DONE_V16', '1', 21600);
   } catch(e) {}
 }
 
