@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.4.11',
+  version: '3.4.12',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -26,6 +26,11 @@ const PRIMARY_DB_ID = '1EN084DNwJjxZdStDABk0znC-rLAPMzlCtHsLqQ4TnRs';
 let MIGRATIONS_CHECKED_ = false;
 function runStartupMigrations_() {
   if (MIGRATIONS_CHECKED_) return;
+  const cache = CacheService.getScriptCache();
+  if (cache.get('STARTUP_MIGRATIONS_DONE_V14') === '1') {
+    MIGRATIONS_CHECKED_ = true;
+    return;
+  }
   try {
     ensureSchema_();
     ensureCurrentPayrollPendingMigration_();
@@ -35,6 +40,7 @@ function runStartupMigrations_() {
     ensureAdminUser_();
     cleanupOldSessionProperties_();
     MIGRATIONS_CHECKED_ = true;
+    cache.put('STARTUP_MIGRATIONS_DONE_V14', '1', 21600);
   } catch(e) {}
 }
 
@@ -42,14 +48,17 @@ function ensureAdminUser_() {
   const sh = sheet_('Users');
   const vals = sh.getDataRange().getValues();
   const adminHash = hash_('admin123');
+  const cols = APP.sheets.Users;
+
   if (!vals || vals.length === 0 || (vals.length === 1 && vals[0].every(x => x === ''))) {
-    const cols = APP.sheets.Users;
     sh.getRange(1, 1, 1, cols.length).setValues([cols]).setFontWeight('bold').setBackground('#f6c90e');
+    sh.setFrozenRows(1);
     append_('Users', [id_('USR'), 'admin', adminHash, 'บาส/แตงโม', 'OWNER', true, now_(), 'SYSTEM']);
     SpreadsheetApp.flush();
     invalidateRows_('Users');
     return;
   }
+
   const head = vals[0].map(h => clean_(h).toLowerCase());
   let uCol = head.indexOf('username');
   let pCol = head.indexOf('passwordhash');
@@ -67,15 +76,26 @@ function ensureAdminUser_() {
   const adminRowIdx = rows.findIndex(r => clean_(r[uCol]).toLowerCase() === 'admin');
 
   if (adminRowIdx >= 0) {
+    const r = rows[adminRowIdx];
+    const currentHash = clean_(r[pCol]);
+    const currentActive = truthy_(r[aCol]);
+    const currentRole = clean_(r[rCol]).toUpperCase();
+    const currentName = clean_(r[nCol]);
+
+    // If admin is already completely valid, do nothing and return immediately!
+    if (currentHash === adminHash && currentActive && currentRole === 'OWNER' && currentName) {
+      return;
+    }
+
     const rowNum = adminRowIdx + 2;
     sh.getRange(rowNum, pCol + 1).setValue(adminHash);
     sh.getRange(rowNum, aCol + 1).setValue(true);
     if (rCol >= 0) sh.getRange(rowNum, rCol + 1).setValue('OWNER');
-    if (nCol >= 0 && !clean_(rows[adminRowIdx][nCol])) sh.getRange(rowNum, nCol + 1).setValue('บาส/แตงโม');
+    if (nCol >= 0 && !currentName) sh.getRange(rowNum, nCol + 1).setValue('บาส/แตงโม');
     SpreadsheetApp.flush();
     invalidateRows_('Users');
   } else {
-    const ownerRowIdx = rows.findIndex(r => clean_(r[rCol]).toUpperCase() === 'OWNER');
+    const ownerRowIdx = rCol >= 0 ? rows.findIndex(r => clean_(r[rCol]).toUpperCase() === 'OWNER') : -1;
     if (ownerRowIdx >= 0) {
       const rowNum = ownerRowIdx + 2;
       sh.getRange(rowNum, uCol + 1).setValue('admin');
@@ -84,14 +104,14 @@ function ensureAdminUser_() {
       if (nCol >= 0 && !clean_(rows[ownerRowIdx][nCol])) sh.getRange(rowNum, nCol + 1).setValue('บาส/แตงโม');
     } else {
       const newRow = [];
-      const len = Math.max(8, head.length);
+      const len = Math.max(cols.length, head.length);
       for (let c = 0; c < len; c++) newRow.push('');
       newRow[0] = id_('USR');
       newRow[uCol] = 'admin';
       newRow[pCol] = adminHash;
-      newRow[nCol] = 'บาส/แตงโม';
-      newRow[rCol] = 'OWNER';
-      newRow[aCol] = true;
+      if (nCol >= 0) newRow[nCol] = 'บาส/แตงโม';
+      if (rCol >= 0) newRow[rCol] = 'OWNER';
+      if (aCol >= 0) newRow[aCol] = true;
       if (head.indexOf('createdat') >= 0) newRow[head.indexOf('createdat')] = now_();
       if (head.indexOf('createdby') >= 0) newRow[head.indexOf('createdby')] = 'SYSTEM';
       sh.appendRow(newRow);
@@ -233,25 +253,23 @@ function login_(data) {
   const password = String(data && data.password != null ? data.password : '');
   if (!username || !password) throw new Error('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
 
-  if (username === 'admin') {
-    try {
-      ensureAdminUser_();
-    } catch(e) {
-      console.error('ensureAdminUser_ failed:', e);
-    }
-    invalidateRows_('Users');
-  }
-
-  let users = rows_('Users');
+  const pwdHash = hash_(password);
+  let users = cachedRows_('Users', 600);
   let user = users.find(r => clean_(r.username || r.Username).toLowerCase() === username);
 
-  if (username === 'admin' && (!user || String(user.passwordHash || '') !== hash_('admin123') || !truthy_(user.active != null ? user.active : user.Active))) {
-    try {
-      ensureAdminUser_();
-      invalidateRows_('Users');
+  if (username === 'admin') {
+    const adminHash = hash_('admin123');
+    const storedHash = user ? String(user.passwordHash || user.passwordhash || user.PasswordHash || '') : '';
+    const isActive = user ? truthy_(user.active != null ? user.active : user.Active) : false;
+    if (!user || storedHash !== adminHash || !isActive) {
+      try {
+        ensureAdminUser_();
+      } catch(e) {
+        console.error('ensureAdminUser_ failed:', e);
+      }
       users = rows_('Users');
       user = users.find(r => clean_(r.username || r.Username).toLowerCase() === 'admin');
-    } catch(e) {}
+    }
   }
 
   if (!user) {
@@ -261,7 +279,7 @@ function login_(data) {
     throw new Error('บัญชีผู้ใช้ "' + username + '" ถูกระงับการใช้งาน');
   }
   const storedHash = String(user.passwordHash || user.passwordhash || user.PasswordHash || '');
-  if (storedHash !== hash_(password)) {
+  if (storedHash !== pwdHash) {
     throw new Error('รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบรหัสผ่านอีกครั้ง');
   }
 
@@ -275,8 +293,6 @@ function login_(data) {
   const sessionRaw = JSON.stringify(sessionUser);
   CacheService.getScriptCache().put('session:' + token, sessionRaw, 21600);
 
-  // Authentication must not be reported as failed merely because the first
-  // (large) dashboard bootstrap temporarily fails or times out.
   let appData = null;
   try {
     appData = bootstrap_(sessionUser).data;
@@ -297,31 +313,32 @@ function logout_(token) {
 }
 
 function bootstrap_(user) {
-  const props=PropertiesService.getScriptProperties();
-  const revision=props.getProperty('DATA_REVISION')||'0';
-  const day=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyyMMdd');
-  const cache=CacheService.getScriptCache();
-  const key=['bootstrap',APP.version,user.id,user.role,revision,day].join(':');
-  const hit=cache.get(key);
-  if(hit){try{return JSON.parse(hit)}catch(e){cache.remove(key)}}
-  const result=buildBootstrap_(user);
-  const raw=JSON.stringify(result);
-  if(raw.length<95000)cache.put(key,raw,120);
+  const props = PropertiesService.getScriptProperties();
+  const revision = props.getProperty('DATA_REVISION') || '0';
+  const day = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
+  const key = ['bootstrap', APP.version, user.id, user.role, revision, day].join(':');
+  const hit = cacheGetChunked_(key);
+  if (hit) {
+    try { return JSON.parse(hit); } catch(e) {}
+  }
+  const result = buildBootstrap_(user);
+  const raw = JSON.stringify(result);
+  cachePutChunked_(key, raw, 600);
   return result;
 }
 function safeBootstrap_(user){try{return bootstrap_(user).data}catch(e){return null}}
 
 function buildBootstrap_(user) {
   runStartupMigrations_();
-  const latestUser=cachedRows_('Users',120).find(x=>x.id===user.id);if(latestUser)user={...publicUser_(latestUser),sessionVersion:user.sessionVersion};
+  const latestUser=cachedRows_('Users',600).find(x=>x.id===user.id);if(latestUser)user={...publicUser_(latestUser),sessionVersion:user.sessionVersion};
   const canViewFinance=canViewFinance_(user);
-  const accountRows = cachedRows_('Accounts', 600).filter(x => truthy_(x.active));
+  const accountRows = cachedRows_('Accounts', 1800).filter(x => truthy_(x.active));
   const accounts = canViewFinance ? accountRows : accountRows.map(x=>({id:x.id,name:x.name,type:x.type,active:true}));
-  const allCategories = cachedRows_('Categories', 600).sort((a,b)=>(num_(a.sortOrder)||999)-(num_(b.sortOrder)||999));
+  const allCategories = cachedRows_('Categories', 1800).sort((a,b)=>(num_(a.sortOrder)||999)-(num_(b.sortOrder)||999));
   const categories = allCategories.filter(x => truthy_(x.active));
-  const confirmedPurchaseIds=new Set(cachedRows_('Purchases',60).filter(x=>x.status==='CONFIRMED').map(x=>x.id)),pricePairs={};cachedRows_('PurchaseItems',60).filter(x=>confirmedPurchaseIds.has(x.purchaseId)).forEach(x=>{const list=pricePairs[x.productId]||(pricePairs[x.productId]=[]);list.push(num_(x.baseUnitPrice));if(list.length>2)list.shift()});
-  const products = cachedRows_('Products', 120).filter(x => truthy_(x.active)).map(x=>{const prices=pricePairs[x.id]||[],latest=prices.length?prices[prices.length-1]:null,previous=prices.length>1?prices[prices.length-2]:null,priceChange=previous?round_((latest-previous)/previous*100):null;return{...x,latestPrice:latest,previousPrice:previous,priceChange}});
-  const allTransactions = dedupeRows_(cachedRows_('Transactions', 30),['date','type','category','accountId','amount','note','createdBy','status']);
+  const confirmedPurchaseIds=new Set(cachedRows_('Purchases',1800).filter(x=>x.status==='CONFIRMED').map(x=>x.id)),pricePairs={};cachedRows_('PurchaseItems',1800).filter(x=>confirmedPurchaseIds.has(x.purchaseId)).forEach(x=>{const list=pricePairs[x.productId]||(pricePairs[x.productId]=[]);list.push(num_(x.baseUnitPrice));if(list.length>2)list.shift()});
+  const products = cachedRows_('Products', 1800).filter(x => truthy_(x.active)).map(x=>{const prices=pricePairs[x.id]||[],latest=prices.length?prices[prices.length-1]:null,previous=prices.length>1?prices[prices.length-2]:null,priceChange=previous?round_((latest-previous)/previous*100):null;return{...x,latestPrice:latest,previousPrice:previous,priceChange}});
+  const allTransactions = dedupeRows_(cachedRows_('Transactions', 1800),['date','type','category','accountId','amount','note','createdBy','status']);
   const tx = allTransactions.filter(x => x.status === 'CONFIRMED');
   const movements={};
   if(canViewFinance) tx.forEach(t=>{movements[t.accountId]=(movements[t.accountId]||0)+(t.type==='INCOME'?num_(t.amount):-num_(t.amount));});
@@ -1013,8 +1030,77 @@ function rows_(name) {
       return obj;
     });
 }
-function cachedRows_(name, seconds) { if(Object.prototype.hasOwnProperty.call(ROWS_MEMO_,name))return ROWS_MEMO_[name];const cache=CacheService.getScriptCache(), key='rows:'+name, hit=cache.get(key); if(hit)return ROWS_MEMO_[name]=JSON.parse(hit); const data=rows_(name);ROWS_MEMO_[name]=data; const raw=JSON.stringify(data); if(raw.length<95000) cache.put(key,raw,seconds||300); return data; }
-function invalidateRows_(name) { delete ROWS_MEMO_[name];CacheService.getScriptCache().remove('rows:'+name);PropertiesService.getScriptProperties().setProperty('DATA_REVISION',String(Date.now())); }
+function cachePutChunked_(key, str, seconds) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const chunkSize = 90000;
+    if (str.length <= chunkSize) {
+      cache.put(key, str, seconds || 600);
+      cache.remove(key + ':c');
+      return;
+    }
+    const count = Math.ceil(str.length / chunkSize);
+    const map = {};
+    for (let i = 0; i < count; i++) {
+      map[key + ':' + i] = str.substring(i * chunkSize, (i + 1) * chunkSize);
+    }
+    map[key + ':c'] = String(count);
+    cache.putAll(map, seconds || 600);
+  } catch(e) {}
+}
+
+function cacheGetChunked_(key) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const countStr = cache.get(key + ':c');
+    if (!countStr) {
+      return cache.get(key);
+    }
+    const count = parseInt(countStr, 10);
+    if (isNaN(count) || count <= 0) return null;
+    const keys = [];
+    for (let i = 0; i < count; i++) keys.push(key + ':' + i);
+    const map = cache.getAll(keys);
+    let res = '';
+    for (let i = 0; i < count; i++) {
+      const part = map[key + ':' + i];
+      if (part == null) return null;
+      res += part;
+    }
+    return res;
+  } catch(e) {
+    return null;
+  }
+}
+
+function cachedRows_(name, seconds) {
+  if (Object.prototype.hasOwnProperty.call(ROWS_MEMO_, name)) return ROWS_MEMO_[name];
+  const key = 'rows:' + name;
+  const hit = cacheGetChunked_(key);
+  if (hit) {
+    try {
+      const parsed = JSON.parse(hit);
+      ROWS_MEMO_[name] = parsed;
+      return parsed;
+    } catch(e) {}
+  }
+  const data = rows_(name);
+  ROWS_MEMO_[name] = data;
+  const raw = JSON.stringify(data);
+  cachePutChunked_(key, raw, seconds || 1800);
+  return data;
+}
+
+function invalidateRows_(name) {
+  delete ROWS_MEMO_[name];
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove('rows:' + name);
+    cache.remove('rows:' + name + ':c');
+    for (let i = 0; i < 10; i++) cache.remove('rows:' + name + ':' + i);
+  } catch(e) {}
+  PropertiesService.getScriptProperties().setProperty('DATA_REVISION', String(Date.now()));
+}
 function append_(name,row) { sheet_(name).appendRow(row); }
 function appendRows_(name, rows) { if(!rows.length) return; const sh=sheet_(name); sh.getRange(sh.getLastRow()+1,1,rows.length,rows[0].length).setValues(rows); }
 function deleteRowById_(name,id){if(!id)return;const sh=sheet_(name),values=sh.getDataRange().getValues(),index=values.findIndex((row,i)=>i>0&&row[0]===id);if(index>0)sh.deleteRow(index+1)}
