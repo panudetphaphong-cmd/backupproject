@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.10.2',
+  version: '3.10.3',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -394,10 +394,32 @@ function buildBootstrap_(user) {
     ,managerOverview:user.role==='MANAGER'?summarize(month):null
     ,managerPeriods
     ,managerHistory:user.role==='MANAGER'?visibleTransactions.filter(x=>x.status==='CONFIRMED').slice(0,200):[]
-    ,employees: cachedRows_('Employees', 600).filter(x => x.name).map(x => ({ id: x.id, name: clean_(x.name) }))
+    ,employees: buildEmployees_()
     ,dividends:buildDividends_()
     ,revision:PropertiesService.getScriptProperties().getProperty('DATA_REVISION')||'0'
   });
+}
+
+function buildEmployees_(){
+  const raw=cachedRows_('Employees',600).filter(x=>clean_(x.name));
+  const seen=new Set();
+  const list=[];
+  raw.forEach(x=>{
+    const name=clean_(x.name);
+    const key=name.toLowerCase();
+    if(!seen.has(key)){
+      seen.add(key);
+      list.push({
+        id:x.id,
+        name:name,
+        position:clean_(x.position)||'พนักงานทั่วไป',
+        weeklyWage:num_(x.weeklyWage),
+        employmentType:clean_(x.employmentType)||'FULL_TIME',
+        note:clean_(x.note)||''
+      });
+    }
+  });
+  return list;
 }
 
 function buildDividends_(){
@@ -531,10 +553,43 @@ function getWagePaymentQuote_(user,data){
 }
 
 function saveEmployee_(user,data){
-  if(!canAdminUsers_(user))throw new Error('เฉพาะเจ้าของร้านหรือแอดมินเท่านั้น');const name=clean_(data.name),position=clean_(data.position),employmentType=clean_(data.employmentType),wage=round_(num_(data.weeklyWage));if(name.length<2||position.length<2||wage<=0)throw new Error('กรุณาระบุชื่อ ตำแหน่ง และค่าจ้างให้ถูกต้อง');if(!['FULL_TIME','PART_TIME'].includes(employmentType))throw new Error('ประเภทการจ้างไม่ถูกต้อง');const sh=sheet_('Employees'),v=sh.getDataRange().getValues(),head=v[0],pi=head.indexOf('position')+1,ti=head.indexOf('employmentType')+1;if(data.id){const i=v.findIndex((r,n)=>n>0&&r[0]===data.id);if(i<0)throw new Error('ไม่พบพนักงาน');sh.getRange(i+1,2).setValue(name);sh.getRange(i+1,3).setValue(wage);sh.getRange(i+1,pi).setValue(position);sh.getRange(i+1,ti).setValue(employmentType);audit_(user,'UPDATE','EMPLOYEE',data.id,name)}else{const id=id_('EMP');append_('Employees',[id,name,wage,'',now_(),user.id,position,employmentType]);audit_(user,'CREATE','EMPLOYEE',id,name)}invalidateRows_('Employees');return ok({refresh:bootstrap_(user).data});
+  if(!canAdminUsers_(user)&&!canManage_(user))throw new Error('เฉพาะเจ้าของร้าน แอดมิน หรือผู้จัดการเท่านั้น');
+  const name=clean_(data.name),position=clean_(data.position)||'พนักงานทั่วไป',employmentType=clean_(data.employmentType)||'FULL_TIME',wage=round_(num_(data.weeklyWage));
+  if(name.length<2)throw new Error('กรุณาระบุชื่อพนักงานอย่างน้อย 2 ตัวอักษร');
+  if(!['FULL_TIME','PART_TIME'].includes(employmentType))throw new Error('ประเภทการจ้างไม่ถูกต้อง');
+  const sh=sheet_('Employees'),v=sh.getDataRange().getValues(),head=v[0],pi=head.indexOf('position')+1,ti=head.indexOf('employmentType')+1;
+  const isDuplicate=v.some((r,n)=>n>0&&clean_(r[1]).toLowerCase()===name.toLowerCase()&&(!data.id||r[0]!==data.id));
+  if(isDuplicate)throw new Error('มีพนักงานชื่อ "'+name+'" อยู่ในระบบแล้ว');
+  if(data.id){
+    const i=v.findIndex((r,n)=>n>0&&r[0]===data.id);
+    if(i<0)throw new Error('ไม่พบพนักงาน');
+    sh.getRange(i+1,2).setValue(name);
+    sh.getRange(i+1,3).setValue(wage);
+    if(pi>0)sh.getRange(i+1,pi).setValue(position);
+    if(ti>0)sh.getRange(i+1,ti).setValue(employmentType);
+    if(data.note!=null)sh.getRange(i+1,4).setValue(clean_(data.note));
+    SpreadsheetApp.flush();
+    invalidateRows_('Employees');
+    audit_(user,'UPDATE','EMPLOYEE',data.id,name);
+  }else{
+    const id=id_('EMP');
+    append_('Employees',[id,name,wage,clean_(data.note)||'',now_(),user.id,position,employmentType]);
+    SpreadsheetApp.flush();
+    invalidateRows_('Employees');
+    audit_(user,'CREATE','EMPLOYEE',id,name);
+  }
+  return ok({refresh:bootstrap_(user).data});
 }
 function deleteEmployee_(user,data){
-  if(!canAdminUsers_(user))throw new Error('ไม่มีสิทธิ์ลบพนักงาน');if(rows_('WageAdvances').some(x=>x.employeeId===data.id)||rows_('WageOvertime').some(x=>x.employeeId===data.id)||rows_('WagePayments').some(x=>x.employeeId===data.id))throw new Error('พนักงานนี้มีประวัติค่าจ้างแล้ว จึงไม่สามารถลบได้');const sh=sheet_('Employees'),v=sh.getDataRange().getValues(),i=v.findIndex((r,n)=>n>0&&r[0]===data.id);if(i<0)throw new Error('ไม่พบพนักงาน');sh.deleteRow(i+1);invalidateRows_('Employees');audit_(user,'DELETE','EMPLOYEE',data.id,'');return ok({refresh:bootstrap_(user).data});
+  if(!canAdminUsers_(user)&&!canManage_(user))throw new Error('ไม่มีสิทธิ์ลบพนักงาน');
+  if(rows_('WageAdvances').some(x=>x.employeeId===data.id)||rows_('WageOvertime').some(x=>x.employeeId===data.id)||rows_('WagePayments').some(x=>x.employeeId===data.id))throw new Error('พนักงานนี้มีประวัติค่าจ้างแล้ว จึงไม่สามารถลบได้');
+  const sh=sheet_('Employees'),v=sh.getDataRange().getValues(),i=v.findIndex((r,n)=>n>0&&r[0]===data.id);
+  if(i<0)throw new Error('ไม่พบพนักงาน');
+  sh.deleteRow(i+1);
+  SpreadsheetApp.flush();
+  invalidateRows_('Employees');
+  audit_(user,'DELETE','EMPLOYEE',data.id,'');
+  return ok({refresh:bootstrap_(user).data});
 }
 function saveWageAdvance_(user,data){
   if(!canAdminUsers_(user))throw new Error('ไม่มีสิทธิ์บันทึกเงินเบิก');const lock=LockService.getScriptLock();lock.waitLock(20000);try{const employee=rows_('Employees').find(x=>x.id===data.employeeId),account=rows_('Accounts').find(x=>x.id===data.accountId&&truthy_(x.active)),amount=round_(num_(data.amount)),date=validDate_(data.date),week=payrollWeek_();if(!employee||!account||amount<=0)throw new Error('ข้อมูลการเบิกเงินไม่ถูกต้อง');if(date<week.start||date>week.end)throw new Error('วันที่เบิกต้องอยู่ในรอบสัปดาห์ปัจจุบัน');if(activeWagePayments_(rows_('WagePayments')).some(x=>x.employeeId===employee.id&&paymentWeekStart_(x)===week.start))throw new Error('พนักงานคนนี้ปิดรอบจ่ายแล้ว');const advances=rows_('WageAdvances'),duplicate=advances.find(x=>x.employeeId===employee.id&&dateKey_(x.date)===date&&num_(x.amount)===amount&&x.accountId===account.id&&x.createdBy===user.id&&recentWrite_(x.createdAt));if(duplicate)return ok({id:duplicate.id,duplicate:true,refresh:bootstrap_(user).data});const used=advances.filter(x=>x.employeeId===employee.id&&dateKey_(x.weekStart)===week.start).reduce((s,x)=>s+num_(x.amount),0),ot=rows_('WageOvertime').filter(x=>x.employeeId===employee.id&&dateKey_(x.weekStart)===week.start).reduce((s,x)=>s+num_(x.amount),0),available=employee.employmentType==='PART_TIME'?wagePaymentQuote_(employee,week.start).netBeforeAdjustment:num_(employee.weeklyWage)+ot-used;if(amount>available)throw new Error('ยอดเบิกมากกว่ายอดค่าจ้างที่เหลือ');const id=id_('ADV'),tx=id_('TX'),note=clean_(data.note)||('เบิกค่าจ้างล่วงหน้า '+employee.name),stamp=now_();try{append_('Transactions',[tx,date,'EXPENSE','CAT-WAGE',account.id,amount,note,id,stamp,user.id,user.name,'CONFIRMED']);append_('WageAdvances',[id,employee.id,week.start,date,amount,account.id,tx,note,stamp,user.id,user.name]);SpreadsheetApp.flush()}catch(e){deleteRowById_('Transactions',tx);deleteRowById_('WageAdvances',id);throw e}invalidateRows_('Transactions');invalidateRows_('WageAdvances');try{audit_(user,'CREATE','WAGE_ADVANCE',id,employee.name+' '+amount)}catch(e){}return ok({id,refresh:bootstrap_(user).data})}finally{lock.releaseLock()}
