@@ -556,9 +556,8 @@
         }
         /* Subtabs for Entry Hub */
         .entry-subtabs {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
+            display: flex;
+            gap: 5px;
             margin: 10px 0 16px;
             padding: 4px;
             background: #f4f1dc;
@@ -566,6 +565,8 @@
             border-radius: 16px;
         }
         .entry-subtab {
+            flex: 1 1 0;
+            min-width: 0;
             border: 0;
             border-radius: 12px;
             background: transparent;
@@ -576,6 +577,9 @@
             white-space: nowrap;
             text-align: center;
             cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.15s ease;
         }
         .entry-subtab.active {
             background: #fff;
@@ -585,7 +589,12 @@
         }
         @media(max-width: 440px) {
             .entry-subtabs {
-                grid-template-columns: repeat(3, 1fr);
+                gap: 4px;
+                padding: 3px;
+            }
+            .entry-subtab {
+                font-size: 11px;
+                padding: 8px 2px;
             }
         }
         /* Smart Quick Input Card */
@@ -935,9 +944,10 @@
             <section id="page-entry" class="hidden">
                 <div class="title">ศูนย์รายรับ–รายจ่าย</div>
                 <div class="entry-subtabs">
-                    <button id="entrySubTabQuick" class="entry-subtab active" onclick="switchEntrySubTab('quick')">⚡ พิมพ์ด่วน (รวมค่าจ้าง)</button>
-                    <button id="entrySubTabBuy" class="entry-subtab" onclick="switchEntrySubTab('buy')">🛒 ซื้อของ &amp; เช็กราคา</button>
-                    <button id="entrySubTabHistory" class="entry-subtab" onclick="switchEntrySubTab('history')">📜 ประวัติรายรับ–จ่าย</button>
+                    <button id="entrySubTabQuick" class="entry-subtab active" onclick="switchEntrySubTab('quick')">⚡ พิมพ์ด่วน</button>
+                    <button id="entrySubTabDividend" class="entry-subtab hidden" onclick="switchEntrySubTab('dividend')">💎 ปันผลเจ้าของ</button>
+                    <button id="entrySubTabBuy" class="entry-subtab" onclick="switchEntrySubTab('buy')">🛒 ซื้อของ</button>
+                    <button id="entrySubTabHistory" class="entry-subtab" onclick="switchEntrySubTab('history')">📜 ประวัติ</button>
                 </div>
 
                 <!-- Sub-section 1: Smart Quick Input -->
@@ -988,14 +998,16 @@
                             <button id="smartSaveBtn" class="btn full" style="margin-top:10px" onclick="saveSmartParsed()">💾 บันทึกทุกรายการทันที</button>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Owner-only Dividend Section with Glass Tube Taskbar -->
-                    <div id="ownerDividendSection" class="card owner-dividend-card hidden" style="margin-top:16px">
+                <!-- Sub-section: Owner Dividend with Glass Tube Taskbar -->
+                <div id="entrySectionDividend" class="entry-section hidden">
+                    <div class="card owner-dividend-card">
                         <!-- Glass Tube Progress Taskbar Header -->
                         <div class="dividend-head">
                             <div>
-                                <b>🧪 เป้าหมายเงินปันผลเจ้าของร้าน</b>
-                                <div class="muted">หลอดแก้วแสดงความคืบหน้าการปันผลเทียบกับเป้าหมาย</div>
+                                <b style="font-size:16px">🧪 หลอดแก้วเป้าหมายปันผล</b>
+                                <div class="muted" style="font-size:12px">ติดตามความคืบหน้าเงินปันผลสู่เป้าหมายของร้าน</div>
                             </div>
                             <button type="button" class="mini-btn" style="border-radius:12px;padding:6px 12px;background:#fef3c7;color:#92400e;border:1.5px solid #fde68a;font-weight:800;cursor:pointer" onclick="promptDividendTarget()">
                                 🎯 ตั้งเป้า: <strong id="dividendTargetBadge">฿100,000</strong> ✏️
@@ -1006,6 +1018,7 @@
                         <div class="glass-tube-container">
                             <div class="glass-tube-glare"></div>
                             <div class="glass-tube-ticks">
+                                <span class="glass-tube-tick"></span>
                                 <span class="glass-tube-tick"></span>
                                 <span class="glass-tube-tick"></span>
                                 <span class="glass-tube-tick"></span>
@@ -1030,15 +1043,15 @@
                             </div>
                         </div>
 
-                        <div style="margin:16px 0 12px;border-top:1px dashed #ebdca3"></div>
+                        <div style="margin:16px 0 14px;border-top:1px dashed #ebdca3"></div>
 
                         <!-- Dividend Payment Action Form -->
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                            <b>💸 บันทึกจ่ายเงินปันผล</b>
-                            <span class="pill" style="background:#fef3c7;color:#92400e">เฉพาะเจ้าของร้าน</span>
+                            <b style="font-size:15px">💸 บันทึกจ่ายเงินปันผล</b>
+                            <span class="pill" style="background:#fef3c7;color:#92400e;font-size:11px">เฉพาะเจ้าของร้าน</span>
                         </div>
                         <div class="notice" style="margin-bottom:12px;font-size:12px">
-                            ยอดที่บันทึกจะถูกหักออกจากบัญชีจริง และบันทึกในประวัติรายรับ–จ่ายทันที
+                            ยอดเงินที่บันทึกจะถูกหักออกจากบัญชีจริงทันที และบันทึกในประวัติรายรับ–จ่ายอัตโนมัติ
                         </div>
 
                         <!-- 1. Owner Selection Chips (like employee chips) -->
@@ -1057,7 +1070,7 @@
                             <button type="button" class="mini-btn" style="border-radius:12px;padding:4px 9px;font-size:12px;background:#fef9c3;color:#854d0e;border:1px solid #fde047" onclick="addDividendAmount(100000)">+100,000</button>
                             <button type="button" class="mini-btn" style="border-radius:12px;padding:4px 8px;font-size:11px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5" onclick="$('dividendAmount').value=''">ล้าง</button>
                         </div>
-                        <input id="dividendAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" style="font-size:16px;font-weight:700">
+                        <input id="dividendAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" style="font-size:17px;font-weight:750">
 
                         <!-- 3. Balanced Grid: Date & Account -->
                         <div class="row" style="margin-top:10px">
@@ -1073,17 +1086,16 @@
 
                         <!-- 4. Note -->
                         <label class="label">รายละเอียด / หมายเหตุ (ถ้ามี)</label>
-                        <input id="dividendNote" placeholder="เช่น เงินปันผลเดือนกันยายน หรือ ประจำสัปดาห์">
+                        <input id="dividendNote" placeholder="เช่น เงินปันผลเดือนตุลาคม หรือ ประจำสัปดาห์">
 
                         <!-- 5. Submit Button -->
-                        <div class="spacer"></div>
-                        <button id="saveDividendBtn" class="btn full" style="margin-top:8px;background:linear-gradient(135deg, #f59e0b, #f6c90e);font-weight:900" onclick="saveDividend()">💸 ตรวจสอบและบันทึกจ่ายปันผล</button>
+                        <button id="saveDividendBtn" class="btn full" style="margin-top:14px;background:linear-gradient(135deg, #f59e0b, #f6c90e);font-weight:900" onclick="saveDividend()">💸 ตรวจสอบและบันทึกจ่ายปันผล</button>
 
-                        <!-- 6. Collapsible Dividend History -->
-                        <details id="dividendHistoryAccordion" class="catalog-manager" style="margin-top:16px" open>
-                            <summary style="font-size:13px;font-weight:800">📜 ประวัติการปันผล (<span id="dividendHistoryCount">0</span> รายการ)</summary>
-                            <div id="dividendHistory" class="activity-list" style="margin-top:10px"></div>
-                        </details>
+                        <!-- 6. History Trigger Button (เมื่ออยากดูค่อยกดมาดูครับ) -->
+                        <button type="button" class="btn light full" onclick="openDividendHistoryModal()" style="margin-top:12px;border-radius:14px;background:#fdfcf7;border:1.5px solid #e8e3d1;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:750;color:#5c5437;padding:12px 16px">
+                            <span style="font-size:16px">📜</span>
+                            <span>ดูประวัติการปันผล (<strong id="dividendHistoryCount">0</strong> รายการ)</span>
+                        </button>
                     </div>
                 </div>
 
@@ -1359,12 +1371,13 @@
             }
         };
         function switchEntrySubTab(tab) {
-            ['quick', 'buy', 'history'].forEach(t => {
+            ['quick', 'dividend', 'buy', 'history'].forEach(t => {
                 const btn = $('entrySubTab' + t.charAt(0).toUpperCase() + t.slice(1));
                 const sec = $('entrySection' + t.charAt(0).toUpperCase() + t.slice(1));
                 if (btn) btn.classList.toggle('active', t === tab);
                 if (sec) sec.classList.toggle('hidden', t !== tab);
             });
+            if (tab === 'dividend') renderDividends();
         }
         function showPageAndSub(pageName, subName) {
             const tab = document.querySelector(`[data-page="${pageName}"]`);
@@ -1700,9 +1713,13 @@
         async function runFinancialComparison(){try{const periods=comparisonPeriods();if(!periods.periodA.start||!periods.periodA.end||!periods.periodB.start||!periods.periodB.end)throw new Error('กรุณาเลือกช่วงเวลาให้ครบ');const r=await call('compareFinancialPeriods',{data:periods}),a=r.first,b=r.second,c=r.changes,max=Math.max(a.income,a.expense,Math.abs(a.net),b.income,b.expense,Math.abs(b.net),1),netWord=c.net.amount>=0?'เงินสุทธิเพิ่มขึ้น':'เงินสุทธิลดลง';$('analysisResult').classList.remove('hidden');$('analysisResult').innerHTML=`<div class="analysis-result-head"><h3>${esc(a.label)} เทียบกับ ${esc(b.label)}</h3><div class="analysis-summary">${netWord} <b>${money(Math.abs(c.net.amount))}</b>${c.net.pct===null?'':' หรือ '+Math.abs(c.net.pct).toFixed(1)+'%'}</div></div><div class="compare-table"><div class="compare-row header"><span>รายการ</span><span>${esc(a.label)}</span><span>${esc(b.label)}</span><span>เปลี่ยนแปลง</span></div>${[['รายรับ','income',false],['รายจ่าย','expense',true],['เงินสุทธิ','net',false]].map(x=>`<div class="compare-row"><b>${x[0]}</b><span>${money(a[x[1]])}</span><span><b>${money(b[x[1]])}</b><div class="compare-bars"><i style="width:${Math.abs(a[x[1]])/max*100}%"></i><b style="width:${Math.abs(b[x[1]])/max*100}%"></b></div></span><b>${changeDisplay(c[x[1]],x[2])}</b></div>`).join('')}</div>`;$('analysisResult').scrollIntoView({behavior:'smooth',block:'start'})}catch(e){alertError(e.message)}}
         function renderDividends() {
             const isOwner = S.data && S.data.user && S.data.user.role === 'OWNER';
-            const sec = $('ownerDividendSection');
-            if (sec) sec.classList.toggle('hidden', !isOwner);
-            if (!isOwner) return;
+            const tabBtn = $('entrySubTabDividend');
+            if (tabBtn) tabBtn.classList.toggle('hidden', !isOwner);
+            const sec = $('entrySectionDividend');
+            if (!isOwner) {
+                if (sec) sec.classList.add('hidden');
+                return;
+            }
 
             const d = S.data.dividends;
             if (!d) return;
@@ -1741,14 +1758,48 @@
             if ($('glassTubePctText')) $('glassTubePctText').textContent = pct.toFixed(1) + '%';
             if ($('glassTubeFill')) $('glassTubeFill').style.width = cappedPct.toFixed(1) + '%';
 
-            // 4. Dividend History List
+            // 4. Dividend History Count Button
             if ($('dividendHistoryCount')) $('dividendHistoryCount').textContent = d.history.length;
-            const histEl = $('dividendHistory');
-            if (histEl) {
-                histEl.innerHTML = d.history.length ? d.history.map(x =>
-                    `<div class="activity"><div class="activity-icon" style="background:#fef3c7;color:#d97706">↗</div><div class="activity-main"><b>${esc(x.ownerName)}</b><div class="activity-meta">${esc(x.date)} · ${esc(x.accountName)} · บันทึกโดย ${esc(x.createdByName)}</div>${x.note?`<div class="muted">${esc(x.note)}</div>`:''}</div><div class="activity-amount negative">−${money(x.amount)}</div></div>`
-                ).join('') : '<div class="card muted" style="text-align:center;padding:14px">ยังไม่มีประวัติการจ่ายเงินปันผล</div>';
-            }
+        }
+
+        function openDividendHistoryModal() {
+            const d = S.data && S.data.dividends;
+            if (!d) return;
+            const history = d.history || [];
+            const totalPaid = Number(d.totalPaid || 0);
+
+            const historyHtml = history.length ? history.map(x => `
+                <div class="activity" style="padding:11px 13px;border-radius:14px;margin-bottom:8px;background:#fff;border:1px solid #ebe8dc">
+                    <div class="activity-icon" style="background:#fef3c7;color:#d97706;width:38px;height:38px;font-size:16px">↗</div>
+                    <div class="activity-main">
+                        <b style="font-size:13px">${esc(x.ownerName)}</b>
+                        <div class="activity-meta" style="font-size:11px">${esc(x.date)} · ${esc(x.accountName)}</div>
+                        ${x.note ? `<div class="muted" style="font-size:11px;margin-top:2px">${esc(x.note)}</div>` : ''}
+                        <div class="activity-meta" style="font-size:10px;color:#a8a29e">บันทึกโดย ${esc(x.createdByName || '-')}</div>
+                    </div>
+                    <div class="activity-amount negative" style="font-size:14px;font-weight:800">−${money(x.amount)}</div>
+                </div>
+            `).join('') : '<div class="card muted" style="text-align:center;padding:16px">ยังไม่มีประวัติการจ่ายเงินปันผล</div>';
+
+            Swal.fire({
+                customClass: { popup: 'compact-modal' },
+                title: '📜 ประวัติการปันผลเจ้าของร้าน',
+                html: `
+                    <div style="text-align:left">
+                        <div style="display:flex;justify-content:space-between;align-items:center;background:#fffdf0;border:1px solid #ebdca3;border-radius:14px;padding:10px 14px;margin-bottom:12px">
+                            <div>
+                                <small style="color:var(--muted);font-size:11px;display:block">ยอดปันผลรวมทั้งหมด</small>
+                                <strong class="positive" style="font-size:17px">${money(totalPaid)}</strong>
+                            </div>
+                            <span class="pill" style="background:#fef3c7;color:#92400e;font-size:11px">${history.length} รายการ</span>
+                        </div>
+                        <div style="max-height:360px;overflow-y:auto;padding-right:2px">
+                            ${historyHtml}
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'ปิด'
+            });
         }
 
         function selectDividendOwner(id) {
@@ -1846,8 +1897,8 @@
             }
         }
 
-        function showPage(name, el) { if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll')return showPageAndSub('entry','quick');if(name==='dividends')return showPageAndSub('entry','quick');document.querySelectorAll('[id^="page-"]').forEach(x => x.classList.add('hidden')); const target=$('page-' + name); if(target)target.classList.remove('hidden'); document.querySelectorAll('.tab').forEach(x => x.classList.remove('active')); if(el)el.classList.add('active');if(name==='entry')initSmartQuickInputs(); }
-        function goToPage(name){if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll')return showPageAndSub('entry','quick');if(name==='dividends')return showPageAndSub('entry','quick');const tab=document.querySelector(`[data-page="${name}"]`);if(tab&&!tab.classList.contains('hidden'))showPage(name,tab);else showPage(name,null)}
+        function showPage(name, el) { if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll')return showPageAndSub('entry','quick');if(name==='dividends')return showPageAndSub('entry','dividend');document.querySelectorAll('[id^="page-"]').forEach(x => x.classList.add('hidden')); const target=$('page-' + name); if(target)target.classList.remove('hidden'); document.querySelectorAll('.tab').forEach(x => x.classList.remove('active')); if(el)el.classList.add('active');if(name==='entry')initSmartQuickInputs(); }
+        function goToPage(name){if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll')return showPageAndSub('entry','quick');if(name==='dividends')return showPageAndSub('entry','dividend');const tab=document.querySelector(`[data-page="${name}"]`);if(tab&&!tab.classList.contains('hidden'))showPage(name,tab);else showPage(name,null)}
         function updateRoleLayout(){const role=S.data.user.role,visible=[...document.querySelectorAll('.tabs .tab:not(.hidden)')];document.querySelector('.tabs').style.gridTemplateColumns=`repeat(${visible.length},minmax(0,1fr))`;const copy={MANAGER:['พื้นที่ผู้จัดการ','จัดการรายการซื้อ รายรับ–รายจ่าย และหมวดสำหรับงานประจำวัน'],STAFF:['พื้นที่พนักงาน','บันทึกรายการได้รวดเร็ว และดูประวัติรายการของคุณเอง']};if(copy[role]){$('roleHomeTitle').textContent=copy[role][0];$('roleHomeText').textContent=copy[role][1]}document.body.dataset.role=role}
 function addItem() { const u=(S.data&&S.data.units&&S.data.units[0])||{name:'ชิ้น',factor:1,baseUnit:'ชิ้น'};S.items.push({name:'',category:'อื่น ๆ',quantity:1,unit:u.name,unitFactor:Number(u.factor),baseUnit:u.baseUnit,lineTotal:''});renderItemsV2() }
 function guessCategory(name) { const n = name.toLowerCase(); const saved = S.data && S.data.products.find(p => String(p.name).toLowerCase() === n); if (saved && saved.category) return saved.category; const rules = [['อาหารสัตว์', ['อาหารเป็ด', 'อาหารปลา', 'อาหารสัตว์', 'อาหารนก', 'หนอนอบ', 'เมล็ดทานตะวัน']], ['ถุงเท้า/เครื่องแต่งกาย', ['ถุงเท้า', 'เสื้อ', 'กางเกง', 'หมวก', 'ผ้ากันเปื้อน']], ['ของเล่น', ['ของเล่น', 'ตุ๊กตา', 'ลูกบอล', 'เลโก้', 'สติ๊กเกอร์', 'สีเทียน']], ['ทำความสะอาด', ['น้ำยาล้าง', 'น้ำยาถู', 'ผงซัก', 'สบู่', 'ถุงขยะ', 'ไม้กวาด', 'ฟองน้ำ', 'ฆ่าเชื้อ']], ['บรรจุภัณฑ์', ['แก้วพลาสติก', 'แก้วกระดาษ', 'หลอด', 'กล่องอาหาร', 'ช้อนพลาสติก', 'ส้อมพลาสติก', 'ถุงหิ้ว', 'ฝาแก้ว', 'กระดาษรอง']], ['เนื้อสัตว์และอาหารทะเล', ['เนื้อ', 'หมู', 'ไก่', 'ปลา', 'กุ้ง', 'หมึก', 'ปู', 'แฮม', 'เบคอน', 'ไส้กรอก', 'ไข่']], ['บาร์น้ำและเครื่องดื่ม', ['กาแฟ', 'ชา', 'โกโก้', 'นม', 'ไซรัป', 'โซดา', 'น้ำแข็ง', 'น้ำผลไม้', 'น้ำดื่ม', 'ครีมเทียม']], ['ขนมและเบเกอรี่', ['ขนม', 'เค้ก', 'คุกกี้', 'บราวนี่', 'เบเกอรี่', 'ไอศกรีม', 'ช็อกโกแลต', 'เยลลี่']], ['ผักและผลไม้', ['ผัก', 'ผลไม้', 'มะม่วง', 'มะพร้าว', 'มะเขือ', 'มะนาว', 'มะกรูด', 'แตง', 'กะหล่ำ', 'คะน้า', 'แครอท', 'หอม', 'กระเทียม', 'มันฝรั่ง', 'ข้าวโพด', 'กล้วย', 'ส้ม', 'แอปเปิล', 'องุ่น', 'สับปะรด', 'เห็ด', 'พริก', 'กะเพรา']], ['วัตถุดิบครัว/ของแห้ง', ['ข้าว', 'แป้ง', 'น้ำตาล', 'น้ำมัน', 'เกลือ', 'ซอส', 'ซีอิ๊ว', 'น้ำปลา', 'เครื่องปรุง', 'เส้น', 'พาสต้า', 'กะทิ', 'เนย', 'ชีส']]]; for (const [cat, words] of rules) if (words.some(w => n.includes(w))) return cat; return 'อื่น ๆ' }
