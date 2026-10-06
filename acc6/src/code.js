@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.10.1',
+  version: '3.10.2',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -395,7 +395,7 @@ function buildBootstrap_(user) {
     ,managerPeriods
     ,managerHistory:user.role==='MANAGER'?visibleTransactions.filter(x=>x.status==='CONFIRMED').slice(0,200):[]
     ,employees: cachedRows_('Employees', 600).filter(x => x.name).map(x => ({ id: x.id, name: clean_(x.name) }))
-    ,dividends:user.role==='OWNER'?buildDividends_():null
+    ,dividends:buildDividends_()
     ,revision:PropertiesService.getScriptProperties().getProperty('DATA_REVISION')||'0'
   });
 }
@@ -410,7 +410,7 @@ function buildDividends_(){
 }
 
 function saveDividendTarget_(user,data){
-  if(user.role!=='OWNER')throw new Error('เฉพาะเจ้าของร้านเท่านั้นที่ตั้งเป้าหมายเงินปันผลได้');
+  if(!truthy_(user.active))throw new Error('ไม่มีสิทธิ์ใช้งาน');
   const target=round_(num_(data&&data.target));
   if(target<=0)throw new Error('กรุณาระบุยอดเป้าหมายเงินปันผลที่มากกว่า 0');
   PropertiesService.getScriptProperties().setProperty('DIVIDEND_TARGET',String(target));
@@ -418,7 +418,7 @@ function saveDividendTarget_(user,data){
 }
 
 function saveDividend_(user,data){
-  if(user.role!=='OWNER')throw new Error('เฉพาะเจ้าของร้านเท่านั้นที่บันทึกเงินปันผลได้');
+  if(!truthy_(user.active))throw new Error('ไม่มีสิทธิ์ใช้งาน');
   const owner=cachedRows_('Users',120).find(x=>x.id===data.ownerUserId&&x.role==='OWNER'&&truthy_(x.active));
   const account=cachedRows_('Accounts',600).find(x=>x.id===data.accountId&&truthy_(x.active));
   const amount=round_(num_(data.amount)),date=validDate_(data.date);

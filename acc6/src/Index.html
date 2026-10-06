@@ -945,7 +945,7 @@
                 <div class="title">ศูนย์รายรับ–รายจ่าย</div>
                 <div class="entry-subtabs">
                     <button id="entrySubTabQuick" class="entry-subtab active" onclick="switchEntrySubTab('quick')">⚡ พิมพ์ด่วน</button>
-                    <button id="entrySubTabDividend" class="entry-subtab hidden" onclick="switchEntrySubTab('dividend')">💎 ปันผลเจ้าของ</button>
+                    <button id="entrySubTabDividend" class="entry-subtab" onclick="switchEntrySubTab('dividend')">💎 ปันผลเจ้าของ</button>
                     <button id="entrySubTabBuy" class="entry-subtab" onclick="switchEntrySubTab('buy')">🛒 ซื้อของ</button>
                     <button id="entrySubTabHistory" class="entry-subtab" onclick="switchEntrySubTab('history')">📜 ประวัติ</button>
                 </div>
@@ -1048,7 +1048,7 @@
                         <!-- Dividend Payment Action Form -->
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                             <b style="font-size:15px">💸 บันทึกจ่ายเงินปันผล</b>
-                            <span class="pill" style="background:#fef3c7;color:#92400e;font-size:11px">เฉพาะเจ้าของร้าน</span>
+                            <span class="pill" style="background:#fef3c7;color:#92400e;font-size:11px">ปันผลเจ้าของร้าน</span>
                         </div>
                         <div class="notice" style="margin-bottom:12px;font-size:12px">
                             ยอดเงินที่บันทึกจะถูกหักออกจากบัญชีจริงทันที และบันทึกในประวัติรายรับ–จ่ายอัตโนมัติ
@@ -1712,16 +1712,10 @@
         function changeDisplay(c,inverse){if(c.pct===null)return(c.amount>=0?'+':'')+money(c.amount);const good=inverse?c.amount<=0:c.amount>=0;return`<span class="${good?'change-up':'change-down'}">${c.amount>=0?'+':''}${money(c.amount)}<br><small>${c.pct>=0?'+':''}${c.pct.toFixed(1)}%</small></span>`}
         async function runFinancialComparison(){try{const periods=comparisonPeriods();if(!periods.periodA.start||!periods.periodA.end||!periods.periodB.start||!periods.periodB.end)throw new Error('กรุณาเลือกช่วงเวลาให้ครบ');const r=await call('compareFinancialPeriods',{data:periods}),a=r.first,b=r.second,c=r.changes,max=Math.max(a.income,a.expense,Math.abs(a.net),b.income,b.expense,Math.abs(b.net),1),netWord=c.net.amount>=0?'เงินสุทธิเพิ่มขึ้น':'เงินสุทธิลดลง';$('analysisResult').classList.remove('hidden');$('analysisResult').innerHTML=`<div class="analysis-result-head"><h3>${esc(a.label)} เทียบกับ ${esc(b.label)}</h3><div class="analysis-summary">${netWord} <b>${money(Math.abs(c.net.amount))}</b>${c.net.pct===null?'':' หรือ '+Math.abs(c.net.pct).toFixed(1)+'%'}</div></div><div class="compare-table"><div class="compare-row header"><span>รายการ</span><span>${esc(a.label)}</span><span>${esc(b.label)}</span><span>เปลี่ยนแปลง</span></div>${[['รายรับ','income',false],['รายจ่าย','expense',true],['เงินสุทธิ','net',false]].map(x=>`<div class="compare-row"><b>${x[0]}</b><span>${money(a[x[1]])}</span><span><b>${money(b[x[1]])}</b><div class="compare-bars"><i style="width:${Math.abs(a[x[1]])/max*100}%"></i><b style="width:${Math.abs(b[x[1]])/max*100}%"></b></div></span><b>${changeDisplay(c[x[1]],x[2])}</b></div>`).join('')}</div>`;$('analysisResult').scrollIntoView({behavior:'smooth',block:'start'})}catch(e){alertError(e.message)}}
         function renderDividends() {
-            const isOwner = S.data && S.data.user && S.data.user.role === 'OWNER';
             const tabBtn = $('entrySubTabDividend');
-            if (tabBtn) tabBtn.classList.toggle('hidden', !isOwner);
-            const sec = $('entrySectionDividend');
-            if (!isOwner) {
-                if (sec) sec.classList.add('hidden');
-                return;
-            }
+            if (tabBtn) tabBtn.classList.remove('hidden');
 
-            const d = S.data.dividends;
+            const d = S.data && S.data.dividends;
             if (!d) return;
 
             // 1. Owner selection chips
