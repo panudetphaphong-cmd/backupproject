@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.8.1',
+  version: '3.9.0',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -26,8 +26,8 @@ const PRIMARY_DB_ID = '1EN084DNwJjxZdStDABk0znC-rLAPMzlCtHsLqQ4TnRs';
 let MIGRATIONS_CHECKED_ = false;
 function runStartupMigrations_() {
   if (MIGRATIONS_CHECKED_) return;
-  const cache = CacheService.getScriptCache();
-  if (cache.get('STARTUP_MIGRATIONS_DONE_V17') === '1') {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('STARTUP_MIGRATIONS_DONE_V18') === '1') {
     MIGRATIONS_CHECKED_ = true;
     return;
   }
@@ -41,7 +41,7 @@ function runStartupMigrations_() {
     ensureSeedEmployees_();
     cleanupOldSessionProperties_();
     MIGRATIONS_CHECKED_ = true;
-    cache.put('STARTUP_MIGRATIONS_DONE_V17', '1', 21600);
+    props.setProperty('STARTUP_MIGRATIONS_DONE_V18', '1');
   } catch(e) {}
 }
 
@@ -155,7 +155,6 @@ function cleanupOldSessionProperties_() {
 }
 
 function doGet() {
-  runStartupMigrations_();
   const template=HtmlService.createTemplateFromFile('Index'); template.appVersion=APP.version;
   return template.evaluate()
     .setTitle(APP.name)
@@ -356,16 +355,17 @@ function buildBootstrap_(user) {
   const latestUser=cachedRows_('Users',600).find(x=>x.id===user.id);if(latestUser)user={...publicUser_(latestUser),sessionVersion:user.sessionVersion};
   const canViewFinance=canViewFinance_(user);
   const accountRows = cachedRows_('Accounts', 1800).filter(x => truthy_(x.active));
-  const accounts = canViewFinance ? accountRows : accountRows.map(x=>({id:x.id,name:x.name,type:x.type,active:true}));
   const allCategories = cachedRows_('Categories', 1800).sort((a,b)=>(num_(a.sortOrder)||999)-(num_(b.sortOrder)||999));
   const categories = allCategories.filter(x => truthy_(x.active));
   const confirmedPurchaseIds=new Set(cachedRows_('Purchases',1800).filter(x=>x.status==='CONFIRMED').map(x=>x.id)),pricePairs={};cachedRows_('PurchaseItems',1800).filter(x=>confirmedPurchaseIds.has(x.purchaseId)).forEach(x=>{const list=pricePairs[x.productId]||(pricePairs[x.productId]=[]);list.push(num_(x.baseUnitPrice));if(list.length>2)list.shift()});
   const products = cachedRows_('Products', 1800).filter(x => truthy_(x.active)).map(x=>{const prices=pricePairs[x.id]||[],latest=prices.length?prices[prices.length-1]:null,previous=prices.length>1?prices[prices.length-2]:null,priceChange=previous?round_((latest-previous)/previous*100):null;return{...x,latestPrice:latest,previousPrice:previous,priceChange}});
-  const allTransactions = dedupeRows_(cachedRows_('Transactions', 1800),['date','type','category','accountId','amount','note','createdBy','status']);
+  const allTransactions = dedupeRows_(cachedRows_('Transactions', 1800), ['id']);
   const tx = allTransactions.filter(x => x.status === 'CONFIRMED');
   const movements={};
   if(canViewFinance) tx.forEach(t=>{movements[t.accountId]=(movements[t.accountId]||0)+(t.type==='INCOME'?num_(t.amount):-num_(t.amount));});
   const balances = canViewFinance ? accountRows.map(a => ({id:a.id,name:a.name,type:a.type,balance:round_(num_(a.openingBalance)+(movements[a.id]||0)),openingBalance:num_(a.openingBalance)})) : [];
+  const balanceMap = Object.fromEntries(balances.map(b => [b.id, b.balance]));
+  const accounts = accountRows.map(a => ({id:a.id,name:a.name,type:a.type,active:true,balance:canViewFinance?(balanceMap[a.id]!=null?balanceMap[a.id]:0):null}));
   const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   const month = today.slice(0,7);
   const summaryByPrefix={};
@@ -614,7 +614,7 @@ function savePurchase_(user, data) {
     invalidateRows_('Purchases'); invalidateRows_('PurchaseItems');
     invalidateRows_('Transactions');
     try{audit_(user,'CREATE','PURCHASE',purchaseId,items.length+' รายการ รวม '+total+' บาท')}catch(e){}
-    return ok({ id:purchaseId, total, itemCount:items.length });
+    return ok({ id:purchaseId, total, itemCount:items.length, refresh: bootstrap_(user).data });
   } finally { lock.releaseLock(); }
 }
 
@@ -633,15 +633,15 @@ function saveTransaction_(user, data) {
       const old=Object.fromEntries(head.map((h,i)=>[h,values[idx][i]])); if(old.status==='CANCELLED') throw new Error('รายการนี้ถูกยกเลิกแล้ว'); if(!canManage_(user)&&old.createdBy!==user.id) throw new Error('แก้ไขได้เฉพาะรายการที่ตนเองบันทึก');
       if(old.referenceId){sh.getRange(idx+1,2).setValue(date); sh.getRange(idx+1,5).setValue(account.id); sh.getRange(idx+1,7).setValue(clean_(data.note));updatePurchaseHeader_(old.referenceId,date,account.id,clean_(data.note));}
       else sh.getRange(idx+1,2,1,6).setValues([[date,data.type,category.id,account.id,round_(amount),clean_(data.note)]]);
-      SpreadsheetApp.flush();invalidateRows_('Transactions');try{audit_(user,'UPDATE','TRANSACTION',data.id,'แก้ไขรายการ')}catch(e){}return ok({id:data.id});
+      SpreadsheetApp.flush();invalidateRows_('Transactions');try{audit_(user,'UPDATE','TRANSACTION',data.id,'แก้ไขรายการ')}catch(e){}return ok({id:data.id, refresh: bootstrap_(user).data});
     }finally{editLock.releaseLock()}
   }
   const lock=LockService.getScriptLock();lock.waitLock(20000);
   try{
     const note=clean_(data.note),rounded=round_(amount),recent=rows_('Transactions').find(x=>dateKey_(x.date)===date&&x.type===data.type&&x.category===category.id&&x.accountId===account.id&&num_(x.amount)===rounded&&clean_(x.note)===note&&x.createdBy===user.id&&x.status==='CONFIRMED'&&recentWrite_(x.createdAt));
-    if(recent)return ok({id:recent.id,duplicate:true});
+    if(recent)return ok({id:recent.id,duplicate:true, refresh: bootstrap_(user).data});
     const txId = id_('TX'); append_('Transactions',[txId,date,data.type,category.id,account.id,rounded,note,'',now_(),user.id,user.name,'CONFIRMED']);
-    SpreadsheetApp.flush();invalidateRows_('Transactions');try{audit_(user,'CREATE','TRANSACTION',txId,data.type+' '+amount+' บาท')}catch(e){}return ok({id:txId});
+    SpreadsheetApp.flush();invalidateRows_('Transactions');try{audit_(user,'CREATE','TRANSACTION',txId,data.type+' '+amount+' บาท')}catch(e){}return ok({id:txId, refresh: bootstrap_(user).data});
   }finally{lock.releaseLock()}
 }
 
