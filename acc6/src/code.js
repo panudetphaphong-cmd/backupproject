@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.9.0',
+  version: '3.10.0',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -207,6 +207,7 @@ function api(action, payload) {
       ,getFinancialPeriod: () => getFinancialPeriod_(user, payload.data)
       ,getTransactionHistory: () => getTransactionHistory_(user, payload.data)
       ,saveDividend: () => saveDividend_(user, payload.data)
+      ,saveDividendTarget: () => saveDividendTarget_(user, payload.data)
       ,checkProductPrice: () => checkProductPrice_(user, payload.data)
       ,savePriceProduct: () => savePriceProduct_(user, payload.data)
       ,deletePriceProduct: () => deletePriceProduct_(user, payload.data)
@@ -403,7 +404,17 @@ function buildDividends_(){
   const owners=cachedRows_('Users',120).filter(x=>truthy_(x.active)&&x.role==='OWNER').map(publicUser_);
   const accountNames=Object.fromEntries(cachedRows_('Accounts',600).map(x=>[x.id,x.name]));
   const history=cachedRows_('DividendPayments',60).slice(-100).reverse().map(x=>({id:x.id,ownerUserId:x.ownerUserId,ownerName:x.ownerName,date:dateKey_(x.date),amount:num_(x.amount),accountId:x.accountId,accountName:accountNames[x.accountId]||'',note:x.note||'',createdByName:x.createdByName||''}));
-  return {owners,history,totalPaid:round_(history.reduce((s,x)=>s+x.amount,0))};
+  const rawTarget=PropertiesService.getScriptProperties().getProperty('DIVIDEND_TARGET');
+  const target=rawTarget?num_(rawTarget):100000;
+  return {owners,history,totalPaid:round_(history.reduce((s,x)=>s+x.amount,0)),target:target>0?target:100000};
+}
+
+function saveDividendTarget_(user,data){
+  if(user.role!=='OWNER')throw new Error('เฉพาะเจ้าของร้านเท่านั้นที่ตั้งเป้าหมายเงินปันผลได้');
+  const target=round_(num_(data&&data.target));
+  if(target<=0)throw new Error('กรุณาระบุยอดเป้าหมายเงินปันผลที่มากกว่า 0');
+  PropertiesService.getScriptProperties().setProperty('DIVIDEND_TARGET',String(target));
+  return ok({target,refresh:buildBootstrap_(user).data});
 }
 
 function saveDividend_(user,data){
