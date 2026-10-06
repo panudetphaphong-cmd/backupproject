@@ -597,41 +597,166 @@
                 padding: 8px 2px;
             }
         }
-        /* Smart Quick Input Card */
+        /* Smart Quick Input Card & Top-Right Reorganization */
         .quick-smart-card {
             border: 1.5px solid #ebdca3;
             border-radius: 20px;
             padding: 18px;
             background: #fffdf5;
         }
-        .quick-smart-head {
+        .quick-top-header-grid {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 14px;
+            align-items: stretch;
+            margin-bottom: 12px;
+        }
+        @media (max-width: 768px) {
+            .quick-top-header-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+        }
+        .quick-top-left {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .quick-smart-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .quick-smart-title b {
+            font-size: 15px;
+            color: #1e293b;
+        }
+        .pill-fast {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 9px;
+            border-radius: 999px;
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+        .quick-smart-desc {
+            font-size: 12px;
+            line-height: 1.45;
+            color: #64748b;
+        }
+        .quick-example-box {
+            background: #ffffff;
+            border: 1px solid #ded9cb;
+            border-radius: 12px;
+            padding: 9px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .quick-example-tag {
+            font-size: 11px;
+            font-weight: 750;
+            color: #78716c;
+        }
+        .quick-example-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .ex-chip {
+            display: inline-block;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 2px 7px;
+            font-size: 11.5px;
+            font-weight: 650;
+            color: #334155;
+        }
+        /* Top Right Corner Controls: Date & Account Selection */
+        .quick-top-right {
+            display: flex;
+            flex-direction: column;
+        }
+        .quick-controls-card {
+            background: #ffffff;
+            border: 1.5px solid #ded9cb;
+            border-radius: 14px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+            height: 100%;
+            justify-content: space-between;
+        }
+        .quick-ctrl-group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .quick-ctrl-label {
+            font-size: 11.5px;
+            font-weight: 750;
+            color: #475569;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .quick-ctrl-label-row {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            gap: 10px;
-            margin-bottom: 10px;
+            align-items: center;
         }
-        /* Smart Quick Input & Table View (No Delay, No Dropdown) */
+        .quick-ctrl-hint {
+            font-size: 10.5px;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        .quick-date-input {
+            width: 100%;
+            height: 36px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 0 10px;
+            font-size: 13px;
+            font-weight: 650;
+            color: #1e293b;
+            background: #f8fafc;
+            outline: none;
+            transition: all 0.15s ease;
+        }
+        .quick-date-input:focus {
+            border-color: #f59e0b;
+            background: #ffffff;
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+        }
         .quick-account-pill-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 7px;
-            margin-top: 4px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 5px;
+            margin-top: 2px;
         }
         .quick-acc-btn {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 6px;
-            padding: 8px 11px;
-            border-radius: 12px;
+            gap: 4px;
+            padding: 6px 9px;
+            border-radius: 10px;
             border: 1.5px solid #e2e8f0;
             background: #ffffff;
             color: #334155;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 750;
             cursor: pointer;
             transition: all 0.15s ease;
+            white-space: nowrap;
         }
         .quick-acc-btn:hover {
             border-color: #cbd5e1;
@@ -641,10 +766,10 @@
             border-color: #f59e0b;
             background: #fffbeb;
             color: #92400e;
-            box-shadow: 0 0 0 2.5px rgba(245, 158, 11, 0.22);
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.22);
         }
         .quick-acc-btn .acc-badge {
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 800;
             color: #64748b;
         }
@@ -1135,32 +1260,53 @@
                 <!-- Sub-section 1: Smart Quick Input -->
                 <div id="entrySectionQuick" class="entry-section">
                     <div class="card quick-smart-card">
-                        <div class="quick-smart-head">
-                            <div>
-                                <b>⚡ พิมพ์รายการแบบง่าย (รวมค่าจ้าง)</b>
-                                <div class="muted">พิมพ์อะไรก็ได้ เช่น <b>จีจี้ 3000</b> หรือ <b>มะนาว 50</b> ระบบแยกค่าจ้างและหมวดหมู่ให้อัตโนมัติ</div>
+                        <div class="quick-top-header-grid">
+                            <!-- Left: Header & Examples -->
+                            <div class="quick-top-left">
+                                <div class="quick-smart-title">
+                                    <b>⚡ พิมพ์รายการแบบง่าย (รวมค่าจ้าง)</b>
+                                    <span class="pill-fast">เร็วที่สุด · Zero Delay</span>
+                                </div>
+                                <div class="quick-smart-desc">
+                                    พิมพ์อะไรก็ได้ เช่น <b>จีจี้ 3000</b> หรือ <b>มะนาว 50</b> ระบบแยกค่าจ้างและหมวดหมู่ให้อัตโนมัติ
+                                </div>
+                                <div class="quick-example-box">
+                                    <span class="quick-example-tag">💡 ตัวอย่างการลงรายการ:</span>
+                                    <div class="quick-example-chips">
+                                        <span class="ex-chip">จีจี้ 3000</span>
+                                        <span class="ex-chip">มะนาว 50</span>
+                                        <span class="ex-chip">ยอดขาย 4500</span>
+                                        <span class="ex-chip">ค่าไฟ 1200</span>
+                                        <span class="ex-chip">หมู 2 กก 180</span>
+                                    </div>
+                                </div>
                             </div>
-                            <span class="pill">เร็วที่สุด · Zero Delay</span>
+
+                            <!-- Right: Reorganized Date & Payment Account Selection (ข้างๆ ตัวอย่างการลง) -->
+                            <div class="quick-top-right">
+                                <div class="quick-controls-card">
+                                    <div class="quick-ctrl-group">
+                                        <label class="quick-ctrl-label" for="smartQuickDate">
+                                            <span>📅 วันที่ลงรายการ</span>
+                                        </label>
+                                        <input id="smartQuickDate" type="date" class="quick-date-input">
+                                    </div>
+                                    <div class="quick-ctrl-group">
+                                        <div class="quick-ctrl-label-row">
+                                            <label class="quick-ctrl-label">
+                                                <span>💳 แตะเลือกบัญชี</span>
+                                            </label>
+                                            <span class="quick-ctrl-hint">ไม่ต้องใช้ Dropdown</span>
+                                        </div>
+                                        <input id="smartQuickAccount" type="hidden">
+                                        <div id="smartQuickAccountPicker" class="quick-account-pill-grid"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="format-chip">
-                            ตัวอย่าง: <b>จีจี้ 3000</b> · มะนาว 50 · ยอดขาย 4500 · ค่าไฟ 1200 · หมู 2 กก 180
-                        </div>
+
                         <div id="quickEmployeeChips"></div>
                         <textarea id="smartQuickInput" rows="5" placeholder="พิมพ์รายการที่นี่ เช่น:&#10;จีจี้ 3000&#10;มะนาว 50&#10;ยอดขาย 4500&#10;ค่าไฟ 1200"></textarea>
-                        <div class="row" style="margin-top:10px;align-items:flex-end">
-                            <div style="flex:0 0 150px;min-width:130px">
-                                <label class="label">วันที่</label>
-                                <input id="smartQuickDate" type="date">
-                            </div>
-                            <div style="flex:1;min-width:200px">
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-                                    <label class="label" style="margin:0">แตะเลือกบัญชีเริ่มต้น</label>
-                                    <span class="muted" style="font-size:11px">แตะเลือกทันที ไม่ต้องใช้ Dropdown</span>
-                                </div>
-                                <input id="smartQuickAccount" type="hidden">
-                                <div id="smartQuickAccountPicker" class="quick-account-pill-grid"></div>
-                            </div>
-                        </div>
                         <button class="btn full" style="margin-top:10px" onclick="parseSmartQuickInput()">✨ แยกรายการให้อัตโนมัติ (แสดงเป็นตาราง)</button>
 
                         <div id="smartParsedContainer" class="hidden" style="margin-top:14px">
