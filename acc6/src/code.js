@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.10.5',
+  version: '3.10.6',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -379,7 +379,7 @@ function buildBootstrap_(user) {
   const dashboardPeriods = canViewFinance ? buildDashboardPeriods_(tx, allCategories) : {};
   const managerPeriods = user.role==='MANAGER' ? buildDashboardPeriods_(tx, allCategories) : {};
   const transactionViews = transactionViews_(allTransactions, allCategories, accountRows);
-  const visibleTransactions = user.role==='STAFF' ? transactionViews.filter(x=>x.createdBy===user.id) : transactionViews;
+  const visibleTransactions = (user.role==='STAFF' ? transactionViews.filter(x=>x.createdBy===user.id) : transactionViews).filter(x => x.status !== 'CANCELLED');
   const confirmedVisibleTransactions=visibleTransactions.filter(x=>x.status==='CONFIRMED');
   const latestTransactionDate=confirmedVisibleTransactions.reduce((latest,x)=>dateKey_(x.date)>latest?dateKey_(x.date):latest,'');
   return ok({
@@ -760,11 +760,40 @@ function saveBatchTransactions_(user, data) {
 }
 
 function deleteTransaction_(user,data){
-  const lock=LockService.getScriptLock();lock.waitLock(20000);try{const sh=sheet_('Transactions'), values=sh.getDataRange().getValues(), head=values[0], idx=values.findIndex((r,i)=>i>0 && r[0]===data.id);
-  if(idx<0) throw new Error('ไม่พบรายการ'); const old=Object.fromEntries(head.map((h,i)=>[h,values[idx][i]]));
-  if(old.status==='CANCELLED') throw new Error('รายการนี้ถูกยกเลิกแล้ว'); if(!canManage_(user)&&old.createdBy!==user.id) throw new Error('ยกเลิกได้เฉพาะรายการที่ตนเองบันทึก'); sh.getRange(idx+1,12).setValue('CANCELLED');
-  if(old.referenceId){ const ps=sheet_('Purchases'), pv=ps.getDataRange().getValues(), pi=pv.findIndex((r,i)=>i>0&&r[0]===old.referenceId); if(pi>0) ps.getRange(pi+1,10).setValue('CANCELLED'); invalidateRows_('Purchases'); }
-  SpreadsheetApp.flush(); invalidateRows_('Transactions'); try{audit_(user,'CANCEL','TRANSACTION',data.id,clean_(data.reason)||'ยกเลิกรายการ')}catch(e){} return ok({refresh:bootstrap_(user).data});}finally{lock.releaseLock()}
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    const sh=sheet_('Transactions'), values=sh.getDataRange().getValues(), head=values[0], idx=values.findIndex((r,i)=>i>0 && r[0]===data.id);
+    if(idx<0) throw new Error('ไม่พบรายการ');
+    const old=Object.fromEntries(head.map((h,i)=>[h,values[idx][i]]));
+    if(!canManage_(user)&&old.createdBy!==user.id) throw new Error('ลบได้เฉพาะรายการที่ตนเองบันทึก');
+
+    // ลบรายการเชื่อมโยงที่เกี่ยวข้องทั้งหมด (ซื้อของ / ปันผล / เบิก / ค่าจ้าง) ออกไปเลย ไม่เก็บข้อมูลต่อ
+    if(old.referenceId){
+      const ref=String(old.referenceId);
+      if(ref.indexOf('BUY')===0){
+        deleteRowById_('Purchases', ref);
+        deleteRowsByField_('PurchaseItems', 'purchaseId', ref);
+        invalidateRows_('Purchases');
+        invalidateRows_('PurchaseItems');
+      } else if(ref.indexOf('DIV')===0){
+        deleteRowById_('DividendPayments', ref);
+        invalidateRows_('DividendPayments');
+      } else if(ref.indexOf('ADV')===0){
+        deleteRowById_('WageAdvances', ref);
+        invalidateRows_('WageAdvances');
+      } else if(ref.indexOf('PAY')===0){
+        deleteRowById_('WagePayments', ref);
+        invalidateRows_('WagePayments');
+      }
+    }
+
+    // ลบแถวออกจากแผ่น Transactions ถาวร
+    sh.deleteRow(idx+1);
+    SpreadsheetApp.flush();
+    invalidateRows_('Transactions');
+    try{audit_(user,'DELETE','TRANSACTION',data.id,'ลบรายการถาวร: '+(clean_(old.note)||clean_(old.category)))}catch(e){}
+    return ok({refresh:bootstrap_(user).data});
+  }finally{lock.releaseLock()}
 }
 
 function updatePurchaseHeader_(id,date,accountId,note){ const sh=sheet_('Purchases'), v=sh.getDataRange().getValues(), i=v.findIndex((r,n)=>n>0&&r[0]===id); if(i>0){sh.getRange(i+1,2).setValue(date);sh.getRange(i+1,4).setValue(accountId);sh.getRange(i+1,6).setValue(note);invalidateRows_('Purchases');} }
