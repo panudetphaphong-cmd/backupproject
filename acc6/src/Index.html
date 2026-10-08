@@ -557,28 +557,32 @@
         /* Subtabs for Entry Hub */
         .entry-subtabs {
             display: flex;
-            gap: 5px;
+            gap: 4px;
             margin: 10px 0 16px;
             padding: 4px;
             background: #f4f1dc;
             border: 1px solid var(--line);
             border-radius: 16px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        .entry-subtabs::-webkit-scrollbar {
+            display: none;
         }
         .entry-subtab {
-            flex: 1 1 0;
-            min-width: 0;
+            flex: 1 0 auto;
+            min-width: max-content;
             border: 0;
             border-radius: 12px;
             background: transparent;
             color: var(--muted);
             font-weight: 750;
             font-size: 12px;
-            padding: 10px 4px;
+            padding: 9px 10px;
             white-space: nowrap;
             text-align: center;
             cursor: pointer;
-            overflow: hidden;
-            text-overflow: ellipsis;
             transition: all 0.15s ease;
         }
         .entry-subtab.active {
@@ -589,12 +593,12 @@
         }
         @media(max-width: 440px) {
             .entry-subtabs {
-                gap: 4px;
+                gap: 3px;
                 padding: 3px;
             }
             .entry-subtab {
                 font-size: 11px;
-                padding: 8px 2px;
+                padding: 8px 7px;
             }
         }
         /* Smart Quick Input Card & Top-Right Reorganization */
@@ -1296,6 +1300,15 @@
         .quick-emp-chip:hover, .quick-emp-chip:active { border-color: #16a34a; background: #f0fdf4; color: #15803d; transform: translateY(-1px); box-shadow: 0 3px 6px rgba(22,163,74,0.15); }
         .quick-emp-chip .chip-avatar { font-size: 12px; opacity: 0.85; }
 
+        /* Modern Category Management Styles */
+        .cat-segmented-tabs { display: flex; gap: 5px; background: #f8fafc; padding: 4px; border-radius: 14px; margin: 12px 0 14px; border: 1px solid #e2e8f0; }
+        .cat-seg-btn { flex: 1 1 0; min-width: 0; padding: 8px 6px; font-size: 12px; font-weight: 750; color: #64748b; background: transparent; border: 0; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.18s ease; }
+        .cat-seg-btn.active { background: #ffffff; color: #0f172a; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .cat-seg-btn.active .seg-badge { background: #fef3c7; color: #92400e; }
+        .category-hub-card { border: 1.5px solid #ebdca3; border-radius: 20px; padding: 18px; background: #ffffff; }
+        .cat-hub-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
+        .compact-category-list { display: grid; gap: 7px; margin-top: 8px; }
+
         /* Modern Minimal Users & Team Page */
         .user-page-header { margin-bottom: 12px; }
         .user-segmented-tabs { display: flex; gap: 5px; background: #f1f5f9; padding: 4px; border-radius: 14px; margin-bottom: 14px; border: 1px solid #e2e8f0; }
@@ -1425,6 +1438,7 @@
                     <button id="entrySubTabQuick" class="entry-subtab active" onclick="switchEntrySubTab('quick')">⚡ พิมพ์ด่วน</button>
                     <button id="entrySubTabDividend" class="entry-subtab" onclick="switchEntrySubTab('dividend')">💎 ปันผลเจ้าของ</button>
                     <button id="entrySubTabBuy" class="entry-subtab" onclick="switchEntrySubTab('buy')">🛒 ซื้อของ</button>
+                    <button id="entrySubTabCategory" class="entry-subtab" onclick="switchEntrySubTab('category')">📁 จัดการหมวดหมู่</button>
                     <button id="entrySubTabHistory" class="entry-subtab" onclick="switchEntrySubTab('history')">📜 ประวัติ</button>
                 </div>
 
@@ -1664,33 +1678,6 @@
                         <!-- Items Table -->
                         <div id="buyItems"></div>
 
-                        <!-- Catalog Manager Accordion -->
-                        <details id="catalogManager" class="card catalog-manager" style="margin-top:12px">
-                            <summary>⚙ จัดการหน่วยและหมวดสินค้า</summary>
-                            <div class="catalog-grid">
-                                <div>
-                                    <b>หมวดสินค้า</b>
-                                    <input id="productCategoryId" type="hidden">
-                                    <div class="inline-form">
-                                        <input id="productCategoryName" placeholder="ชื่อหมวดใหม่">
-                                        <button class="btn" onclick="saveProductCategory()">บันทึก</button>
-                                    </div>
-                                    <div id="productCategoryList" class="compact-list"></div>
-                                </div>
-                                <div>
-                                    <b>หน่วยสินค้า</b>
-                                    <input id="unitId" type="hidden">
-                                    <div class="inline-form">
-                                        <input id="unitName" placeholder="เช่น โหล">
-                                        <input id="unitFactor" type="number" step="0.001" value="1" placeholder="ตัวคูณ">
-                                        <input id="unitBase" placeholder="หน่วยฐาน">
-                                        <button class="btn" onclick="saveUnit()">บันทึก</button>
-                                    </div>
-                                    <div id="unitList" class="compact-list"></div>
-                                </div>
-                            </div>
-                        </details>
-
                         <div style="margin-top:12px">
                             <label class="label">หมายเหตุการซื้อ (ถ้ามี)</label>
                             <input id="buyNote" placeholder="เช่น ซื้อของตลาดสดรอบเช้า หรือ ซื้อของแม็คโคร">
@@ -1720,11 +1707,142 @@
                     </div>
                 </div>
 
-                <!-- Sub-section 3: History & Category Manager -->
+                <!-- Sub-section: Dedicated Category Manager (ศูนย์จัดการหมวดหมู่ อยู่ข้างซื้อของ แยกเป็นสัดส่วนใช้งานง่าย) -->
+                <div id="entrySectionCategory" class="entry-section hidden">
+                    <div class="card category-hub-card">
+                        <div class="cat-hub-header">
+                            <div>
+                                <b style="font-size:16px">📁 ศูนย์จัดการหมวดหมู่และหน่วยสินค้า</b>
+                                <div class="muted" style="font-size:12px">แยกแต่ละหมวดชัดเจน ไม่ปะปนกับหน้าอื่น ใช้งานง่ายเป็นสัดส่วน</div>
+                            </div>
+                            <span class="pill" style="background:#fef3c7;color:#92400e;font-weight:750">จัดการหมวดหมู่</span>
+                        </div>
+
+                        <!-- Segmented category subtabs -->
+                        <div class="cat-segmented-tabs">
+                            <button type="button" id="catSubTabTx" class="cat-seg-btn active" onclick="switchCatSegment('tx')">
+                                <span>💰 หมวดรายรับ–รายจ่าย</span>
+                                <span id="catTxCountBadge" class="seg-badge">0</span>
+                            </button>
+                            <button type="button" id="catSubTabProduct" class="cat-seg-btn" onclick="switchCatSegment('product')">
+                                <span>📦 หมวดสินค้า/วัตถุดิบ</span>
+                                <span id="catProdCountBadge" class="seg-badge">0</span>
+                            </button>
+                            <button type="button" id="catSubTabUnit" class="cat-seg-btn" onclick="switchCatSegment('unit')">
+                                <span>⚖️ หน่วยนับสินค้า</span>
+                                <span id="catUnitCountBadge" class="seg-badge">0</span>
+                            </button>
+                        </div>
+
+                        <!-- Segment 1: Transaction Categories (หมวดรายรับ-รายจ่าย) -->
+                        <div id="catSegmentTx" class="cat-segment">
+                            <div class="card modern-user-card" id="txCatFormCard" style="margin-bottom:12px;border:1.5px solid #e2e8f0">
+                                <div class="section-card-head">
+                                    <div>
+                                        <b id="txCatFormTitle" style="font-size:15px">＋ เพิ่มหมวดรายรับ–รายจ่ายใหม่</b>
+                                        <div class="muted" style="font-size:12px">กำหนดหมวดหมู่สำหรับการลงบัญชีประจำวัน</div>
+                                    </div>
+                                </div>
+                                <input id="categoryId" type="hidden">
+                                <div class="modal-grid" style="margin-top:10px">
+                                    <div class="modal-field">
+                                        <label>ชื่อหมวด</label>
+                                        <input id="categoryName" placeholder="เช่น ค่าการตลาด, ค่าขนส่ง">
+                                    </div>
+                                    <div class="modal-field">
+                                        <label>ประเภทรายการ</label>
+                                        <select id="categoryType">
+                                            <option value="INCOME">🟢 รายรับ</option>
+                                            <option value="EXPENSE" selected>🔴 รายจ่าย</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row" style="margin-top:12px;gap:8px">
+                                    <button type="button" class="btn light" style="flex:1" onclick="clearCategoryForm()">ล้างฟอร์ม</button>
+                                    <button type="button" id="saveCatBtn" class="btn" style="flex:2" onclick="saveCategory()">💾 บันทึกหมวดหมู่</button>
+                                </div>
+                            </div>
+
+                            <div class="list-section-head">
+                                <span>รายชื่อหมวดหมู่รายรับ–รายจ่าย (ลาก⠿เพื่อจัดลำดับ)</span>
+                                <small id="txCatListCountText" class="muted">0 หมวด</small>
+                            </div>
+                            <div id="categoryManager" class="category-manager-container">
+                                <div id="categoryList" class="compact-category-list"></div>
+                            </div>
+                        </div>
+
+                        <!-- Segment 2: Product Categories (หมวดสินค้าและวัตถุดิบ) -->
+                        <div id="catSegmentProduct" class="cat-segment hidden">
+                            <div class="card modern-user-card" id="prodCatFormCard" style="margin-bottom:12px;border:1.5px solid #e2e8f0">
+                                <div class="section-card-head">
+                                    <div>
+                                        <b id="prodCatFormTitle" style="font-size:15px">＋ เพิ่มหมวดสินค้า/วัตถุดิบใหม่</b>
+                                        <div class="muted" style="font-size:12px">ใช้สำหรับแยกหมวดสินค้าในหน้าซื้อของและเช็กราคา</div>
+                                    </div>
+                                </div>
+                                <input id="productCategoryId" type="hidden">
+                                <div class="inline-form" style="margin-top:10px">
+                                    <input id="productCategoryName" placeholder="เช่น ผักผลไม้, เนื้อสัตว์, เครื่องดื่ม">
+                                    <div class="row" style="margin-top:8px;gap:8px">
+                                        <button type="button" class="btn light" style="flex:1" onclick="clearProductCategoryForm()">ล้าง</button>
+                                        <button type="button" class="btn" style="flex:2" onclick="saveProductCategory()">💾 บันทึกหมวดสินค้า</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="list-section-head">
+                                <span>รายชื่อหมวดสินค้า/วัตถุดิบ</span>
+                                <small id="prodCatListCountText" class="muted">0 หมวด</small>
+                            </div>
+                            <div id="catalogManager" class="catalog-manager-container">
+                                <div id="productCategoryList" class="compact-list"></div>
+                            </div>
+                        </div>
+
+                        <!-- Segment 3: Units (หน่วยนับสินค้า) -->
+                        <div id="catSegmentUnit" class="cat-segment hidden">
+                            <div class="card modern-user-card" id="unitFormCard" style="margin-bottom:12px;border:1.5px solid #e2e8f0">
+                                <div class="section-card-head">
+                                    <div>
+                                        <b id="unitFormTitle" style="font-size:15px">＋ เพิ่มหน่วยนับสินค้าใหม่</b>
+                                        <div class="muted" style="font-size:12px">กำหนดชื่อหน่วย ตัวคูณ และหน่วยฐานสำหรับคำนวณราคาเฉลี่ย</div>
+                                    </div>
+                                </div>
+                                <input id="unitId" type="hidden">
+                                <div class="modal-grid" style="margin-top:10px">
+                                    <div class="modal-field">
+                                        <label>ชื่อหน่วย</label>
+                                        <input id="unitName" placeholder="เช่น กก., ลัง, โหล, แพ็ก">
+                                    </div>
+                                    <div class="modal-field">
+                                        <label>ตัวคูณเทียบหน่วยฐาน</label>
+                                        <input id="unitFactor" type="number" step="0.001" value="1" placeholder="เช่น 1 หรือ 12">
+                                    </div>
+                                </div>
+                                <div class="modal-field" style="margin-top:8px">
+                                    <label>หน่วยฐาน (สำหรับเทียบราคา)</label>
+                                    <input id="unitBase" placeholder="เช่น กก., ชิ้น, ลิตร">
+                                </div>
+                                <div class="row" style="margin-top:12px;gap:8px">
+                                    <button type="button" class="btn light" style="flex:1" onclick="clearUnitForm()">ล้าง</button>
+                                    <button type="button" class="btn" style="flex:2" onclick="saveUnit()">💾 บันทึกหน่วยนับ</button>
+                                </div>
+                            </div>
+
+                            <div class="list-section-head">
+                                <span>รายชื่อหน่วยนับสินค้าในระบบ</span>
+                                <small id="unitListCountText" class="muted">0 หน่วย</small>
+                            </div>
+                            <div id="unitList" class="compact-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-section 4: History -->
                 <div id="entrySectionHistory" class="entry-section hidden">
                     <div class="title" style="margin-top:4px">ประวัติรายรับ–รายจ่าย</div>
                     <div id="transactionHistory" class="activity-list"></div>
-                    <details id="categoryManager" class="card catalog-manager"><summary>⚙ จัดการหมวดรายรับ–รายจ่าย</summary><div class="spacer"></div><input id="categoryId" type="hidden"><label class="label">ชื่อหมวด</label><input id="categoryName" placeholder="เช่น ค่าการตลาด"><label class="label">ประเภท</label><select id="categoryType"><option value="INCOME">รายรับ</option><option value="EXPENSE">รายจ่าย</option></select><div class="spacer"></div><div class="row"><button class="btn light" onclick="clearCategoryForm()">ล้าง</button><button class="btn" onclick="saveCategory()">บันทึกหมวด</button></div><div id="categoryList"></div></details>
                 </div>
             </section>
             <section id="page-users" class="hidden">
@@ -2088,13 +2206,25 @@
             }
         };
         function switchEntrySubTab(tab) {
-            ['quick', 'dividend', 'buy', 'history'].forEach(t => {
+            ['quick', 'dividend', 'buy', 'category', 'history'].forEach(t => {
                 const btn = $('entrySubTab' + t.charAt(0).toUpperCase() + t.slice(1));
                 const sec = $('entrySection' + t.charAt(0).toUpperCase() + t.slice(1));
                 if (btn) btn.classList.toggle('active', t === tab);
                 if (sec) sec.classList.toggle('hidden', t !== tab);
             });
             if (tab === 'dividend') renderDividends();
+            if (tab === 'category') switchCatSegment(S.currentCatSegment || 'tx');
+        }
+        function switchCatSegment(seg) {
+            S.currentCatSegment = seg || 'tx';
+            ['tx', 'product', 'unit'].forEach(s => {
+                const btn = $('catSubTab' + s.charAt(0).toUpperCase() + s.slice(1));
+                const sec = $('catSegment' + s.charAt(0).toUpperCase() + s.slice(1));
+                if (btn) btn.classList.toggle('active', s === S.currentCatSegment);
+                if (sec) sec.classList.toggle('hidden', s !== S.currentCatSegment);
+            });
+            renderCategoryManagerV2();
+            renderCatalogManager();
         }
         function showPageAndSub(pageName, subName) {
             const tab = document.querySelector(`[data-page="${pageName}"]`);
@@ -2584,13 +2714,25 @@
         function selectCustomPeriodType(type,button){$('customPeriodType').value=type;document.querySelectorAll('.period-choice').forEach(x=>x.classList.toggle('active',x===button));renderCustomPeriodFields()}
         function customPeriodPickerHtml(){return `<div class="modal-form"><input id="customPeriodType" type="hidden" value="YESTERDAY"><div class="period-choice-grid"><button type="button" class="period-choice active" onclick="selectCustomPeriodType('YESTERDAY',this)"><span>↶</span><b>เมื่อวาน</b></button><button type="button" class="period-choice" onclick="selectCustomPeriodType('MONTH',this)"><span>▦</span><b>เลือกเดือน</b></button><button type="button" class="period-choice" onclick="selectCustomPeriodType('YEAR',this)"><span>◷</span><b>เลือกปี</b></button><button type="button" class="period-choice" onclick="selectCustomPeriodType('RANGE',this)"><span>↔</span><b>ช่วงวันที่</b></button></div><div id="customPeriodFields" class="custom-period-fields"></div></div>`}
         async function openCustomFinancePeriod(button){const r=await Swal.fire({customClass:{popup:'compact-modal'},title:'กำหนดช่วงเวลาที่ต้องการดู',html:customPeriodPickerHtml(),showCancelButton:true,confirmButtonText:'แสดงข้อมูล',cancelButtonText:'ยกเลิก',didOpen:renderCustomPeriodFields,preConfirm:readManagerCustomPeriod});if(!r.isConfirmed)return;try{const d=await call('getFinancialPeriod',{data:r.value});S.financeDonutPeriod='CUSTOM';S.customFinanceData=d;document.querySelectorAll('.donut-periods button').forEach(x=>x.classList.toggle('active',x===button));$('cashflowPeriodLabel').textContent='สัดส่วนเงินเข้า–ออก · '+d.label;renderFinanceDonut(d);toast('แสดงข้อมูล '+d.label)}catch(e){alertError(e.message)}}
-        function renderCategoryManagerV2(){const allowed=['ADMIN','MANAGER','OWNER'].includes(S.data.user.role),box=$('categoryManager');box.classList.toggle('hidden',!allowed);if(!allowed)return;const rows=S.data.allCategories;$('categoryList').innerHTML=rows.map(c=>`<div class="card category-row" draggable="true" data-category-id="${c.id}" ondragstart="categoryDragStart(event)" ondragover="categoryDragOver(event)" ondrop="categoryDrop(event)" ondragend="categoryDragEnd()"><div><b><span class="drag-handle" ontouchstart="categoryTouchStart(event)" ontouchmove="categoryTouchMove(event)" ontouchend="categoryTouchEnd(event)">⠿</span> ${esc(c.name)}</b><div class="muted">${c.type==='INCOME'?'รายรับ':'รายจ่าย'} · ${c.id==='CAT-DIVIDEND'?'หมวดระบบ':'ลากเพื่อจัดลำดับ'}</div></div><div class="category-actions"><button class="mini-btn" onclick="editCategory('${c.id}')">แก้ไข</button>${c.id==='CAT-DIVIDEND'?'':`<button class="mini-btn delete" onclick="deleteCategory('${c.id}')">ลบ</button>`}</div></div>`).join('')}
+        function renderCategoryManagerV2(){
+            const allowed=['ADMIN','MANAGER','OWNER'].includes(S.data.user.role),box=$('categoryManager');
+            if(box)box.classList.toggle('hidden',!allowed);
+            const rows=(S.data&&S.data.allCategories)||[];
+            const countBadge=$('catTxCountBadge'),countText=$('txCatListCountText');
+            if(countBadge)countBadge.textContent=rows.length;
+            if(countText)countText.textContent=rows.length+' หมวด';
+            if(!allowed)return;
+            const list=$('categoryList');
+            if(list){
+                list.innerHTML=rows.map(c=>`<div class="card category-row" draggable="true" data-category-id="${c.id}" ondragstart="categoryDragStart(event)" ondragover="categoryDragOver(event)" ondrop="categoryDrop(event)" ondragend="categoryDragEnd()"><div><b><span class="drag-handle" ontouchstart="categoryTouchStart(event)" ontouchmove="categoryTouchMove(event)" ontouchend="categoryTouchEnd(event)">⠿</span> ${esc(c.name)}</b><div class="muted">${c.type==='INCOME'?'รายรับ':'รายจ่าย'} · ${c.id==='CAT-DIVIDEND'?'หมวดระบบ':'ลากเพื่อจัดลำดับ'}</div></div><div class="category-actions"><button class="mini-btn" onclick="editCategory('${c.id}')">แก้ไข</button>${c.id==='CAT-DIVIDEND'?'':`<button class="mini-btn delete" onclick="deleteCategory('${c.id}')">ลบ</button>`}</div></div>`).join('');
+            }
+        }
         let draggedCategoryId='';function categoryDragStart(e){draggedCategoryId=e.currentTarget.dataset.categoryId;e.currentTarget.classList.add('dragging');e.dataTransfer.effectAllowed='move'}function categoryDragOver(e){e.preventDefault();e.currentTarget.classList.add('drag-over')}function categoryDragEnd(){document.querySelectorAll('.category-row').forEach(x=>x.classList.remove('dragging','drag-over'));draggedCategoryId=''}async function categoryDrop(e){e.preventDefault();const target=e.currentTarget.dataset.categoryId;if(!draggedCategoryId||target===draggedCategoryId)return;const ids=S.data.allCategories.map(x=>x.id),from=ids.indexOf(draggedCategoryId),to=ids.indexOf(target),moved=ids.splice(from,1)[0];ids.splice(to,0,moved);try{const r=await call('reorderCategory',{data:{ids}});applyAppData(r.refresh);toast('จัดลำดับหมวดแล้ว')}catch(x){alertError(x.message)}finally{categoryDragEnd()}}
         let touchCategoryRow=null;function categoryTouchStart(e){touchCategoryRow=e.currentTarget.closest('.category-row');touchCategoryRow.classList.add('dragging')}function categoryTouchMove(e){if(!touchCategoryRow)return;e.preventDefault();const t=e.touches[0],over=document.elementFromPoint(t.clientX,t.clientY)?.closest('.category-row');if(over&&over!==touchCategoryRow){const box=over.getBoundingClientRect();$('categoryList').insertBefore(touchCategoryRow,t.clientY<box.top+box.height/2?over:over.nextSibling)}}async function categoryTouchEnd(){if(!touchCategoryRow)return;const ids=[...document.querySelectorAll('#categoryList .category-row')].map(x=>x.dataset.categoryId);touchCategoryRow.classList.remove('dragging');touchCategoryRow=null;try{const r=await call('reorderCategory',{data:{ids}});applyAppData(r.refresh);toast('จัดลำดับหมวดแล้ว')}catch(x){alertError(x.message)}}
         async function moveCategory(id,direction){try{const r=await call('moveCategory',{data:{id,direction}});r.refresh?applyAppData(r.refresh):await loadApp()}catch(e){alertError(e.message)}}
-        function clearCategoryForm(){ $('categoryId').value=$('categoryName').value=''; $('categoryType').value='INCOME' }
-        function editCategory(id){ const c=S.data.allCategories.find(x=>x.id===id); if(!c)return; $('categoryId').value=c.id; $('categoryName').value=c.name; $('categoryType').value=c.type; window.scrollTo({top:0,behavior:'smooth'}) }
-        async function saveCategory(){ try{ const r=await call('saveCategory',{data:{id:$('categoryId').value,name:$('categoryName').value,type:$('categoryType').value}}); clearCategoryForm(); toast('บันทึกหมวดเรียบร้อย'); r.refresh?applyAppData(r.refresh):await loadApp() }catch(e){alertError(e.message)} }
+        function clearCategoryForm(){ $('categoryId').value=$('categoryName').value=''; $('categoryType').value='EXPENSE'; const title=$('txCatFormTitle'),btn=$('saveCatBtn'); if(title)title.textContent='＋ เพิ่มหมวดรายรับ–รายจ่ายใหม่'; if(btn)btn.textContent='💾 บันทึกหมวดหมู่'; }
+        function editCategory(id){ switchCatSegment('tx'); const c=(S.data.allCategories||[]).find(x=>x.id===id); if(!c)return; $('categoryId').value=c.id; $('categoryName').value=c.name; $('categoryType').value=c.type; const title=$('txCatFormTitle'),btn=$('saveCatBtn'); if(title)title.textContent='✏️ แก้ไขหมวด '+c.name; if(btn)btn.textContent='💾 บันทึกการแก้ไข'; $('txCatFormCard')?.scrollIntoView({behavior:'smooth',block:'center'}); }
+        async function saveCategory(){ const name=($('categoryName').value||'').trim(); if(!name)return alertError('กรุณากรอกชื่อหมวดหมู่'); try{ const r=await call('saveCategory',{data:{id:$('categoryId').value,name,type:$('categoryType').value}}); clearCategoryForm(); toast('บันทึกหมวดเรียบร้อย'); r.refresh?applyAppData(r.refresh):await loadApp() }catch(e){alertError(e.message)} }
         async function toggleCategory(id,active){ const ask=await Swal.fire({icon:'question',title:active?'เปิดใช้งานหมวดนี้?':'ปิดใช้งานหมวดนี้?',text:active?'หมวดจะกลับมาให้เลือกในรายการใหม่':'ประวัติรายการเก่าจะยังคงอยู่',showCancelButton:true,confirmButtonText:'ยืนยัน',cancelButtonText:'ยกเลิก'}); if(!ask.isConfirmed)return; try{const r=await call('toggleCategory',{data:{id,active}});toast(active?'เปิดใช้งานแล้ว':'ปิดใช้งานแล้ว');r.refresh?applyAppData(r.refresh):await loadApp()}catch(e){alertError(e.message)} }
         async function deleteCategory(id){const c=S.data.allCategories.find(x=>x.id===id);if(!c)return;const ask=await Swal.fire({icon:'warning',title:'ลบหมวด “'+esc(c.name)+'” ?',text:'หมวดจะหายจากรายการเลือก แต่ประวัติรายรับรายจ่ายเดิมยังอยู่',showCancelButton:true,confirmButtonText:'ลบหมวด',cancelButtonText:'ยกเลิก',confirmButtonColor:'#dc2626'});if(!ask.isConfirmed)return;try{const r=await call('deleteCategory',{data:{id}});toast('ลบหมวดแล้ว');r.refresh?applyAppData(r.refresh):await loadApp()}catch(e){alertError(e.message)}}
         function renderAnalyticsAccess(){const allowed=!!S.data.permissions.canViewAnalytics,box=$('analyticsHome');box.classList.toggle('hidden',!allowed);if(allowed&&!$('analysisInputs').children.length)renderAnalysisInputs()}
@@ -2779,9 +2921,9 @@
             }
         }
 
-        function showPage(name, el) { if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll')return showPageAndSub('entry','quick');if(name==='dividends')return showPageAndSub('entry','dividend');document.querySelectorAll('[id^="page-"]').forEach(x => x.classList.add('hidden')); const target=$('page-' + name); if(target)target.classList.remove('hidden'); document.querySelectorAll('.tab').forEach(x => x.classList.remove('active')); if(el)el.classList.add('active');if(name==='entry')initSmartQuickInputs(); }
-        function goToPage(name){if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll')return showPageAndSub('entry','quick');if(name==='dividends')return showPageAndSub('entry','dividend');const tab=document.querySelector(`[data-page="${name}"]`);if(tab&&!tab.classList.contains('hidden'))showPage(name,tab);else showPage(name,null)}
-        function updateRoleLayout(){const role=S.data.user.role,visible=[...document.querySelectorAll('.tabs .tab:not(.hidden)')];document.querySelector('.tabs').style.gridTemplateColumns=`repeat(${visible.length},minmax(0,1fr))`;const copy={MANAGER:['พื้นที่ผู้จัดการ','จัดการรายการซื้อ รายรับ–รายจ่าย และหมวดสำหรับงานประจำวัน'],STAFF:['พื้นที่พนักงาน','บันทึกรายการได้รวดเร็ว และดูประวัติรายการของคุณเอง']};if(copy[role]){$('roleHomeTitle').textContent=copy[role][0];$('roleHomeText').textContent=copy[role][1]}document.body.dataset.role=role}
+        function showPage(name, el) { if(name==='category'||name==='categories')return showPageAndSub('entry','category');if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll')return showPageAndSub('entry','quick');if(name==='dividends')return showPageAndSub('entry','dividend');document.querySelectorAll('[id^="page-"]').forEach(x => x.classList.add('hidden')); const target=$('page-' + name); if(target)target.classList.remove('hidden'); document.querySelectorAll('.tab').forEach(x => x.classList.remove('active')); if(el)el.classList.add('active');if(name==='entry')initSmartQuickInputs(); }
+        function goToPage(name){if(name==='category'||name==='categories')return showPageAndSub('entry','category');if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll')return showPageAndSub('entry','quick');if(name==='dividends')return showPageAndSub('entry','dividend');const tab=document.querySelector(`[data-page="${name}"]`);if(tab&&!tab.classList.contains('hidden'))showPage(name,tab);else showPage(name,null)}
+        function updateRoleLayout(){const role=S.data.user.role,visible=[...document.querySelectorAll('.tabs .tab:not(.hidden)')];document.querySelector('.tabs').style.gridTemplateColumns=`repeat(${visible.length},minmax(0,1fr))`;const copy={MANAGER:['พื้นที่ผู้จัดการ','จัดการรายการซื้อ รายรับ–รายจ่าย และหมวดสำหรับงานประจำวัน'],STAFF:['พื้นที่พนักงาน','บันทึกรายการได้รวดเร็ว และดูประวัติรายการของคุณเอง']};if(copy[role]){$('roleHomeTitle').textContent=copy[role][0];$('roleHomeText').textContent=copy[role][1]}document.body.dataset.role=role;const catTab=$('entrySubTabCategory');if(catTab)catTab.classList.toggle('hidden',!['ADMIN','MANAGER','OWNER'].includes(role));}
 function addItem() { const u=(S.data&&S.data.units&&S.data.units[0])||{name:'ชิ้น',factor:1,baseUnit:'ชิ้น'};S.items.push({name:'',category:'อื่น ๆ',quantity:1,unit:u.name,unitFactor:Number(u.factor),baseUnit:u.baseUnit,lineTotal:''});renderItemsV2() }
 function guessCategory(name) { const n = name.toLowerCase(); const saved = S.data && S.data.products.find(p => String(p.name).toLowerCase() === n); if (saved && saved.category) return saved.category; const rules = [['อาหารสัตว์', ['อาหารเป็ด', 'อาหารปลา', 'อาหารสัตว์', 'อาหารนก', 'หนอนอบ', 'เมล็ดทานตะวัน']], ['ถุงเท้า/เครื่องแต่งกาย', ['ถุงเท้า', 'เสื้อ', 'กางเกง', 'หมวก', 'ผ้ากันเปื้อน']], ['ของเล่น', ['ของเล่น', 'ตุ๊กตา', 'ลูกบอล', 'เลโก้', 'สติ๊กเกอร์', 'สีเทียน']], ['ทำความสะอาด', ['น้ำยาล้าง', 'น้ำยาถู', 'ผงซัก', 'สบู่', 'ถุงขยะ', 'ไม้กวาด', 'ฟองน้ำ', 'ฆ่าเชื้อ']], ['บรรจุภัณฑ์', ['แก้วพลาสติก', 'แก้วกระดาษ', 'หลอด', 'กล่องอาหาร', 'ช้อนพลาสติก', 'ส้อมพลาสติก', 'ถุงหิ้ว', 'ฝาแก้ว', 'กระดาษรอง']], ['เนื้อสัตว์และอาหารทะเล', ['เนื้อ', 'หมู', 'ไก่', 'ปลา', 'กุ้ง', 'หมึก', 'ปู', 'แฮม', 'เบคอน', 'ไส้กรอก', 'ไข่']], ['บาร์น้ำและเครื่องดื่ม', ['กาแฟ', 'ชา', 'โกโก้', 'นม', 'ไซรัป', 'โซดา', 'น้ำแข็ง', 'น้ำผลไม้', 'น้ำดื่ม', 'ครีมเทียม']], ['ขนมและเบเกอรี่', ['ขนม', 'เค้ก', 'คุกกี้', 'บราวนี่', 'เบเกอรี่', 'ไอศกรีม', 'ช็อกโกแลต', 'เยลลี่']], ['ผักและผลไม้', ['ผัก', 'ผลไม้', 'มะม่วง', 'มะพร้าว', 'มะเขือ', 'มะนาว', 'มะกรูด', 'แตง', 'กะหล่ำ', 'คะน้า', 'แครอท', 'หอม', 'กระเทียม', 'มันฝรั่ง', 'ข้าวโพด', 'กล้วย', 'ส้ม', 'แอปเปิล', 'องุ่น', 'สับปะรด', 'เห็ด', 'พริก', 'กะเพรา']], ['วัตถุดิบครัว/ของแห้ง', ['ข้าว', 'แป้ง', 'น้ำตาล', 'น้ำมัน', 'เกลือ', 'ซอส', 'ซีอิ๊ว', 'น้ำปลา', 'เครื่องปรุง', 'เส้น', 'พาสต้า', 'กะทิ', 'เนย', 'ชีส']]]; for (const [cat, words] of rules) if (words.some(w => n.includes(w))) return cat; return 'อื่น ๆ' }
 function parseQuickItems() { const lines = $('quickItems').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean); if (!lines.length) return Swal.fire({ icon: 'info', title: 'ลองพิมพ์รายการก่อน', html: 'ตัวอย่าง<br><b>มะม่วง 1 กก 40 บาท</b>', confirmButtonText: 'เข้าใจแล้ว' }); const parsed = [], failed = []; const re = /^(.+?)\s+(\d+(?:[.,]\d+)?)\s*(กก\.?|กิโล(?:กรัม)?|กรัม|ลูก|ชิ้น|แพ็ก|แพค|ถุง|ขวด|กล่อง|ลัง|ลิตร|มล\.?)\s+(?:ราคา\s*)?(\d+(?:[.,]\d+)?)\s*(?:บาท)?$/i; lines.forEach((line, i) => { const m = line.match(re); if (!m) return failed.push((i + 1) + '. ' + line); let unit = m[3].replace('.', ''); if (/^กิโล/.test(unit)) unit = 'กก.'; if (unit === 'กก') unit = 'กก.'; if (unit === 'แพค') unit = 'แพ็ก'; if (unit === 'มล') unit = 'มล.'; let factor = 1, baseUnit = unit; if (unit === 'กรัม') { factor = .001; baseUnit = 'กก.' } else if (unit === 'มล.') { factor = .001; baseUnit = 'ลิตร' } const name = m[1].trim(); parsed.push({ name, category: guessCategory(name), quantity: Number(m[2].replace(',', '.')), unit, unitFactor: factor, baseUnit, lineTotal: Number(m[4].replace(',', '.')) }) }); if (failed.length) return Swal.fire({ icon: 'warning', title: 'มีบรรทัดที่ยังแยกไม่ได้', html: 'ตรวจรูปแบบ: <b>ชื่อ จำนวน หน่วย ราคา</b><br><br>' + failed.map(esc).join('<br>'), confirmButtonText: 'กลับไปแก้ไข' }); S.items = parsed; renderItems(); toast('แยกข้อมูลและหมวดสำเร็จ ' + parsed.length + ' รายการ'); setTimeout(() => $('buyItems').scrollIntoView({ behavior: 'smooth', block: 'start' }), 200) }
@@ -3412,12 +3554,95 @@ function renderItems() { const box = $('buyItems'); const cats = (S.data.product
         function clearUserForm(){ $('editUserId').value=$('newName').value=$('newUsername').value=$('newPassword').value=''; renderUserRoleOptions(); $('userFormTitle').textContent='＋ สร้างบัญชีผู้ใช้งานระบบ'; $('saveUserBtn').textContent='💾 สร้างบัญชี' }
         async function saveUser() { const id=$('editUserId').value,name=($('newName').value||'').trim(),username=($('newUsername').value||'').trim(),password=$('newPassword').value||'',role=$('newRole').value; if(!name)return alertError('กรุณากรอกชื่อ–นามสกุล'); if(!username)return alertError('กรุณากรอกชื่อผู้ใช้ (Username)'); if(!id&&(!password||password.length<6))return alertError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); const btn=$('saveUserBtn'); if(btn)btn.disabled=true; try { const r=await call(id?'updateUser':'createUser', { data: { id,name,username,password,role } });toast(id?'แก้ไขบัญชีเรียบร้อย':'สร้างบัญชีเรียบร้อย');clearUserForm();if(r&&r.refresh)applyAppData(r.refresh);else await loadApp(true) } catch (e) { alertError(e.message) } finally { if(btn)btn.disabled=false; } }
         async function toggleUserAccount(id,active){const ask=await Swal.fire({icon:'question',title:active?'เปิดบัญชีผู้ใช้นี้?':'ปิดบัญชีผู้ใช้นี้?',text:active?'ผู้ใช้จะกลับมาเข้าสู่ระบบได้':'ผู้ใช้จะเข้าสู่ระบบไม่ได้ แต่ประวัติเดิมยังอยู่',showCancelButton:true,confirmButtonText:'ยืนยัน',cancelButtonText:'ยกเลิก'});if(!ask.isConfirmed)return;try{const r=await call('toggleUser',{data:{id,active}});toast(active?'เปิดบัญชีแล้ว':'ปิดบัญชีแล้ว');r.refresh?applyAppData(r.refresh):await loadApp()}catch(e){alertError(e.message)}}
-        function renderCatalogManager(){const allowed=!!S.data.permissions.canManageCatalog;$('catalogManager').classList.toggle('hidden',!allowed);if(!allowed)return;$('productCategoryList').innerHTML=S.data.catalogProductCategories.map(x=>`<div class="compact-row"><span>${esc(x.name)}</span><span><button class="mini-btn" onclick="editProductCategory('${x.id}')">แก้</button><button class="mini-btn ${x.active?'delete':''}" onclick="toggleProductCategory('${x.id}',${!x.active})">${x.active?'ปิด':'เปิด'}</button></span></div>`).join('');$('unitList').innerHTML=S.data.catalogUnits.map(x=>`<div class="compact-row"><span>${esc(x.name)} <small>×${x.factor} ${esc(x.baseUnit)}</small></span><span><button class="mini-btn" onclick="editUnit('${x.id}')">แก้</button><button class="mini-btn ${x.active?'delete':''}" onclick="toggleUnit('${x.id}',${!x.active})">${x.active?'ปิด':'เปิด'}</button></span></div>`).join('')}
-        function editProductCategory(id){const x=S.data.catalogProductCategories.find(v=>v.id===id);$('productCategoryId').value=x.id;$('productCategoryName').value=x.name}
-        async function saveProductCategory(){try{const r=await call('saveProductCategory',{data:{id:$('productCategoryId').value,name:$('productCategoryName').value}});$('productCategoryId').value=$('productCategoryName').value='';toast('บันทึกหมวดสินค้าแล้ว');r.refresh?applyAppData(r.refresh):await loadApp()}catch(e){alertError(e.message)}}
+        function renderCatalogManager(){
+            const allowed=!!(S.data&&S.data.permissions&&S.data.permissions.canManageCatalog);
+            const box=$('catalogManager');
+            if(box)box.classList.toggle('hidden',!allowed);
+            const prodCats=(S.data&&S.data.catalogProductCategories)||[];
+            const units=(S.data&&S.data.catalogUnits)||[];
+
+            const prodBadge=$('catProdCountBadge'),prodText=$('prodCatListCountText');
+            if(prodBadge)prodBadge.textContent=prodCats.length;
+            if(prodText)prodText.textContent=prodCats.length+' หมวด';
+
+            const unitBadge=$('catUnitCountBadge'),unitText=$('unitListCountText');
+            if(unitBadge)unitBadge.textContent=units.length;
+            if(unitText)unitText.textContent=units.length+' หน่วย';
+
+            if(!allowed)return;
+            const pList=$('productCategoryList');
+            if(pList){
+                pList.innerHTML=prodCats.map(x=>`<div class="compact-row"><span>${esc(x.name)}</span><span><button class="mini-btn" onclick="editProductCategory('${x.id}')">แก้</button><button class="mini-btn ${x.active?'delete':''}" onclick="toggleProductCategory('${x.id}',${!x.active})">${x.active?'ปิด':'เปิด'}</button></span></div>`).join('');
+            }
+            const uList=$('unitList');
+            if(uList){
+                uList.innerHTML=units.map(x=>`<div class="compact-row"><span>${esc(x.name)} <small>×${x.factor} ${esc(x.baseUnit)}</small></span><span><button class="mini-btn" onclick="editUnit('${x.id}')">แก้</button><button class="mini-btn ${x.active?'delete':''}" onclick="toggleUnit('${x.id}',${!x.active})">${x.active?'ปิด':'เปิด'}</button></span></div>`).join('');
+            }
+        }
+        function clearProductCategoryForm(){
+            $('productCategoryId').value='';
+            $('productCategoryName').value='';
+            const title=$('prodCatFormTitle');
+            if(title)title.textContent='＋ เพิ่มหมวดสินค้า/วัตถุดิบใหม่';
+        }
+        function editProductCategory(id){
+            switchCatSegment('product');
+            const x=(S.data.catalogProductCategories||[]).find(v=>v.id===id);
+            if(!x)return;
+            $('productCategoryId').value=x.id;
+            $('productCategoryName').value=x.name;
+            const title=$('prodCatFormTitle');
+            if(title)title.textContent='✏️ แก้ไขหมวดสินค้า '+x.name;
+            $('prodCatFormCard')?.scrollIntoView({behavior:'smooth',block:'center'});
+        }
+        async function saveProductCategory(){
+            const name=($('productCategoryName').value||'').trim();
+            if(!name)return alertError('กรุณากรอกชื่อหมวดสินค้า');
+            try{
+                const r=await call('saveProductCategory',{data:{id:$('productCategoryId').value,name}});
+                clearProductCategoryForm();
+                toast('บันทึกหมวดสินค้าแล้ว');
+                r.refresh?applyAppData(r.refresh):await loadApp();
+            }catch(e){alertError(e.message)}
+        }
         async function toggleProductCategory(id,active){try{const r=await call('toggleProductCategory',{data:{id,active}});r.refresh?applyAppData(r.refresh):await loadApp()}catch(e){alertError(e.message)}}
-        function editUnit(id){const x=S.data.catalogUnits.find(v=>v.id===id);$('unitId').value=x.id;$('unitName').value=x.name;$('unitFactor').value=x.factor;$('unitBase').value=x.baseUnit}
-        async function saveUnit(){try{const r=await call('saveUnit',{data:{id:$('unitId').value,name:$('unitName').value,factor:$('unitFactor').value,baseUnit:$('unitBase').value}});$('unitId').value=$('unitName').value=$('unitBase').value='';$('unitFactor').value=1;toast('บันทึกหน่วยแล้ว');r.refresh?applyAppData(r.refresh):await loadApp()}catch(e){alertError(e.message)}}
+        function clearUnitForm(){
+            $('unitId').value='';
+            $('unitName').value='';
+            $('unitFactor').value=1;
+            $('unitBase').value='';
+            const title=$('unitFormTitle');
+            if(title)title.textContent='＋ เพิ่มหน่วยนับสินค้าใหม่';
+        }
+        function editUnit(id){
+            switchCatSegment('unit');
+            const x=(S.data.catalogUnits||[]).find(v=>v.id===id);
+            if(!x)return;
+            $('unitId').value=x.id;
+            $('unitName').value=x.name;
+            $('unitFactor').value=x.factor;
+            $('unitBase').value=x.baseUnit;
+            const title=$('unitFormTitle');
+            if(title)title.textContent='✏️ แก้ไขหน่วยนับ '+x.name;
+            $('unitFormCard')?.scrollIntoView({behavior:'smooth',block:'center'});
+        }
+        async function saveUnit(){
+            const name=($('unitName').value||'').trim();
+            if(!name)return alertError('กรุณากรอกชื่อหน่วย');
+            try{
+                const r=await call('saveUnit',{
+                    data:{
+                        id:$('unitId').value,
+                        name,
+                        factor:Number($('unitFactor').value)||1,
+                        baseUnit:($('unitBase').value||'').trim()||name
+                    }
+                });
+                clearUnitForm();
+                toast('บันทึกหน่วยแล้ว');
+                r.refresh?applyAppData(r.refresh):await loadApp();
+            }catch(e){alertError(e.message)}
+        }
         async function toggleUnit(id,active){try{const r=await call('toggleUnit',{data:{id,active}});r.refresh?applyAppData(r.refresh):await loadApp()}catch(e){alertError(e.message)}}
         function renderManagerDonut(){const show=S.data.user.role==='MANAGER'&&S.data.managerPeriods;$('managerDonut').classList.toggle('hidden',!show);$('recentTodaySection').classList.toggle('hidden',show);if(!show)return;const tabs=document.querySelector('.manager-periods');if(tabs&&!tabs.querySelector('[data-manager-custom]')){const b=document.createElement('button');b.type='button';b.dataset.managerCustom='1';b.textContent='กำหนดเอง';b.onclick=()=>openManagerCustomPeriod(b);tabs.appendChild(b)}const key=['DAY','WEEK','MONTH','YEAR','ALL'].includes(S.managerPeriod)?S.managerPeriod:'MONTH';selectManagerPeriod(key)}
         function selectManagerPeriod(key,button){S.managerPeriod=key;document.querySelectorAll('.manager-periods button').forEach(x=>{const action=x.getAttribute('onclick')||'';x.classList.toggle('active',button?x===button:action.includes(`'${key}'`))});const periods=S.data.managerPeriods||{},d=periods[key]||periods.MONTH||{income:0,expense:0,net:0},labels={DAY:'วันนี้',WEEK:'สัปดาห์นี้',MONTH:'เดือนนี้',YEAR:'ปีนี้',ALL:'ทั้งหมด'};$('managerPeriodLabel').textContent=labels[key];$('managerIncome').textContent=money(d.income);$('managerExpense').textContent=money(d.expense);$('managerNet').textContent=money(d.net);$('managerNet').className=d.net<0?'negative':'positive';const total=d.income+d.expense,ip=total?d.income/total*100:50,ep=total?d.expense/total*100:50;$('managerIncomeBar').style.width=ip+'%';$('managerExpenseBar').style.width=ep+'%';const list=(S.data.managerHistory||[]).filter(x=>managerDateMatches(x.date,key));$('managerHistoryCount').textContent=list.length+' รายการ';$('managerHistory').innerHTML=list.length?list.map(x=>transactionCard(x,false)).join(''):'<div class="muted">ยังไม่มีรายการในช่วงเวลานี้</div>'}
