@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.10.10',
+  version: '3.10.11',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -194,6 +194,7 @@ function api(action, payload) {
       ,saveWageAdvance: () => saveWageAdvance_(user, payload.data)
       ,deleteWageAdvance: () => deleteWageAdvance_(user, payload.data)
       ,saveWageOvertime: () => saveWageOvertime_(user, payload.data)
+      ,deleteWageOvertime: () => deleteWageOvertime_(user, payload.data)
       ,payWeeklyWage: () => payWeeklyWage_(user, payload.data)
       ,getWagePaymentQuote: () => getWagePaymentQuote_(user, payload.data)
       ,resetCurrentPayroll: () => resetCurrentPayroll_(user, payload.data)
@@ -444,6 +445,7 @@ function buildWeeklyWages_(targetWeekStart){
   const accountNames = Object.fromEntries(accounts.map(x => [x.id, x.name]));
   const employees = buildEmployees_();
   const advances = dedupeRows_(cachedRows_('WageAdvances', 60), ['id']);
+  const overtimes = dedupeRows_(cachedRows_('WageOvertime', 60), ['id']);
   const payments = dedupeRows_(activeWagePayments_(cachedRows_('WagePayments', 60)), ['id']);
   const ptRows = dedupeRows_(cachedRows_('PartTimeWorkDays', 60), ['id']);
   const txList = cachedRows_('Transactions', 60).filter(x => String(x.status || 'CONFIRMED') !== 'CANCELLED' && dateKey_(x.date) >= weekStart && dateKey_(x.date) <= weekEnd);
@@ -468,6 +470,18 @@ function buildWeeklyWages_(targetWeekStart){
         weeklyWage = 0;
       }
     }
+
+    // Overtime
+    const empOvertimes = overtimes.filter(x => x.employeeId === e.id && (dateKey_(x.weekStart) === weekStart || (dateKey_(x.date) >= weekStart && dateKey_(x.date) <= weekEnd))).map(x => ({
+      id: x.id,
+      date: dateKey_(x.date),
+      hours: num_(x.hours),
+      rate: num_(x.rate),
+      amount: num_(x.amount),
+      note: x.note || ''
+    }));
+    const otTotal = round_(empOvertimes.reduce((s, x) => s + num_(x.amount), 0));
+    const totalEarned = round_(weeklyWage + otTotal);
     
     // 1. Formal payments and advances
     const formalPayment = payments.find(x => x.employeeId === e.id && (paymentWeekStart_(x) === weekStart || (dateKey_(x.paidAt) >= weekStart && dateKey_(x.paidAt) <= weekEnd)));
@@ -490,7 +504,7 @@ function buildWeeklyWages_(targetWeekStart){
       if (!note.includes(empName) && !(isWageCat && note.includes(empName))) return;
       
       const amt = num_(t.amount);
-      if (note.includes('เบิก') || (amt < weeklyWage && !note.includes('จ่าย') && !note.includes('ค่าจ้าง'))) {
+      if (note.includes('เบิก') || (amt < totalEarned && !note.includes('จ่าย') && !note.includes('ค่าจ้าง'))) {
         extraAdvances.push({
           id: t.id,
           date: dateKey_(t.date),
@@ -500,7 +514,7 @@ function buildWeeklyWages_(targetWeekStart){
           note: t.note || 'เบิกเงิน (บันทึกด่วน)',
           source: 'TRANSACTION'
         });
-      } else if (!formalPayment && !quickPayment && (note.includes('จ่าย') || note.includes('ค่าจ้าง') || amt >= weeklyWage)) {
+      } else if (!formalPayment && !quickPayment && (note.includes('จ่าย') || note.includes('ค่าจ้าง') || amt >= totalEarned)) {
         quickPayment = {
           id: t.id,
           date: dateKey_(t.date),
@@ -538,7 +552,7 @@ function buildWeeklyWages_(targetWeekStart){
       source: 'WAGE_PAYMENT'
     } : quickPayment;
 
-    const remaining = isPaid ? 0 : Math.max(0, round_(weeklyWage - advanceTotal));
+    const remaining = isPaid ? 0 : Math.max(0, round_(totalEarned - advanceTotal));
     
     let percentRemaining = 100;
     let progress = 100;
@@ -549,7 +563,7 @@ function buildWeeklyWages_(targetWeekStart){
       percentRemaining = 0;
       progress = 100;
     } else {
-      if (weeklyWage === 0 && advanceTotal === 0) {
+      if (totalEarned === 0 && advanceTotal === 0) {
         status = isPartTime ? 'NO_WORK_DAYS' : 'PENDING';
         percentRemaining = 100;
         progress = 100;
@@ -557,9 +571,9 @@ function buildWeeklyWages_(targetWeekStart){
         status = 'PENDING';
         percentRemaining = 100;
         progress = 100;
-      } else if (advanceTotal < weeklyWage) {
+      } else if (advanceTotal < totalEarned) {
         status = 'PARTIAL';
-        percentRemaining = weeklyWage > 0 ? round_((remaining / weeklyWage) * 100, 1) : 0;
+        percentRemaining = totalEarned > 0 ? round_((remaining / totalEarned) * 100, 1) : 0;
         progress = percentRemaining;
       } else {
         status = 'FULL_ADVANCE';
@@ -574,6 +588,9 @@ function buildWeeklyWages_(targetWeekStart){
       position: e.position || 'พนักงานทั่วไป',
       employmentType: e.employmentType || 'FULL_TIME',
       weeklyWage,
+      otTotal,
+      overtime: empOvertimes,
+      totalEarned,
       advanceTotal,
       remaining,
       percentRemaining,
@@ -589,9 +606,11 @@ function buildWeeklyWages_(targetWeekStart){
   });
 
   const totalWages = round_(items.reduce((s, x) => s + x.weeklyWage, 0));
+  const totalOt = round_(items.reduce((s, x) => s + (x.otTotal || 0), 0));
+  const totalEarned = round_(items.reduce((s, x) => s + (x.totalEarned || x.weeklyWage), 0));
   const totalAdvances = round_(items.reduce((s, x) => s + x.advanceTotal, 0));
   const totalRemaining = round_(items.reduce((s, x) => s + x.remaining, 0));
-  const totalPaid = round_(items.filter(x => x.isPaid).reduce((s, x) => s + (x.payment ? x.payment.netPaid : x.weeklyWage), 0));
+  const totalPaid = round_(items.filter(x => x.isPaid).reduce((s, x) => s + (x.payment ? x.payment.netPaid : x.totalEarned), 0));
   const paidCount = items.filter(x => x.isPaid).length;
   const pendingCount = items.filter(x => !x.isPaid).length;
   const partialCount = items.filter(x => !x.isPaid && x.advanceTotal > 0).length;
@@ -616,6 +635,8 @@ function buildWeeklyWages_(targetWeekStart){
       pendingCount,
       partialCount,
       totalWages,
+      totalOt,
+      totalEarned,
       totalAdvances,
       totalRemaining,
       totalPaid
@@ -949,8 +970,50 @@ function deleteWageAdvance_(user,data){
   }finally{lock.releaseLock()}
 }
 
-function saveWageOvertime_(user,data){
-  if(!canAdminUsers_(user))throw new Error('ไม่มีสิทธิ์บันทึก OT');const lock=LockService.getScriptLock();lock.waitLock(20000);try{const employee=rows_('Employees').find(x=>x.id===data.employeeId),date=validDate_(data.date),hours=round_(num_(data.hours)),rate=round_(num_(data.rate)),week=payrollWeek_();if(!employee||hours<=0||rate<=0)throw new Error('กรุณาระบุวันที่ ชั่วโมง และค่า OT ให้ถูกต้อง');if(date<week.start||date>week.end)throw new Error('วันที่ OT ต้องอยู่ในรอบสัปดาห์ปัจจุบัน');if(activeWagePayments_(rows_('WagePayments')).some(x=>x.employeeId===employee.id&&paymentWeekStart_(x)===week.start))throw new Error('พนักงานคนนี้ปิดรอบจ่ายแล้ว');const overtime=rows_('WageOvertime'),duplicate=overtime.find(x=>x.employeeId===employee.id&&dateKey_(x.date)===date&&num_(x.hours)===hours&&num_(x.rate)===rate&&x.createdBy===user.id&&recentWrite_(x.createdAt));if(duplicate)return ok({id:duplicate.id,duplicate:true,refresh:bootstrap_(user).data});const amount=round_(hours*rate),id=id_('OT');append_('WageOvertime',[id,employee.id,week.start,date,hours,rate,amount,clean_(data.note),now_(),user.id,user.name]);invalidateRows_('WageOvertime');audit_(user,'CREATE','WAGE_OT',id,employee.name+' '+amount);return ok({id,refresh:bootstrap_(user).data})}finally{lock.releaseLock()}
+function saveWageOvertime_(user, data) {
+  if (!canManage_(user)) throw new Error('ไม่มีสิทธิ์บันทึก OT');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const employee = rows_('Employees').find(x => x.id === data.employeeId);
+    if (!employee) throw new Error('ไม่พบข้อมูลพนักงาน');
+    const date = validDate_(data.date || today_());
+    const hours = round_(num_(data.hours));
+    const rate = round_(num_(data.rate));
+    const amount = round_(num_(data.amount) || (hours * rate));
+    if (amount <= 0 && (hours <= 0 || rate <= 0)) throw new Error('กรุณาระบุชั่วโมงและอัตราค่า OT ให้ถูกต้อง');
+    const weekStart = data.weekStart ? validDate_(data.weekStart) : weekStartFor_(date);
+    const id = id_('OT');
+    append_('WageOvertime', [id, employee.id, weekStart, date, hours || 0, rate || 0, amount, clean_(data.note), now_(), user.id, user.name]);
+    SpreadsheetApp.flush();
+    invalidateRows_('WageOvertime');
+    audit_(user, 'CREATE', 'WAGE_OT', id, employee.name + ' ' + amount);
+    return ok({ id, refresh: bootstrap_(user).data });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deleteWageOvertime_(user, data) {
+  if (!canManage_(user)) throw new Error('ไม่มีสิทธิ์ลบรายการ OT');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const id = clean_(data && data.id);
+    if (!id) throw new Error('ไม่พบรหัส OT ที่ต้องการลบ');
+    const otSheet = sheet_('WageOvertime');
+    const otValues = otSheet.getDataRange().getValues();
+    const idx = otValues.findIndex((r, i) => i > 0 && r[0] === id);
+    if (idx > 0) {
+      otSheet.deleteRow(idx + 1);
+      audit_(user, 'DELETE', 'WAGE_OT', id, 'ลบรายการ OT');
+    }
+    SpreadsheetApp.flush();
+    invalidateRows_('WageOvertime');
+    return ok({ id, refresh: bootstrap_(user).data });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function payWeeklyWage_(user,data){
@@ -1012,25 +1075,137 @@ function payWeeklyWage_(user,data){
   }finally{lock.releaseLock()}
 }
 
-function resetPayrollWeekCore_(week,user){
-  const paymentSheet=sheet_('WagePayments'),paymentValues=paymentSheet.getDataRange().getValues(),paymentHead=paymentValues[0],statusCol=paymentHead.indexOf('status')+1,transactionSheet=sheet_('Transactions'),transactionValues=transactionSheet.getDataRange().getValues(),workSheet=sheet_('PartTimeWorkDays'),workValues=workSheet.getDataRange().getValues(),targets=[];
-  paymentValues.slice(1).forEach((row,i)=>{const payment=Object.fromEntries(paymentHead.map((h,j)=>[h,row[j]]));if(String(payment.status||'CONFIRMED')!=='CANCELLED'&&paymentWeekStart_(payment)===week.start)targets.push({row:i+2,payment})});
-  targets.forEach(x=>{paymentSheet.getRange(x.row,statusCol).setValue('CANCELLED');if(x.payment.transactionId){const ti=transactionValues.findIndex((r,i)=>i>0&&r[0]===x.payment.transactionId);if(ti>0)transactionSheet.getRange(ti+1,12).setValue('CANCELLED')}workValues.slice(1).forEach((r,i)=>{if(r[6]===x.payment.id)workSheet.getRange(i+2,6,1,2).setValues([['PENDING','']])})});
-  if(targets.length){SpreadsheetApp.flush();invalidateRows_('WagePayments');invalidateRows_('Transactions');invalidateRows_('PartTimeWorkDays');audit_(user,'RESET','PAYROLL_WEEK',week.start,'ยกเลิกรอบจ่ายปัจจุบัน '+targets.length+' รายการ')}
-  return targets.length;
+function resetPayrollWeekCore_(week, user) {
+  const weekStart = week.start;
+  const weekEnd = week.end || addDays_(weekStart, 6);
+  let deletedCount = 0;
+
+  // 1. Delete WagePayments for this week + associated transactions
+  const pSheet = sheet_('WagePayments');
+  const pVals = pSheet.getDataRange().getValues();
+  if (pVals.length > 1) {
+    const pHead = pVals[0];
+    const txIdsToDelete = new Set();
+    for (let i = pVals.length - 1; i >= 1; i--) {
+      const row = pVals[i];
+      const p = Object.fromEntries(pHead.map((h, j) => [h, row[j]]));
+      if (paymentWeekStart_(p) === weekStart || (dateKey_(p.paidAt) >= weekStart && dateKey_(p.paidAt) <= weekEnd)) {
+        if (p.transactionId) txIdsToDelete.add(p.transactionId);
+        txIdsToDelete.add(p.id);
+        pSheet.deleteRow(i + 1);
+        deletedCount++;
+      }
+    }
+    if (txIdsToDelete.size > 0) {
+      const tSheet = sheet_('Transactions');
+      const tVals = tSheet.getDataRange().getValues();
+      for (let i = tVals.length - 1; i >= 1; i--) {
+        const tid = tVals[i][0];
+        const refId = tVals[i][7];
+        if (txIdsToDelete.has(tid) || (refId && txIdsToDelete.has(refId))) {
+          tSheet.deleteRow(i + 1);
+        }
+      }
+    }
+  }
+
+  // 2. Delete WageAdvances for this week + associated transactions
+  const aSheet = sheet_('WageAdvances');
+  const aVals = aSheet.getDataRange().getValues();
+  if (aVals.length > 1) {
+    const aHead = aVals[0];
+    const txIdsToDelete = new Set();
+    for (let i = aVals.length - 1; i >= 1; i--) {
+      const row = aVals[i];
+      const a = Object.fromEntries(aHead.map((h, j) => [h, row[j]]));
+      if (dateKey_(a.weekStart) === weekStart || (dateKey_(a.date) >= weekStart && dateKey_(a.date) <= weekEnd)) {
+        if (a.transactionId) txIdsToDelete.add(a.transactionId);
+        txIdsToDelete.add(a.id);
+        aSheet.deleteRow(i + 1);
+        deletedCount++;
+      }
+    }
+    if (txIdsToDelete.size > 0) {
+      const tSheet = sheet_('Transactions');
+      const tVals = tSheet.getDataRange().getValues();
+      for (let i = tVals.length - 1; i >= 1; i--) {
+        const tid = tVals[i][0];
+        const refId = tVals[i][7];
+        if (txIdsToDelete.has(tid) || (refId && txIdsToDelete.has(refId))) {
+          tSheet.deleteRow(i + 1);
+        }
+      }
+    }
+  }
+
+  // 3. Delete WageOvertime for this week
+  const otSheet = sheet_('WageOvertime');
+  const otVals = otSheet.getDataRange().getValues();
+  if (otVals.length > 1) {
+    const otHead = otVals[0];
+    for (let i = otVals.length - 1; i >= 1; i--) {
+      const row = otVals[i];
+      const o = Object.fromEntries(otHead.map((h, j) => [h, row[j]]));
+      if (dateKey_(o.weekStart) === weekStart || (dateKey_(o.date) >= weekStart && dateKey_(o.date) <= weekEnd)) {
+        otSheet.deleteRow(i + 1);
+        deletedCount++;
+      }
+    }
+  }
+
+  // 4. Reset PartTimeWorkDays for this week
+  const ptSheet = sheet_('PartTimeWorkDays');
+  const ptVals = ptSheet.getDataRange().getValues();
+  if (ptVals.length > 1) {
+    for (let i = 1; i < ptVals.length; i++) {
+      if (dateKey_(ptVals[i][3]) === weekStart) {
+        ptSheet.getRange(i + 1, 6, 1, 2).setValues([['PENDING', '']]);
+      }
+    }
+  }
+
+  SpreadsheetApp.flush();
+  invalidateRows_('WagePayments');
+  invalidateRows_('WageAdvances');
+  invalidateRows_('WageOvertime');
+  invalidateRows_('PartTimeWorkDays');
+  invalidateRows_('Transactions');
+  invalidateRows_('Accounts');
+  audit_(user, 'RESET', 'PAYROLL_WEEK', weekStart, 'รีเซ็ตรอบสัปดาห์ ลบรายการเบิก-จ่าย-OT ' + deletedCount + ' รายการ');
+  return deletedCount;
 }
-function resetCurrentPayroll_(user,data){if(!canManage_(user))throw new Error('ไม่มีสิทธิ์รีเซตรอบค่าจ้าง');if(!data||data.confirm!==true)throw new Error('กรุณายืนยันการรีเซต');const lock=LockService.getScriptLock();lock.waitLock(20000);try{const count=resetPayrollWeekCore_(payrollWeek_(),user);return ok({count,refresh:bootstrap_(user).data})}finally{lock.releaseLock()}}
+
+function resetCurrentPayroll_(user, data) {
+  if (!canManage_(user)) throw new Error('ไม่มีสิทธิ์รีเซตรอบค่าจ้าง');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const count = resetPayrollWeekCore_(payrollWeek_(), user);
+    return ok({ count, refresh: bootstrap_(user).data });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function ensureCurrentPayrollPendingMigration_(){const props=PropertiesService.getScriptProperties(),key='PAYROLL_CURRENT_PENDING_20260831';if(props.getProperty(key)==='1')return;const owner=rows_('Users').find(x=>x.role==='OWNER'&&truthy_(x.active))||{id:'SYSTEM',name:'SYSTEM'};resetPayrollWeekCore_(payrollWeek_(),owner);props.setProperty(key,'1')}
 
 function validPayrollMonth_(value){const month=String(value||'');if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw new Error('เดือนค่าจ้างไม่ถูกต้อง');return month}
 function payrollMonthSchedule_(value){const month=validPayrollMonth_(value),first=month+'-01',nextMonth=Utilities.formatDate(new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),1,12),Session.getScriptTimeZone(),'yyyy-MM-dd'),last=addDays_(nextMonth,-1),saved={};cachedRows_('PayrollSchedule',600).filter(x=>x.month===month).forEach(x=>saved[dateKey_(x.weekStart)]=x);const weeks=[];for(let start=weekStartFor_(first);addDays_(start,6)<=last;start=addDays_(start,7)){const row=saved[start];weeks.push({id:row&&row.id||'',weekStart:start,weekEnd:addDays_(start,6),payDate:row&&dateKey_(row.payDate)||addDays_(start,6),active:row?truthy_(row.active):true})}return{month,weeks}}
 function getPayrollSchedule_(user,data){if(!canManage_(user))throw new Error('ไม่มีสิทธิ์ดูตารางจ่ายค่าจ้าง');return ok(payrollMonthSchedule_(data&&data.month))}
-function getPayrollWeekStatus_(user,data){
-  if(!canManage_(user))throw new Error('ไม่มีสิทธิ์ดูสถานะค่าจ้าง');
+
+function getPayrollWeekStatus_(user, data) {
+  if (!canManage_(user)) throw new Error('ไม่มีสิทธิ์ดูสถานะค่าจ้าง');
   const weekStart = data && data.weekStart ? validDate_(data.weekStart) : payrollWeek_().start;
+  invalidateRows_('WageAdvances');
+  invalidateRows_('WagePayments');
+  invalidateRows_('WageOvertime');
+  invalidateRows_('PartTimeWorkDays');
+  invalidateRows_('Transactions');
+  invalidateRows_('Accounts');
   const wages = buildWeeklyWages_(weekStart);
-  return ok({ wages, ...wages });
+  return ok({ wages, ...wages, refresh: bootstrap_(user).data });
 }
+
 function savePayrollSchedule_(user,data){if(!canManage_(user))throw new Error('ไม่มีสิทธิ์กำหนดรอบจ่ายค่าจ้าง');const month=validPayrollMonth_(data&&data.month),input=Array.isArray(data.weeks)?data.weeks:[],valid=payrollMonthSchedule_(month),allowed=new Set(valid.weeks.map(x=>x.weekStart)),lock=LockService.getScriptLock();lock.waitLock(20000);try{const sh=sheet_('PayrollSchedule'),values=sh.getDataRange().getValues(),head=values[0],existing={};values.slice(1).forEach((r,i)=>{if(r[1]===month)existing[dateKey_(r[2])]=i+2});valid.weeks.forEach(def=>{const item=input.find(x=>x.weekStart===def.weekStart)||def,payDate=validDate_(item.payDate||def.payDate);if(!allowed.has(def.weekStart))throw new Error('รอบสัปดาห์ไม่ถูกต้อง');const row=[existing[def.weekStart]?values[existing[def.weekStart]-1][0]:id_('SCH'),month,def.weekStart,def.weekEnd,payDate,item.active!==false,existing[def.weekStart]?values[existing[def.weekStart]-1][6]:now_(),user.id,now_()];if(existing[def.weekStart])sh.getRange(existing[def.weekStart],1,1,head.length).setValues([row]);else sh.appendRow(row)});invalidateRows_('PayrollSchedule');audit_(user,'UPDATE','PAYROLL_SCHEDULE',month,'กำหนด '+valid.weeks.length+' รอบ');return ok({schedule:payrollMonthSchedule_(month)})}finally{lock.releaseLock()}}
 function cancelWagePayment_(user,data){
   if(!canManage_(user))throw new Error('ไม่มีสิทธิ์ยกเลิกรายการจ่าย');
@@ -1066,7 +1241,19 @@ function cancelWagePayment_(user,data){
     return ok({refresh:bootstrap_(user).data});
   }finally{lock.releaseLock()}
 }
-function resetPayrollWeek_(user,data){if(!canManage_(user))throw new Error('ไม่มีสิทธิ์รีเซตรอบค่าจ้าง');if(!data||data.confirm!==true)throw new Error('กรุณายืนยันการรีเซต');const start=validDate_(data.weekStart||payrollWeek_().start);if(weekStartFor_(start)!==start)throw new Error('รอบสัปดาห์ไม่ถูกต้อง');const lock=LockService.getScriptLock();lock.waitLock(20000);try{const count=resetPayrollWeekCore_({start,end:addDays_(start,6)},user);return ok({count,weekStart:start,refresh:bootstrap_(user).data})}finally{lock.releaseLock()}}
+
+function resetPayrollWeek_(user, data) {
+  if (!canManage_(user)) throw new Error('ไม่มีสิทธิ์รีเซตรอบค่าจ้าง');
+  const start = validDate_(data && data.weekStart || payrollWeek_().start);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const count = resetPayrollWeekCore_({ start, end: addDays_(start, 6) }, user);
+    return ok({ count, weekStart: start, refresh: bootstrap_(user).data });
+  } finally {
+    lock.releaseLock();
+  }
+}
 function ensureManualPayrollMigration_(){const props=PropertiesService.getScriptProperties(),key='PAYROLL_MANUAL_ONLY_20260831';if(props.getProperty(key)==='1')return;props.setProperty('PAYROLL_AUTO_ENABLED','0');try{ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='autoPayPayrollTrigger_').forEach(t=>ScriptApp.deleteTrigger(t))}catch(e){}props.setProperty(key,'1')}
 
 function savePurchase_(user, data) {
@@ -1424,10 +1611,43 @@ function buildDashboardPeriods_(tx, categories){
   const result={};
   Object.keys(starts).forEach(key=>{
     const start=starts[key], end=key==='YESTERDAY'?yesterday:today, selected=tx.filter(x=>dateKey_(x.date)>=start && dateKey_(x.date)<=end), total=totals_(selected), grouped={};
-    selected.filter(x=>x.type==='EXPENSE' && x.category!=='CAT-RAW').forEach(x=>{ const n=categoryNames[x.category]||'รายจ่ายอื่น'; grouped[n]=(grouped[n]||0)+num_(x.amount); });
-    purchaseItems.forEach(x=>{ const d=purchaseDates[x.purchaseId]; if(d && d>=start && d<=end){ const n=clean_(x.productCategory)||'วัตถุดิบอื่น'; grouped[n]=(grouped[n]||0)+num_(x.lineTotal); } });
+    let rawMaterials = 0;
+    let wages = 0;
+    let otherExpenses = 0;
+    selected.filter(x=>x.type==='EXPENSE').forEach(x=>{
+      const amt = num_(x.amount);
+      const isRaw = x.category === 'CAT-RAW' || (x.referenceId && String(x.referenceId).indexOf('PUR') === 0);
+      const isWage = x.category === 'CAT-WAGE' || (x.referenceId && (String(x.referenceId).indexOf('WAG') === 0 || String(x.referenceId).indexOf('ADV') === 0 || String(x.referenceId).indexOf('OT') === 0));
+      if (isRaw) {
+        rawMaterials += amt;
+      } else if (isWage) {
+        wages += amt;
+      } else {
+        otherExpenses += amt;
+      }
+      if (x.category !== 'CAT-RAW') {
+        const n=categoryNames[x.category]||'รายจ่ายอื่น';
+        grouped[n]=(grouped[n]||0)+amt;
+      }
+    });
+    purchaseItems.forEach(x=>{
+      const d=purchaseDates[x.purchaseId];
+      if(d && d>=start && d<=end){
+        const n=clean_(x.productCategory)||'วัตถุดิบอื่น';
+        grouped[n]=(grouped[n]||0)+num_(x.lineTotal);
+      }
+    });
     const breakdown=Object.keys(grouped).map(name=>({name,amount:round_(grouped[name]),pct:total.expense?round_(grouped[name]/total.expense*100):0})).sort((a,b)=>b.amount-a.amount);
-    result[key]={...total,breakdown};
+    const net = total.net;
+    const netPct = total.income > 0 ? round_((net / total.income) * 100, 1) : (total.expense > 0 ? -100 : 0);
+    result[key]={
+      ...total,
+      rawMaterials: round_(rawMaterials),
+      wages: round_(wages),
+      otherExpenses: round_(otherExpenses),
+      netPct,
+      breakdown
+    };
   });
   return result;
 }
