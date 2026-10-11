@@ -3369,8 +3369,11 @@
 
                 // Status Pill
                 let statusPill = '';
+                const isPartTime = emp.employmentType === 'PART_TIME';
                 if (isPaid) {
                     statusPill = '<span class="wage-status-pill paid">✓ ได้รับเงินแล้ว (100%)</span>';
+                } else if (weeklyWage === 0 && advTotal === 0 && isPartTime) {
+                    statusPill = '<span class="wage-status-pill pending" style="background:#f1f5f9;color:#475569">⏳ รอลงวันทำงาน</span>';
                 } else if (advTotal >= weeklyWage && weeklyWage > 0) {
                     statusPill = '<span class="wage-status-pill full-advance">⚠️ เบิกเต็มจำนวนแล้ว</span>';
                 } else if (advTotal > 0) {
@@ -3400,6 +3403,11 @@
 
                 // Action Buttons
                 const btnsHtml = `
+                    ${isPartTime && !isPaid ? `
+                        <button type="button" class="btn" style="background:#ecfdf5;color:#065f46;border:1.5px solid #a7f3d0;width:100%;margin-bottom:8px" onclick="openPartTimeDaysModal('${esc(emp.id)}')">
+                            📅 ลงวัน/กำหนดยอด Part-time (${emp.workDaysCount || 0} วัน)
+                        </button>
+                    ` : ''}
                     <div class="wage-card-btns">
                         ${!isPaid ? `
                             <button type="button" class="btn" style="background:#fffbeb;color:#92400e;border:1.5px solid #fde68a" onclick="openWageAdvanceModal('${esc(emp.id)}')">
@@ -3426,15 +3434,18 @@
                                 <div class="wage-avatar">${isPaid ? '✓' : '👤'}</div>
                                 <div>
                                     <div class="wage-card-name">${esc(emp.name)}</div>
-                                    <div class="wage-card-role">${esc(emp.position || 'พนักงานทั่วไป')} · ${emp.employmentType === 'PART_TIME' ? 'พาร์ทไทม์' : 'ประจำ'}</div>
+                                    <div class="wage-card-role">${esc(emp.position || 'พนักงานทั่วไป')} · ${isPartTime ? '<span style="color:#059669;font-weight:700">พาร์ทไทม์</span>' : 'ประจำ'}</div>
                                 </div>
                             </div>
-                            ${statusPill}
+                            <div style="display:flex;align-items:center;gap:6px">
+                                ${statusPill}
+                                <button type="button" class="btn light" style="min-height:28px;padding:2px 8px;font-size:12px;border-radius:8px" title="จัดการข้อมูลพนักงาน" onclick="openEditEmployeeModal('${esc(emp.id)}')">⚙️</button>
+                            </div>
                         </div>
 
                         <div class="wage-stats-3col">
                             <div>
-                                <small>ฐานค่าแรงสัปดาห์</small>
+                                <small>${isPartTime ? `ยอดงาน (${emp.workDaysCount || 0} วัน)` : 'ฐานค่าแรงสัปดาห์'}</small>
                                 <b>${money(weeklyWage)}</b>
                             </div>
                             <div>
@@ -3512,6 +3523,304 @@
                 else refreshWeeklyWages();
             } catch (e) {
                 alertError(e.message || 'เพิ่มไม่สำเร็จ');
+            } finally {
+                loading(false);
+            }
+        }
+
+        async function openPartTimeDaysModal(empId) {
+            const empList = (S.data && S.data.wages && (S.data.wages.employees || S.data.wages.items)) || [];
+            const emp = empList.find(x => x.id === empId);
+            if (!emp) return;
+            const wages = S.data.wages || {};
+            const curStart = wages.weekStart || (wages.week && wages.week.start) || today();
+            
+            // Build the 7 days (Monday to Sunday)
+            const daysData = [];
+            const dayNamesThai = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+            const curD = new Date(curStart + 'T12:00:00');
+            const workDaysMap = new Map();
+            (emp.workDays || []).forEach(w => workDaysMap.set(w.date, w));
+
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(curD);
+                d.setDate(d.getDate() + i);
+                const dateStr = d.toISOString().slice(0, 10);
+                const dayName = dayNamesThai[i];
+                const saved = workDaysMap.get(dateStr);
+                const isWorked = !!saved;
+                const defaultRate = saved ? saved.dailyRate : (Number(emp.weeklyWage) || 350);
+                daysData.push({
+                    date: dateStr,
+                    dayName: `${dayName} (${d.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][d.getMonth()]})`,
+                    worked: isWorked,
+                    rate: defaultRate
+                });
+            }
+
+            const rowsHtml = daysData.map((day, idx) => `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;font-weight:600;font-size:13px;margin:0">
+                        <input type="checkbox" id="ptWorked_${idx}" style="width:18px;height:18px;accent-color:#059669;cursor:pointer" ${day.worked ? 'checked' : ''} onchange="window.calcPtModalTotal()">
+                        <span>${esc(day.dayName)}</span>
+                    </label>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <input type="number" id="ptRate_${idx}" value="${day.rate}" min="0" step="50" style="width:110px;text-align:right;font-weight:700;padding:6px 10px;border-radius:8px;border:1.5px solid #cbd5e1" oninput="window.calcPtModalTotal()" placeholder="0">
+                        <span style="font-size:12px;color:#64748b">บาท</span>
+                    </div>
+                </div>
+            `).join('');
+
+            window.calcPtModalTotal = function() {
+                let sum = 0;
+                let count = 0;
+                for (let i = 0; i < 7; i++) {
+                    const chk = document.getElementById(`ptWorked_${i}`);
+                    const val = Number(document.getElementById(`ptRate_${i}`)?.value || 0);
+                    if (chk && chk.checked) {
+                        sum += val;
+                        count++;
+                    }
+                }
+                const summaryEl = document.getElementById('ptModalSummary');
+                if (summaryEl) {
+                    summaryEl.innerHTML = `รวมค่าแรงสัปดาห์นี้: <b style="color:#059669;font-size:16px">${money(sum)}</b> (${count} วัน)`;
+                }
+            };
+
+            const res = await Swal.fire({
+                customClass: { popup: 'compact-modal' },
+                title: '📅 กำหนดยอดรายวัน Part-time',
+                html: `
+                    <div style="text-align:left">
+                        <div class="notice" style="margin-bottom:12px">
+                            พนักงาน: <b>${esc(emp.name)}</b><br>
+                            เลือกว่าวันไหนมาทำงาน และระบุยอดเงินที่จ่ายแต่ละวันได้อย่างอิสระ
+                        </div>
+                        <div style="max-height:360px;overflow-y:auto;padding-right:4px">
+                            ${rowsHtml}
+                        </div>
+                        <div id="ptModalSummary" style="margin-top:12px;padding:10px 14px;background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;font-size:14px;text-align:center">
+                            รวมค่าแรงสัปดาห์นี้: <b style="color:#059669;font-size:16px">฿0.00</b> (0 วัน)
+                        </div>
+                    </div>
+                `,
+                didOpen: () => {
+                    window.calcPtModalTotal();
+                },
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกยอดรายวัน',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const days = [];
+                    for (let i = 0; i < 7; i++) {
+                        const chk = document.getElementById(`ptWorked_${i}`);
+                        const rate = Number(document.getElementById(`ptRate_${i}`)?.value || 0);
+                        days.push({
+                            date: daysData[i].date,
+                            worked: chk ? chk.checked : false,
+                            amount: rate
+                        });
+                    }
+                    return days;
+                }
+            });
+
+            if (!res.isConfirmed) return;
+            const days = res.value;
+
+            // 0ms Optimistic UI update
+            const newTotal = days.filter(d => d.worked).reduce((s, d) => s + d.amount, 0);
+            const workCount = days.filter(d => d.worked).length;
+            emp.weeklyWage = newTotal;
+            emp.remaining = Math.max(0, newTotal - emp.advanceTotal);
+            emp.percentRemaining = newTotal > 0 ? round_((emp.remaining / newTotal) * 100, 1) : 0;
+            emp.progress = emp.percentRemaining;
+            emp.workDaysCount = workCount;
+            emp.workDays = days.filter(d => d.worked).map(d => ({ date: d.date, dailyRate: d.amount, status: 'PENDING' }));
+            renderWeeklyWages();
+            toast(`⚡ กำหนดยอด Part-time ${esc(emp.name)} ${money(newTotal)} (${workCount} วัน) สำเร็จ (0ms)`);
+
+            try {
+                const curWeekStart = (S.data.wages && (S.data.wages.weekStart || (S.data.wages.week && S.data.wages.week.start))) || '';
+                const r = await callSilent('savePartTimeWorkDays', {
+                    data: {
+                        employeeId: emp.id,
+                        weekStart: curWeekStart,
+                        days
+                    }
+                });
+                if (r && r.refresh) applyAppData(r.refresh);
+            } catch (err) {
+                alertError(err.message || 'บันทึกวันทำงานไม่สำเร็จ');
+                loadApp(true);
+            }
+        }
+
+        async function openEditWageAdvanceModal(advanceId, empId) {
+            Swal.close();
+            const empList = (S.data && S.data.wages && (S.data.wages.employees || S.data.wages.items)) || [];
+            const emp = empList.find(x => x.id === empId);
+            if (!emp) return;
+            const advances = emp.advances || [];
+            const adv = advances.find(a => a.id === advanceId);
+            if (!adv) return;
+
+            const accounts = (S.data && S.data.accounts) || [];
+            const accOptions = accounts.map(a => `<option value="${a.id}" ${a.id === adv.accountId ? 'selected' : ''}>${esc(a.name)} (${money(a.balance)})</option>`).join('');
+
+            const res = await Swal.fire({
+                customClass: { popup: 'compact-modal' },
+                title: '✏️ แก้ไขรายการเบิกล่วงหน้า',
+                html: `
+                    <div style="text-align:left">
+                        <div class="notice" style="margin-bottom:12px">
+                            พนักงาน: <b>${esc(emp.name)}</b>
+                        </div>
+                        <div class="modal-field">
+                            <label>วันที่เบิก</label>
+                            <input id="wageAdvEditDate" type="date" value="${adv.date || today()}">
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>จ่ายจากบัญชี</label>
+                            <select id="wageAdvEditAccount">${accOptions}</select>
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>จำนวนเงินที่เบิก (บาท)</label>
+                            <input id="wageAdvEditAmount" type="number" min="1" step="10" value="${adv.amount}" style="font-size:16px;font-weight:700">
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>หมายเหตุ</label>
+                            <input id="wageAdvEditNote" value="${esc(adv.note || '')}" placeholder="เช่น เบิกค่าน้ำมัน">
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกการแก้ไข',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const date = $('wageAdvEditDate')?.value || today();
+                    const accountId = $('wageAdvEditAccount')?.value;
+                    const amount = Number($('wageAdvEditAmount')?.value || 0);
+                    const note = ($('wageAdvEditNote')?.value || '').trim();
+                    if (!accountId) { Swal.showValidationMessage('กรุณาเลือกบัญชี'); return false; }
+                    if (!amount || amount <= 0) { Swal.showValidationMessage('กรุณาระบุจำนวนเงินที่เบิก'); return false; }
+                    return { date, accountId, amount, note };
+                }
+            });
+
+            if (!res.isConfirmed) return openWageHistoryModal(empId);
+
+            try {
+                loading(true, 'กำลังบันทึกการแก้ไข...');
+                const curWeekStart = (S.data.wages && (S.data.wages.weekStart || (S.data.wages.week && S.data.wages.week.start))) || '';
+                const r = await call('saveWageAdvance', {
+                    data: {
+                        id: advanceId,
+                        advanceId,
+                        employeeId: emp.id,
+                        date: res.value.date,
+                        accountId: res.value.accountId,
+                        amount: res.value.amount,
+                        note: res.value.note,
+                        weekStart: curWeekStart
+                    }
+                });
+                toast('แก้ไขรายการเบิกสำเร็จ');
+                if (r && r.refresh) applyAppData(r.refresh);
+                else refreshWeeklyWages();
+            } catch (e) {
+                alertError(e.message || 'แก้ไขไม่สำเร็จ');
+                openWageHistoryModal(empId);
+            } finally {
+                loading(false);
+            }
+        }
+
+        async function openEditEmployeeModal(empId) {
+            const empList = (S.data && S.data.wages && (S.data.wages.employees || S.data.wages.items)) || [];
+            const emp = empList.find(x => x.id === empId);
+            if (!emp) return;
+
+            const res = await Swal.fire({
+                customClass: { popup: 'compact-modal' },
+                title: '⚙️ จัดการข้อมูล · ' + esc(emp.name),
+                html: `
+                    <div style="text-align:left">
+                        <div class="modal-field">
+                            <label>ชื่อพนักงาน</label>
+                            <input id="editEmpName" value="${esc(emp.name)}">
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>ตำแหน่ง</label>
+                            <input id="editEmpPosition" value="${esc(emp.position || 'พนักงานทั่วไป')}">
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>ประเภทการจ้าง</label>
+                            <select id="editEmpType">
+                                <option value="FULL_TIME" ${emp.employmentType !== 'PART_TIME' ? 'selected' : ''}>พนักงานประจำ / เจ้าของร้าน (ฐานค่าแรงต่อสัปดาห์)</option>
+                                <option value="PART_TIME" ${emp.employmentType === 'PART_TIME' ? 'selected' : ''}>พาร์ทไทม์ (กำหนดวันและยอดเงินแต่ละวันเอง)</option>
+                            </select>
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>ฐานค่าแรงสัปดาห์ / ต่อวัน (บาท)</label>
+                            <input id="editEmpWage" type="number" min="0" step="50" value="${emp.weeklyWage || 0}" style="font-size:16px;font-weight:700">
+                        </div>
+                        <div style="margin-top:16px;padding-top:12px;border-top:1px solid #fee2e2;text-align:right">
+                            <button type="button" class="btn danger" style="font-size:12px;padding:6px 12px" onclick="deleteEmployeeModal('${esc(emp.id)}', '${esc(emp.name)}')">
+                                🗑️ ลบพนักงานนี้ออกจากระบบ
+                            </button>
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกข้อมูล',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const name = ($('editEmpName')?.value || '').trim();
+                    const position = ($('editEmpPosition')?.value || '').trim() || 'พนักงานทั่วไป';
+                    const employmentType = $('editEmpType')?.value || 'FULL_TIME';
+                    const weeklyWage = Number($('editEmpWage')?.value || 0);
+                    if (name.length < 2) { Swal.showValidationMessage('กรุณาระบุชื่ออย่างน้อย 2 ตัวอักษร'); return false; }
+                    return { id: emp.id, name, position, employmentType, weeklyWage };
+                }
+            });
+
+            if (!res.isConfirmed) return;
+            try {
+                loading(true, 'กำลังบันทึกข้อมูล...');
+                const r = await call('saveEmployee', { data: res.value });
+                toast('บันทึกข้อมูลพนักงานเรียบร้อย');
+                if (r && r.refresh) applyAppData(r.refresh);
+                else refreshWeeklyWages();
+            } catch (e) {
+                alertError(e.message || 'บันทึกไม่สำเร็จ');
+            } finally {
+                loading(false);
+            }
+        }
+
+        async function deleteEmployeeModal(empId, empName) {
+            Swal.close();
+            const ask = await Swal.fire({
+                icon: 'warning',
+                title: 'ลบพนักงาน ' + esc(empName) + '?',
+                text: 'ระบบจะลบรายชื่อพนักงานนี้ออกอย่างถาวร',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันลบ',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#dc2626'
+            });
+            if (!ask.isConfirmed) return;
+
+            try {
+                loading(true, 'กำลังลบพนักงาน...');
+                const r = await call('deleteEmployee', { data: { id: empId } });
+                toast(`ลบ ${esc(empName)} เรียบร้อย`);
+                if (r && r.refresh) applyAppData(r.refresh);
+                else refreshWeeklyWages();
+            } catch (e) {
+                alertError(e.message || 'ลบไม่สำเร็จ');
             } finally {
                 loading(false);
             }
@@ -3812,12 +4121,13 @@
                 const curWeekStart = (S.data.wages && (S.data.wages.weekStart || (S.data.wages.week && S.data.wages.week.start))) || '';
                 const r = await call('cancelWagePayment', {
                     data: {
+                        id: paymentId,
                         paymentId,
                         employeeId: emp.id,
                         weekStart: curWeekStart
                     }
                 });
-                toast('ยกเลิกการจ่ายค่าแรงเรียบร้อย');
+                toast('ยกเลิก/ลบรายการจ่ายค่าแรงเรียบร้อย (คืนเงินเข้าบัญชี)');
                 if (r && r.refresh) applyAppData(r.refresh);
                 else refreshWeeklyWages();
             } catch (e) {
@@ -3836,17 +4146,20 @@
                 <div class="compact-row" style="margin-bottom:6px">
                     <div>
                         <b style="color:#d97706">💸 เบิก ${money(a.amount)}</b>
-                        <small>${esc(a.date)} · ${esc(a.note || 'เบิกล่วงหน้า')}</small>
+                        <small>${esc(a.date)} · ${esc(a.accountName || '')} · ${esc(a.note || 'เบิกล่วงหน้า')}</small>
                     </div>
-                    ${!emp.isPaid ? `<button type="button" class="mini-btn delete" onclick="deleteWageAdvanceModal('${esc(a.id)}', '${esc(emp.id)}')">ลบ</button>` : ''}
+                    <div style="display:flex;gap:4px">
+                        ${!emp.isPaid ? `<button type="button" class="mini-btn" style="background:#f1f5f9;color:#334155" onclick="openEditWageAdvanceModal('${esc(a.id)}', '${esc(emp.id)}')">✏️ แก้ไข</button>` : ''}
+                        ${!emp.isPaid ? `<button type="button" class="mini-btn delete" onclick="deleteWageAdvanceModal('${esc(a.id)}', '${esc(emp.id)}')">🗑️ ลบ</button>` : ''}
+                    </div>
                 </div>
             `).join('') : '<div class="muted" style="font-size:12px;padding:6px 0">ไม่มีรายการเบิกล่วงหน้า</div>';
 
             const payRows = payments.length ? payments.map(p => `
                 <div class="compact-row" style="margin-bottom:6px">
                     <div>
-                        <b style="color:#2563eb">✓ จ่าย ${money(p.amount)}</b>
-                        <small>${esc(p.date)} · ${esc(p.note || 'จ่ายค่าแรงรอบสัปดาห์')}</small>
+                        <b style="color:#2563eb">✓ จ่าย ${money(p.netPaid || p.amount)}</b>
+                        <small>${esc(p.date)} · ${esc(p.accountName || '')} · ${esc(p.note || 'จ่ายค่าแรงรอบสัปดาห์')}</small>
                     </div>
                 </div>
             `).join('') : '<div class="muted" style="font-size:12px;padding:6px 0">ยังไม่มีประวัติการจ่ายรอบนี้</div>';
@@ -3876,7 +4189,7 @@
             const ask = await Swal.fire({
                 icon: 'warning',
                 title: 'ลบรายการเบิกนี้?',
-                text: 'ระบบจะคืนเงินเข้าบัญชีเดิม และปรับยอดคงเหลือรับของพนักงานเพิ่มขึ้น',
+                text: 'ระบบจะลบรายการทิ้งทันที และคืนเงินเข้าบัญชีเดิม',
                 showCancelButton: true,
                 confirmButtonText: 'ยืนยันลบ',
                 cancelButtonText: 'ยกเลิก',
@@ -3888,12 +4201,13 @@
                 const curWeekStart = (S.data && S.data.wages && (S.data.wages.weekStart || (S.data.wages.week && S.data.wages.week.start))) || '';
                 const r = await call('deleteWageAdvance', {
                     data: {
+                        id: advanceId,
                         advanceId,
                         employeeId: empId,
                         weekStart: curWeekStart
                     }
                 });
-                toast('ลบรายการเบิกล่วงหน้าแล้ว');
+                toast('ลบรายการเบิกล่วงหน้าแล้ว (คืนเงินเข้าบัญชี)');
                 if (r && r.refresh) applyAppData(r.refresh);
                 else refreshWeeklyWages();
             } catch (e) {

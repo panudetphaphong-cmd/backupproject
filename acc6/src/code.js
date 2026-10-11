@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.10.9',
+  version: '3.10.10',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -445,10 +445,29 @@ function buildWeeklyWages_(targetWeekStart){
   const employees = buildEmployees_();
   const advances = dedupeRows_(cachedRows_('WageAdvances', 60), ['id']);
   const payments = dedupeRows_(activeWagePayments_(cachedRows_('WagePayments', 60)), ['id']);
+  const ptRows = dedupeRows_(cachedRows_('PartTimeWorkDays', 60), ['id']);
   const txList = cachedRows_('Transactions', 60).filter(x => String(x.status || 'CONFIRMED') !== 'CANCELLED' && dateKey_(x.date) >= weekStart && dateKey_(x.date) <= weekEnd);
 
   const items = employees.map(e => {
-    const weeklyWage = num_(e.weeklyWage) || 0;
+    let weeklyWage = num_(e.weeklyWage) || 0;
+    const isPartTime = e.employmentType === 'PART_TIME';
+    
+    // For Part-Time: calculate custom base wage from PartTimeWorkDays of this week
+    const empWorkDays = ptRows.filter(x => x.employeeId === e.id && dateKey_(x.weekStart) === weekStart).map(x => ({
+      id: x.id,
+      date: dateKey_(x.date),
+      dailyRate: num_(x.dailyRate),
+      amount: num_(x.dailyRate),
+      status: String(x.status || 'PENDING')
+    }));
+    
+    if (isPartTime) {
+      if (empWorkDays.length > 0) {
+        weeklyWage = round_(empWorkDays.reduce((s, x) => s + x.dailyRate, 0));
+      } else {
+        weeklyWage = 0;
+      }
+    }
     
     // 1. Formal payments and advances
     const formalPayment = payments.find(x => x.employeeId === e.id && (paymentWeekStart_(x) === weekStart || (dateKey_(x.paidAt) >= weekStart && dateKey_(x.paidAt) <= weekEnd)));
@@ -530,7 +549,11 @@ function buildWeeklyWages_(targetWeekStart){
       percentRemaining = 0;
       progress = 100;
     } else {
-      if (advanceTotal === 0) {
+      if (weeklyWage === 0 && advanceTotal === 0) {
+        status = isPartTime ? 'NO_WORK_DAYS' : 'PENDING';
+        percentRemaining = 100;
+        progress = 100;
+      } else if (advanceTotal === 0) {
         status = 'PENDING';
         percentRemaining = 100;
         progress = 100;
@@ -557,6 +580,8 @@ function buildWeeklyWages_(targetWeekStart){
       progress,
       isPaid,
       status,
+      workDays: empWorkDays,
+      workDaysCount: empWorkDays.length,
       payment: paidRecord,
       payments: paidRecord ? [paidRecord] : [],
       advances: allAdv
@@ -691,7 +716,56 @@ function buildPayroll_(){
   return{week,employees,partTimeEmployees:allEmployees.filter(x=>x.employmentType==='PART_TIME').map(x=>({id:x.id,name:x.name,dailyRate:num_(x.weeklyWage),selectedDates:workDays.filter(w=>w.employeeId===x.id&&dateKey_(w.weekStart)===week.start).map(w=>dateKey_(w.date))})),recentPayments,schedule:payrollMonthSchedule_(month)};
 }
 
-function savePartTimeWorkDays_(user,data){if(!canAdminUsers_(user))throw new Error('ไม่มีสิทธิ์กำหนดวันจ้าง');const employee=rows_('Employees').find(x=>x.id===data.employeeId&&x.employmentType==='PART_TIME'),week=payrollWeek_(),dates=[...new Set(Array.isArray(data.dates)?data.dates.map(validDate_):[])].sort();if(!employee)throw new Error('ไม่พบพนักงาน Part-time');if(dates.some(x=>x<week.start||x>week.end))throw new Error('เลือกวันได้เฉพาะสัปดาห์ปัจจุบัน');const lock=LockService.getScriptLock();lock.waitLock(20000);try{const sh=sheet_('PartTimeWorkDays'),values=sh.getDataRange().getValues(),head=values[0],rows=values.slice(1),existing=rows.map((r,i)=>({row:i+2,id:r[0],employeeId:r[1],date:dateKey_(r[2]),weekStart:dateKey_(r[3]),status:String(r[5]||'PENDING')})).filter(x=>x.employeeId===employee.id&&x.weekStart===week.start),selected=new Set(dates);existing.filter(x=>x.status!=='PAID'&&!selected.has(x.date)).reverse().forEach(x=>sh.deleteRow(x.row));const known=new Set(existing.map(x=>x.date));dates.filter(x=>!known.has(x)).forEach(date=>append_('PartTimeWorkDays',[id_('PTD'),employee.id,date,week.start,num_(employee.weeklyWage),'PENDING','',now_(),user.id]));invalidateRows_('PartTimeWorkDays');audit_(user,'UPDATE','PART_TIME_DAYS',employee.id,dates.join(','));return ok({refresh:bootstrap_(user).data})}finally{lock.releaseLock()}}
+function savePartTimeWorkDays_(user,data){
+  if(!canManage_(user))throw new Error('ไม่มีสิทธิ์กำหนดวันทำงาน Part-time');
+  const employee=rows_('Employees').find(x=>x.id===data.employeeId);
+  if(!employee)throw new Error('ไม่พบพนักงาน');
+  const targetWeekStart=validDate_(data.weekStart||(data.week&&data.week.start)||payrollWeek_().start);
+  const targetWeekEnd=addDays_(targetWeekStart,6);
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    const sh=sheet_('PartTimeWorkDays'),vals=sh.getDataRange().getValues(),head=vals[0];
+    const existing=vals.slice(1).map((r,i)=>({
+      row:i+2,id:r[0],employeeId:r[1],date:dateKey_(r[2]),weekStart:dateKey_(r[3]),dailyRate:num_(r[4]),status:String(r[5]||'PENDING')
+    })).filter(x=>x.employeeId===employee.id&&x.weekStart===targetWeekStart);
+    
+    const days=Array.isArray(data.days)?data.days:(
+      Array.isArray(data.dates)?data.dates.map(d=>({date:validDate_(d),amount:num_(employee.weeklyWage)||350,worked:true})):[]
+    );
+    
+    const existingMap=new Map();
+    existing.forEach(x=>existingMap.set(x.date,x));
+    const submittedDates=new Set();
+    
+    days.forEach(day=>{
+      const d=validDate_(day.date);
+      if(d<targetWeekStart||d>targetWeekEnd)return;
+      const isWorked=day.worked!==false&&num_(day.amount||day.dailyRate)>0;
+      const rate=round_(num_(day.amount||day.dailyRate));
+      if(isWorked){
+        submittedDates.add(d);
+        if(existingMap.has(d)){
+          const ex=existingMap.get(d);
+          if(ex.status!=='PAID'){
+            sh.getRange(ex.row,5).setValue(rate);
+          }
+        }else{
+          append_('PartTimeWorkDays',[id_('PTD'),employee.id,d,targetWeekStart,rate,'PENDING','',now_(),user.id]);
+        }
+      }
+    });
+    
+    // Delete unchecked days directly ("ลบก็เอาออกไปเลยไม่ต้องบันทึก")
+    existing.filter(x=>x.status!=='PAID'&&!submittedDates.has(x.date)).reverse().forEach(x=>{
+      sh.deleteRow(x.row);
+    });
+    
+    SpreadsheetApp.flush();
+    invalidateRows_('PartTimeWorkDays');
+    audit_(user,'UPDATE','PART_TIME_DAYS',employee.id,'บันทึกวันทำงานรอบ '+targetWeekStart+' ('+submittedDates.size+' วัน)');
+    return ok({refresh:bootstrap_(user).data});
+  }finally{lock.releaseLock()}
+}
 
 function employeePayrollDue_(employee,currentWeek,advances,overtime,payments){
   const employeePayments=payments.filter(x=>x.employeeId===employee.id&&paymentWeekStart_(x)<=currentWeek.start).sort((a,b)=>paymentWeekStart_(a).localeCompare(paymentWeekStart_(b))),currentPayment=employeePayments.find(x=>paymentWeekStart_(x)===currentWeek.start);
@@ -758,39 +832,185 @@ function saveEmployee_(user,data){
 }
 function deleteEmployee_(user,data){
   if(!canAdminUsers_(user)&&!canManage_(user))throw new Error('ไม่มีสิทธิ์ลบพนักงาน');
-  if(rows_('WageAdvances').some(x=>x.employeeId===data.id)||rows_('WageOvertime').some(x=>x.employeeId===data.id)||rows_('WagePayments').some(x=>x.employeeId===data.id))throw new Error('พนักงานนี้มีประวัติค่าจ้างแล้ว จึงไม่สามารถลบได้');
-  const sh=sheet_('Employees'),v=sh.getDataRange().getValues(),i=v.findIndex((r,n)=>n>0&&r[0]===data.id);
-  if(i<0)throw new Error('ไม่พบพนักงาน');
-  sh.deleteRow(i+1);
-  SpreadsheetApp.flush();
-  invalidateRows_('Employees');
-  audit_(user,'DELETE','EMPLOYEE',data.id,'');
-  return ok({refresh:bootstrap_(user).data});
-}
-function saveWageAdvance_(user,data){
-  if(!canManage_(user))throw new Error('ไม่มีสิทธิ์บันทึกเงินเบิก');const lock=LockService.getScriptLock();lock.waitLock(20000);try{const employee=rows_('Employees').find(x=>x.id===data.employeeId),account=rows_('Accounts').find(x=>x.id===data.accountId&&truthy_(x.active)),amount=round_(num_(data.amount)),date=validDate_(data.date||today_()),week=payrollWeek_();if(!employee||!account||amount<=0)throw new Error('ข้อมูลการเบิกเงินไม่ถูกต้อง');if(activeWagePayments_(rows_('WagePayments')).some(x=>x.employeeId===employee.id&&paymentWeekStart_(x)===week.start))throw new Error('พนักงานคนนี้ปิดรอบจ่ายแล้ว');const advances=rows_('WageAdvances'),duplicate=advances.find(x=>x.employeeId===employee.id&&dateKey_(x.date)===date&&num_(x.amount)===amount&&x.accountId===account.id&&x.createdBy===user.id&&recentWrite_(x.createdAt));if(duplicate)return ok({id:duplicate.id,duplicate:true,refresh:bootstrap_(user).data});const used=advances.filter(x=>x.employeeId===employee.id&&dateKey_(x.weekStart)===week.start).reduce((s,x)=>s+num_(x.amount),0),ot=rows_('WageOvertime').filter(x=>x.employeeId===employee.id&&dateKey_(x.weekStart)===week.start).reduce((s,x)=>s+num_(x.amount),0),available=employee.employmentType==='PART_TIME'?wagePaymentQuote_(employee,week.start).netBeforeAdjustment:num_(employee.weeklyWage)+ot-used;if(available>0&&amount>available)throw new Error('ยอดเบิกมากกว่ายอดค่าจ้างที่เหลือ (เหลือเบิกได้ '+available+' บาท)');const id=id_('ADV'),tx=id_('TX'),note=clean_(data.note)||('เบิกค่าจ้างล่วงหน้า '+employee.name),stamp=now_();try{append_('Transactions',[tx,date,'EXPENSE','CAT-WAGE',account.id,amount,note,id,stamp,user.id,user.name,'CONFIRMED']);append_('WageAdvances',[id,employee.id,week.start,date,amount,account.id,tx,note,stamp,user.id,user.name]);SpreadsheetApp.flush()}catch(e){deleteRowById_('Transactions',tx);deleteRowById_('WageAdvances',id);throw e}invalidateRows_('Transactions');invalidateRows_('WageAdvances');try{audit_(user,'CREATE','WAGE_ADVANCE',id,employee.name+' '+amount)}catch(e){}return ok({id,refresh:bootstrap_(user).data})}finally{lock.releaseLock()}
-}
-function deleteWageAdvance_(user,data){
-  if(!canManage_(user))throw new Error('ไม่มีสิทธิ์ลบรายการเบิก');const id=clean_(data&&data.id);const lock=LockService.getScriptLock();lock.waitLock(20000);try{const sh=sheet_('WageAdvances'),values=sh.getDataRange().getValues(),head=values[0];const idx=values.findIndex((r,i)=>i>0&&r[0]===id);if(idx>0){const adv=Object.fromEntries(head.map((h,j)=>[h,values[idx][j]]));if(adv.transactionId)deleteRowById_('Transactions',adv.transactionId);sh.deleteRow(idx+1);invalidateRows_('WageAdvances');invalidateRows_('Transactions');audit_(user,'DELETE','WAGE_ADVANCE',id,'');}else{const tx=sheet_('Transactions'),tv=tx.getDataRange().getValues();const ti=tv.findIndex((r,i)=>i>0&&r[0]===id);if(ti>0){tx.deleteRow(ti+1);invalidateRows_('Transactions');audit_(user,'DELETE','WAGE_ADVANCE_TX',id,'');}}return ok({id,refresh:bootstrap_(user).data});}finally{lock.releaseLock()}
-}
-function saveWageOvertime_(user,data){
-  if(!canAdminUsers_(user))throw new Error('ไม่มีสิทธิ์บันทึก OT');const lock=LockService.getScriptLock();lock.waitLock(20000);try{const employee=rows_('Employees').find(x=>x.id===data.employeeId),date=validDate_(data.date),hours=round_(num_(data.hours)),rate=round_(num_(data.rate)),week=payrollWeek_();if(!employee||hours<=0||rate<=0)throw new Error('กรุณาระบุวันที่ ชั่วโมง และค่า OT ให้ถูกต้อง');if(date<week.start||date>week.end)throw new Error('วันที่ OT ต้องอยู่ในรอบสัปดาห์ปัจจุบัน');if(activeWagePayments_(rows_('WagePayments')).some(x=>x.employeeId===employee.id&&paymentWeekStart_(x)===week.start))throw new Error('พนักงานคนนี้ปิดรอบจ่ายแล้ว');const overtime=rows_('WageOvertime'),duplicate=overtime.find(x=>x.employeeId===employee.id&&dateKey_(x.date)===date&&num_(x.hours)===hours&&num_(x.rate)===rate&&x.createdBy===user.id&&recentWrite_(x.createdAt));if(duplicate)return ok({id:duplicate.id,duplicate:true,refresh:bootstrap_(user).data});const amount=round_(hours*rate),id=id_('OT');append_('WageOvertime',[id,employee.id,week.start,date,hours,rate,amount,clean_(data.note),now_(),user.id,user.name]);invalidateRows_('WageOvertime');audit_(user,'CREATE','WAGE_OT',id,employee.name+' '+amount);return ok({id,refresh:bootstrap_(user).data})}finally{lock.releaseLock()}
-}
-function payWeeklyWage_(user,data){
-  if(!canManage_(user))throw new Error('ไม่มีสิทธิ์จ่ายค่าจ้าง');
-  const lock=LockService.getScriptLock();lock.waitLock(20000);try{
-    const employee=rows_('Employees').find(x=>x.id===data.employeeId),account=rows_('Accounts').find(x=>x.id===data.accountId&&truthy_(x.active)),targetStart=validDate_(data.targetWeekStart||payrollWeek_().start),paidDate=validDate_(data.date||today_());if(!employee)throw new Error('ไม่พบพนักงาน');if(!account)throw new Error('กรุณาเลือกบัญชีที่ใช้จ่าย');
-    const existing=activeWagePayments_(rows_('WagePayments')).find(x=>x.employeeId===employee.id&&paymentWeekStart_(x)===targetStart);if(existing)return ok({id:existing.id,paidWeek:targetStart,duplicate:true,refresh:bootstrap_(user).data});
-    if(employee.employmentType==='PART_TIME')return payPartTimeWageLocked_(user,data,employee);
-    const quote=wagePaymentQuote_(employee,targetStart),due=quote.due,adjustment=round_(num_(data.adjustment)),net=round_(quote.netBeforeAdjustment+adjustment);if(net<0)throw new Error('ยอดสุทธิติดลบ กรุณาตรวจสอบเงินเพิ่ม/หัก');
-    const id=id_('PAY'),tx=net>0?id_('TX'):'',note=clean_(data.note)||('จ่ายค่าจ้าง '+employee.name+' ถึงรอบ '+quote.targetEnd),stamp=now_();
-    try{if(net>0)append_('Transactions',[tx,paidDate,'EXPENSE','CAT-WAGE',account.id,net,note,id,stamp,user.id,user.name,'CONFIRMED']);append_('WagePayments',[id,employee.id,targetStart,quote.targetEnd,due.baseTotal,due.advanceTotal,round_(adjustment+due.otTotal),net,account.id,tx,note,stamp,user.id,user.name,targetStart,'CONFIRMED']);}
-    catch(e){if(tx)deleteRowById_('Transactions',tx);deleteRowById_('WagePayments',id);throw e}
-    invalidateRows_('Transactions');invalidateRows_('WagePayments');audit_(user,'CREATE','WAGE_PAYMENT',id,employee.name+' '+net+' ถึง '+quote.targetEnd);return ok({id,paidWeek:targetStart,refresh:bootstrap_(user).data});
+  const id=clean_(data&&data.id);
+  if(!id)throw new Error('ไม่พบรหัสพนักงาน');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    const sh=sheet_('Employees'),v=sh.getDataRange().getValues(),i=v.findIndex((r,n)=>n>0&&r[0]===id);
+    if(i<0)throw new Error('ไม่พบพนักงาน');
+    sh.deleteRow(i+1);
+    deleteRowsByField_('PartTimeWorkDays','employeeId',id);
+    SpreadsheetApp.flush();
+    invalidateRows_('Employees');
+    invalidateRows_('PartTimeWorkDays');
+    audit_(user,'DELETE','EMPLOYEE',id,'');
+    return ok({refresh:bootstrap_(user).data});
   }finally{lock.releaseLock()}
 }
 
-function payPartTimeWageLocked_(user,data,employee){const account=rows_('Accounts').find(x=>x.id===data.accountId&&truthy_(x.active)),targetStart=validDate_(data.targetWeekStart||payrollWeek_().start),paidDate=validDate_(data.date);if(!account)throw new Error('กรุณาเลือกบัญชีที่ใช้จ่าย');const quote=wagePaymentQuote_(employee,targetStart),adjustment=round_(num_(data.adjustment)),net=round_(quote.netBeforeAdjustment+adjustment);if(net<0)throw new Error('ยอดสุทธิติดลบ');const id=id_('PAY'),tx=net>0?id_('TX'):'',stamp=now_(),note=clean_(data.note)||('จ่าย Part-time '+employee.name+' '+quote.workDayCount+' วัน ถึง '+quote.targetEnd),sh=sheet_('PartTimeWorkDays'),values=sh.getDataRange().getValues(),ids=new Set(quote.workIds),updates=[];values.slice(1).forEach((r,i)=>{if(ids.has(r[0]))updates.push({row:i+2,status:r[5],paymentId:r[6]})});try{if(net>0)append_('Transactions',[tx,paidDate,'EXPENSE','CAT-WAGE',account.id,net,note,id,stamp,user.id,user.name,'CONFIRMED']);append_('WagePayments',[id,employee.id,targetStart,quote.targetEnd,quote.baseTotal,quote.advanceTotal,adjustment,net,account.id,tx,note,stamp,user.id,user.name,targetStart,'CONFIRMED']);updates.forEach(x=>sh.getRange(x.row,6,1,2).setValues([['PAID',id]]));}catch(e){updates.forEach(x=>sh.getRange(x.row,6,1,2).setValues([[x.status,x.paymentId]]));if(tx)deleteRowById_('Transactions',tx);deleteRowById_('WagePayments',id);throw e}invalidateRows_('Transactions');invalidateRows_('WagePayments');invalidateRows_('PartTimeWorkDays');audit_(user,'CREATE','PART_TIME_PAYMENT',id,employee.name+' '+quote.workDayCount+' วัน '+net);return ok({id,paidWeek:targetStart,refresh:bootstrap_(user).data})}
+function saveWageAdvance_(user,data){
+  if(!canManage_(user))throw new Error('ไม่มีสิทธิ์บันทึกเงินเบิก');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    const employee=rows_('Employees').find(x=>x.id===data.employeeId);
+    if(!employee)throw new Error('ไม่พบพนักงาน');
+    const account=rows_('Accounts').find(x=>x.id===data.accountId&&truthy_(x.active));
+    if(!account)throw new Error('กรุณาเลือกบัญชีที่จ่ายเงิน');
+    const amount=round_(num_(data.amount));
+    if(amount<=0)throw new Error('กรุณาระบุจำนวนเงินเบิกที่มากกว่า 0');
+    const date=validDate_(data.date||today_());
+    const weekStart=validDate_(data.weekStart||(data.week&&data.week.start)||weekStartFor_(date));
+    const note=clean_(data.note)||('เบิกค่าจ้างล่วงหน้า '+employee.name);
+
+    const advId=clean_(data.id||data.advanceId);
+    if(advId){
+      const sh=sheet_('WageAdvances'),vals=sh.getDataRange().getValues(),head=vals[0];
+      const idx=vals.findIndex((r,i)=>i>0&&r[0]===advId);
+      if(idx>0){
+        const adv=Object.fromEntries(head.map((h,j)=>[h,vals[idx][j]]));
+        sh.getRange(idx+1,3).setValue(weekStart);
+        sh.getRange(idx+1,4).setValue(date);
+        sh.getRange(idx+1,5).setValue(amount);
+        sh.getRange(idx+1,6).setValue(account.id);
+        sh.getRange(idx+1,8).setValue(note);
+        if(adv.transactionId){
+          const txSh=sheet_('Transactions'),txVals=txSh.getDataRange().getValues();
+          const ti=txVals.findIndex((r,i)=>i>0&&r[0]===adv.transactionId);
+          if(ti>0){
+            txSh.getRange(ti+1,2).setValue(date);
+            txSh.getRange(ti+1,5).setValue(account.id);
+            txSh.getRange(ti+1,6).setValue(amount);
+            txSh.getRange(ti+1,7).setValue(note);
+          }
+        }
+        SpreadsheetApp.flush();
+        invalidateRows_('WageAdvances');
+        invalidateRows_('Transactions');
+        audit_(user,'UPDATE','WAGE_ADVANCE',advId,employee.name+' '+amount);
+        return ok({id:advId,refresh:bootstrap_(user).data});
+      }else{
+        const txSh=sheet_('Transactions'),txVals=txSh.getDataRange().getValues();
+        const ti=txVals.findIndex((r,i)=>i>0&&(r[0]===advId||r[7]===advId));
+        if(ti>0){
+          txSh.getRange(ti+1,2).setValue(date);
+          txSh.getRange(ti+1,5).setValue(account.id);
+          txSh.getRange(ti+1,6).setValue(amount);
+          txSh.getRange(ti+1,7).setValue(note);
+          SpreadsheetApp.flush();
+          invalidateRows_('Transactions');
+          audit_(user,'UPDATE','WAGE_ADVANCE_TX',advId,employee.name+' '+amount);
+          return ok({id:advId,refresh:bootstrap_(user).data});
+        }
+      }
+    }
+
+    const id=id_('ADV'),tx=id_('TX'),stamp=now_();
+    try{
+      append_('Transactions',[tx,date,'EXPENSE','CAT-WAGE',account.id,amount,note,id,stamp,user.id,user.name,'CONFIRMED']);
+      append_('WageAdvances',[id,employee.id,weekStart,date,amount,account.id,tx,note,stamp,user.id,user.name]);
+      SpreadsheetApp.flush();
+    }catch(e){
+      deleteRowById_('Transactions',tx);
+      deleteRowById_('WageAdvances',id);
+      throw e;
+    }
+    invalidateRows_('Transactions');
+    invalidateRows_('WageAdvances');
+    audit_(user,'CREATE','WAGE_ADVANCE',id,employee.name+' '+amount);
+    return ok({id,refresh:bootstrap_(user).data});
+  }finally{lock.releaseLock()}
+}
+
+function deleteWageAdvance_(user,data){
+  if(!canManage_(user))throw new Error('ไม่มีสิทธิ์ลบรายการเบิก');
+  const id=clean_((data&&(data.id||data.advanceId))||'');
+  if(!id)throw new Error('ไม่พบรหัสรายการเบิก');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    const sh=sheet_('WageAdvances'),values=sh.getDataRange().getValues(),head=values[0];
+    const idx=values.findIndex((r,i)=>i>0&&r[0]===id);
+    if(idx>0){
+      const adv=Object.fromEntries(head.map((h,j)=>[h,values[idx][j]]));
+      if(adv.transactionId)deleteRowById_('Transactions',adv.transactionId);
+      sh.deleteRow(idx+1);
+      audit_(user,'DELETE','WAGE_ADVANCE',id,'');
+    }else{
+      const tx=sheet_('Transactions'),tv=tx.getDataRange().getValues();
+      const ti=tv.findIndex((r,i)=>i>0&&(r[0]===id||r[7]===id));
+      if(ti>0){
+        tx.deleteRow(ti+1);
+        audit_(user,'DELETE','WAGE_ADVANCE_TX',id,'');
+      }
+    }
+    SpreadsheetApp.flush();
+    invalidateRows_('WageAdvances');
+    invalidateRows_('Transactions');
+    return ok({id,refresh:bootstrap_(user).data});
+  }finally{lock.releaseLock()}
+}
+
+function saveWageOvertime_(user,data){
+  if(!canAdminUsers_(user))throw new Error('ไม่มีสิทธิ์บันทึก OT');const lock=LockService.getScriptLock();lock.waitLock(20000);try{const employee=rows_('Employees').find(x=>x.id===data.employeeId),date=validDate_(data.date),hours=round_(num_(data.hours)),rate=round_(num_(data.rate)),week=payrollWeek_();if(!employee||hours<=0||rate<=0)throw new Error('กรุณาระบุวันที่ ชั่วโมง และค่า OT ให้ถูกต้อง');if(date<week.start||date>week.end)throw new Error('วันที่ OT ต้องอยู่ในรอบสัปดาห์ปัจจุบัน');if(activeWagePayments_(rows_('WagePayments')).some(x=>x.employeeId===employee.id&&paymentWeekStart_(x)===week.start))throw new Error('พนักงานคนนี้ปิดรอบจ่ายแล้ว');const overtime=rows_('WageOvertime'),duplicate=overtime.find(x=>x.employeeId===employee.id&&dateKey_(x.date)===date&&num_(x.hours)===hours&&num_(x.rate)===rate&&x.createdBy===user.id&&recentWrite_(x.createdAt));if(duplicate)return ok({id:duplicate.id,duplicate:true,refresh:bootstrap_(user).data});const amount=round_(hours*rate),id=id_('OT');append_('WageOvertime',[id,employee.id,week.start,date,hours,rate,amount,clean_(data.note),now_(),user.id,user.name]);invalidateRows_('WageOvertime');audit_(user,'CREATE','WAGE_OT',id,employee.name+' '+amount);return ok({id,refresh:bootstrap_(user).data})}finally{lock.releaseLock()}
+}
+
+function payWeeklyWage_(user,data){
+  if(!canManage_(user))throw new Error('ไม่มีสิทธิ์จ่ายค่าจ้าง');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    const employee=rows_('Employees').find(x=>x.id===data.employeeId);
+    if(!employee)throw new Error('ไม่พบพนักงาน');
+    const targetStart=validDate_(data.targetWeekStart||data.weekStart||payrollWeek_().start);
+    const targetEnd=addDays_(targetStart,6);
+    const paidDate=validDate_(data.date||today_());
+    const amount=round_(num_(data.amount));
+    if(amount<0)throw new Error('จำนวนเงินต้องไม่ติดลบ');
+
+    let account=null;
+    if(amount>0){
+      account=rows_('Accounts').find(x=>x.id===data.accountId&&truthy_(x.active));
+      if(!account)throw new Error('กรุณาเลือกบัญชีที่ใช้จ่าย');
+    }
+
+    // Clean previous payment for this week if exists to allow smooth re-pay
+    const existing=activeWagePayments_(rows_('WagePayments')).find(x=>x.employeeId===employee.id&&paymentWeekStart_(x)===targetStart);
+    if(existing){
+      if(existing.transactionId)deleteRowById_('Transactions',existing.transactionId);
+      deleteRowById_('WagePayments',existing.id);
+    }
+
+    const id=id_('PAY');
+    const tx=amount>0?id_('TX'):'';
+    const note=clean_(data.note)||('จ่ายค่าจ้าง '+employee.name+' รอบ '+targetStart);
+    const stamp=now_();
+
+    try{
+      if(amount>0&&account){
+        append_('Transactions',[tx,paidDate,'EXPENSE','CAT-WAGE',account.id,amount,note,id,stamp,user.id,user.name,'CONFIRMED']);
+      }
+      append_('WagePayments',[id,employee.id,targetStart,targetEnd,num_(employee.weeklyWage),0,0,amount,account?account.id:'',tx,note,stamp,user.id,user.name,targetStart,'CONFIRMED']);
+
+      if(employee.employmentType==='PART_TIME'){
+        const sh=sheet_('PartTimeWorkDays'),vals=sh.getDataRange().getValues();
+        vals.slice(1).forEach((r,i)=>{
+          if(r[1]===employee.id&&dateKey_(r[3])===targetStart){
+            sh.getRange(i+2,6,1,2).setValues([['PAID',id]]);
+          }
+        });
+      }
+    }catch(e){
+      if(tx)deleteRowById_('Transactions',tx);
+      deleteRowById_('WagePayments',id);
+      throw e;
+    }
+
+    SpreadsheetApp.flush();
+    invalidateRows_('Transactions');
+    invalidateRows_('WagePayments');
+    invalidateRows_('PartTimeWorkDays');
+    audit_(user,'CREATE','WAGE_PAYMENT',id,employee.name+' '+amount+' รอบ '+targetStart);
+    return ok({id,paidWeek:targetStart,refresh:bootstrap_(user).data});
+  }finally{lock.releaseLock()}
+}
 
 function resetPayrollWeekCore_(week,user){
   const paymentSheet=sheet_('WagePayments'),paymentValues=paymentSheet.getDataRange().getValues(),paymentHead=paymentValues[0],statusCol=paymentHead.indexOf('status')+1,transactionSheet=sheet_('Transactions'),transactionValues=transactionSheet.getDataRange().getValues(),workSheet=sheet_('PartTimeWorkDays'),workValues=workSheet.getDataRange().getValues(),targets=[];
@@ -812,7 +1032,40 @@ function getPayrollWeekStatus_(user,data){
   return ok({ wages, ...wages });
 }
 function savePayrollSchedule_(user,data){if(!canManage_(user))throw new Error('ไม่มีสิทธิ์กำหนดรอบจ่ายค่าจ้าง');const month=validPayrollMonth_(data&&data.month),input=Array.isArray(data.weeks)?data.weeks:[],valid=payrollMonthSchedule_(month),allowed=new Set(valid.weeks.map(x=>x.weekStart)),lock=LockService.getScriptLock();lock.waitLock(20000);try{const sh=sheet_('PayrollSchedule'),values=sh.getDataRange().getValues(),head=values[0],existing={};values.slice(1).forEach((r,i)=>{if(r[1]===month)existing[dateKey_(r[2])]=i+2});valid.weeks.forEach(def=>{const item=input.find(x=>x.weekStart===def.weekStart)||def,payDate=validDate_(item.payDate||def.payDate);if(!allowed.has(def.weekStart))throw new Error('รอบสัปดาห์ไม่ถูกต้อง');const row=[existing[def.weekStart]?values[existing[def.weekStart]-1][0]:id_('SCH'),month,def.weekStart,def.weekEnd,payDate,item.active!==false,existing[def.weekStart]?values[existing[def.weekStart]-1][6]:now_(),user.id,now_()];if(existing[def.weekStart])sh.getRange(existing[def.weekStart],1,1,head.length).setValues([row]);else sh.appendRow(row)});invalidateRows_('PayrollSchedule');audit_(user,'UPDATE','PAYROLL_SCHEDULE',month,'กำหนด '+valid.weeks.length+' รอบ');return ok({schedule:payrollMonthSchedule_(month)})}finally{lock.releaseLock()}}
-function cancelWagePayment_(user,data){if(!canManage_(user))throw new Error('ไม่มีสิทธิ์ยกเลิกรายการจ่าย');const id=clean_(data&&data.id),lock=LockService.getScriptLock();lock.waitLock(20000);try{const paymentSheet=sheet_('WagePayments'),values=paymentSheet.getDataRange().getValues(),head=values[0],index=values.findIndex((r,i)=>i>0&&r[0]===id),statusCol=head.indexOf('status')+1;if(index<1){const tx=sheet_('Transactions'),tv=tx.getDataRange().getValues(),ti=tv.findIndex((r,i)=>i>0&&r[0]===id);if(ti>0){tx.getRange(ti+1,12).setValue('CANCELLED');SpreadsheetApp.flush();invalidateRows_('Transactions');audit_(user,'CANCEL','WAGE_PAYMENT_TX',id,'ยกเลิกการจ่ายค่าจ้าง');return ok({refresh:bootstrap_(user).data})}}if(statusCol<1)throw new Error('โครงสร้างสถานะค่าจ้างไม่สมบูรณ์');const payment=Object.fromEntries(head.map((h,j)=>[h,values[index][j]])),weekStart=paymentWeekStart_(payment);if(String(payment.status||'CONFIRMED')==='CANCELLED')return ok({duplicate:true,weekStart,refresh:bootstrap_(user).data});paymentSheet.getRange(index+1,statusCol).setValue('CANCELLED');if(payment.transactionId){const tx=sheet_('Transactions'),tv=tx.getDataRange().getValues(),ti=tv.findIndex((r,i)=>i>0&&r[0]===payment.transactionId);if(ti>0)tx.getRange(ti+1,12).setValue('CANCELLED')}const work=sheet_('PartTimeWorkDays'),wv=work.getDataRange().getValues();wv.slice(1).forEach((r,i)=>{if(r[6]===id)work.getRange(i+2,6,1,2).setValues([['PENDING','']])});SpreadsheetApp.flush();invalidateRows_('WagePayments');invalidateRows_('Transactions');invalidateRows_('PartTimeWorkDays');audit_(user,'CANCEL','WAGE_PAYMENT',id,'คืนยอดและเปิดรอบ '+weekStart);return ok({weekStart,refresh:bootstrap_(user).data})}finally{lock.releaseLock()}}
+function cancelWagePayment_(user,data){
+  if(!canManage_(user))throw new Error('ไม่มีสิทธิ์ยกเลิกรายการจ่าย');
+  const id=clean_((data&&(data.id||data.paymentId))||'');
+  if(!id)throw new Error('ไม่พบรหัสรายการจ่าย');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    const paymentSheet=sheet_('WagePayments'),values=paymentSheet.getDataRange().getValues(),head=values[0];
+    const index=values.findIndex((r,i)=>i>0&&r[0]===id);
+    if(index>0){
+      const payment=Object.fromEntries(head.map((h,j)=>[h,values[index][j]]));
+      if(payment.transactionId){
+        deleteRowById_('Transactions',payment.transactionId);
+      }
+      paymentSheet.deleteRow(index+1);
+      audit_(user,'DELETE','WAGE_PAYMENT',id,'ลบรายการจ่ายค่าจ้าง');
+    }else{
+      const tx=sheet_('Transactions'),tv=tx.getDataRange().getValues();
+      const ti=tv.findIndex((r,i)=>i>0&&(r[0]===id||r[7]===id));
+      if(ti>0){
+        tx.deleteRow(ti+1);
+        audit_(user,'DELETE','WAGE_PAYMENT_TX',id,'ลบรายการจ่ายค่าจ้าง');
+      }
+    }
+    const work=sheet_('PartTimeWorkDays'),wv=work.getDataRange().getValues();
+    wv.slice(1).forEach((r,i)=>{
+      if(r[6]===id)work.getRange(i+2,6,1,2).setValues([['PENDING','']]);
+    });
+    SpreadsheetApp.flush();
+    invalidateRows_('WagePayments');
+    invalidateRows_('Transactions');
+    invalidateRows_('PartTimeWorkDays');
+    return ok({refresh:bootstrap_(user).data});
+  }finally{lock.releaseLock()}
+}
 function resetPayrollWeek_(user,data){if(!canManage_(user))throw new Error('ไม่มีสิทธิ์รีเซตรอบค่าจ้าง');if(!data||data.confirm!==true)throw new Error('กรุณายืนยันการรีเซต');const start=validDate_(data.weekStart||payrollWeek_().start);if(weekStartFor_(start)!==start)throw new Error('รอบสัปดาห์ไม่ถูกต้อง');const lock=LockService.getScriptLock();lock.waitLock(20000);try{const count=resetPayrollWeekCore_({start,end:addDays_(start,6)},user);return ok({count,weekStart:start,refresh:bootstrap_(user).data})}finally{lock.releaseLock()}}
 function ensureManualPayrollMigration_(){const props=PropertiesService.getScriptProperties(),key='PAYROLL_MANUAL_ONLY_20260831';if(props.getProperty(key)==='1')return;props.setProperty('PAYROLL_AUTO_ENABLED','0');try{ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='autoPayPayrollTrigger_').forEach(t=>ScriptApp.deleteTrigger(t))}catch(e){}props.setProperty(key,'1')}
 
