@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.10.11',
+  version: '3.10.12',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -1070,9 +1070,13 @@ function payWeeklyWage_(user,data){
     invalidateRows_('Transactions');
     invalidateRows_('WagePayments');
     invalidateRows_('PartTimeWorkDays');
+  }finally{
+    lock.releaseLock();
+  }
+  try {
     audit_(user,'CREATE','WAGE_PAYMENT',id,employee.name+' '+amount+' รอบ '+targetStart);
-    return ok({id,paidWeek:targetStart,refresh:bootstrap_(user).data});
-  }finally{lock.releaseLock()}
+  } catch(e) {}
+  return ok({id,paidWeek:targetStart,refresh:bootstrap_(user).data});
 }
 
 function resetPayrollWeekCore_(week, user) {
@@ -1340,47 +1344,48 @@ function saveBatchTransactions_(user, data) {
   if (!list.length) {
     throw new Error('กรุณาระบุรายการอย่างน้อย 1 รายการ');
   }
-  const defaultAccount = rows_('Accounts').find(x => truthy_(x.active));
-  const categories = rows_('Categories');
-  const accounts = rows_('Accounts');
+  const defaultAccount = (cachedRows_('Accounts', 600) || rows_('Accounts')).find(x => truthy_(x.active));
+  const categories = cachedRows_('Categories', 600) || rows_('Categories');
+  const accounts = cachedRows_('Accounts', 600) || rows_('Accounts');
+  const stamp = now_();
+  const rowsToAdd = [];
+  const defaultDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  let totalIncome = 0;
+  let totalExpense = 0;
+
+  list.forEach((tx, idx) => {
+    const type = tx.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+    const amount = round_(num_(tx.amount));
+    if (amount <= 0) throw new Error('รายการที่ ' + (idx + 1) + ' (' + (tx.note || tx.name || '') + ') จำนวนเงินไม่ถูกต้อง');
+    const txDate = validDate_(tx.date || (data && data.date) || defaultDate);
+    const accountId = tx.accountId && accounts.some(a => a.id === tx.accountId) ? tx.accountId : (defaultAccount ? defaultAccount.id : 'ACC-CASH');
+    let catId = tx.categoryId || tx.category;
+    let cat = categories.find(c => c.id === catId);
+    if (!cat) {
+      cat = categories.find(c => c.type === type && truthy_(c.active));
+      catId = cat ? cat.id : (type === 'INCOME' ? 'CAT-SALES' : 'CAT-RAW');
+    }
+    const note = clean_(tx.note || tx.name || '');
+    const txId = id_('TX');
+    rowsToAdd.push([txId, txDate, type, catId, accountId, amount, note, '', stamp, user.id, user.name, 'CONFIRMED']);
+    if (type === 'INCOME') totalIncome += amount;
+    else totalExpense += amount;
+  });
+
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    const stamp = now_();
-    const rowsToAdd = [];
-    const defaultDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    let totalIncome = 0;
-    let totalExpense = 0;
-
-    list.forEach((tx, idx) => {
-      const type = tx.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
-      const amount = round_(num_(tx.amount));
-      if (amount <= 0) throw new Error('รายการที่ ' + (idx + 1) + ' (' + (tx.note || tx.name || '') + ') จำนวนเงินไม่ถูกต้อง');
-      const txDate = validDate_(tx.date || (data && data.date) || defaultDate);
-      const accountId = tx.accountId && accounts.some(a => a.id === tx.accountId) ? tx.accountId : (defaultAccount ? defaultAccount.id : 'ACC-CASH');
-      let catId = tx.categoryId || tx.category;
-      let cat = categories.find(c => c.id === catId);
-      if (!cat) {
-        cat = categories.find(c => c.type === type && truthy_(c.active));
-        catId = cat ? cat.id : (type === 'INCOME' ? 'CAT-SALES' : 'CAT-RAW');
-      }
-      const note = clean_(tx.note || tx.name || '');
-      const txId = id_('TX');
-      rowsToAdd.push([txId, txDate, type, catId, accountId, amount, note, '', stamp, user.id, user.name, 'CONFIRMED']);
-      if (type === 'INCOME') totalIncome += amount;
-      else totalExpense += amount;
-    });
-
     appendRows_('Transactions', rowsToAdd);
     SpreadsheetApp.flush();
     invalidateRows_('Transactions');
-    try {
-      audit_(user, 'CREATE', 'BATCH_TRANSACTIONS', rowsToAdd[0][0], 'บันทึกด่วน ' + rowsToAdd.length + ' รายการ รวม ' + (totalIncome + totalExpense) + ' บาท');
-    } catch(e) {}
-    return ok({ count: rowsToAdd.length, totalIncome, totalExpense, refresh: bootstrap_(user).data });
   } finally {
     lock.releaseLock();
   }
+
+  try {
+    audit_(user, 'CREATE', 'BATCH_TRANSACTIONS', rowsToAdd[0][0], 'บันทึกด่วน ' + rowsToAdd.length + ' รายการ รวม ' + (totalIncome + totalExpense) + ' บาท');
+  } catch(e) {}
+  return ok({ count: rowsToAdd.length, totalIncome, totalExpense, refresh: bootstrap_(user).data });
 }
 
 function deleteTransaction_(user,data){
