@@ -1345,7 +1345,294 @@
         @media(max-width:500px){.period-tabs{gap:2px;padding:3px}.period-btn{padding:7px 1px;font-size:8px}.donut-periods{gap:2px;padding:3px}.donut-periods button{padding:7px 1px;font-size:8px}}
         .transaction-history-heading{margin-top:4px}.transaction-history-heading .title{margin-bottom:7px}.history-periods{display:flex;flex-wrap:nowrap;gap:4px;padding:4px;border:1px solid var(--line);border-radius:13px;background:#f7f4e7;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}.history-periods::-webkit-scrollbar{display:none}.history-period-btn{flex:0 0 auto;min-width:0;padding:7px 9px;border:0;border-radius:9px;background:transparent;color:var(--muted);font-size:9px;font-weight:850;white-space:nowrap;scroll-snap-align:start}.history-period-btn.active{background:var(--yellow);color:var(--ink);box-shadow:0 2px 8px #b9940024}.history-period-btn:disabled{opacity:.55}.history-count-note{margin:6px 2px 9px;font-size:10px;color:var(--muted)}@media(min-width:620px){.history-periods{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));overflow:hidden}.history-period-btn{width:100%;padding-inline:4px}}
         .balance-hero .donut-periods{display:none!important}
-        .payroll-tool-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:5px;margin-bottom:12px;border:1px solid #e8e4d5;border-radius:17px;background:#f3f1e9;position:sticky;top:0;z-index:4}.payroll-tool-tabs .btn{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:48px;padding:8px 6px;border:1px solid transparent;border-radius:12px;background:transparent;color:#6b6758;font-size:12px;line-height:1.25;white-space:normal}.payroll-tool-tabs .btn:not(.light){border-color:#d6ac00;background:#fff;color:#302800;box-shadow:0 4px 13px #7e650018}.payroll-tool-tabs .btn span{display:grid;place-items:center;width:23px;height:23px;flex:none;border-radius:8px;background:#e9e6da;font-size:13px}.payroll-tool-tabs .btn:not(.light) span{background:var(--yellow)}#payrollControls,#partTimePanel,#employeeEditor{animation:payrollPanelIn .18s ease-out}@keyframes payrollPanelIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}@media(max-width:410px){.payroll-tool-tabs{gap:4px;padding:4px}.payroll-tool-tabs .btn{min-height:52px;padding:6px 3px;font-size:10px;gap:3px}.payroll-tool-tabs .btn span{width:20px;height:20px;font-size:11px}}
+        /* Modern Employee Wages Hub & Progress Bars */
+        .wage-hub-card {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 18px;
+            margin-bottom: 14px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.03);
+        }
+        .wage-hub-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .wage-week-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 8px 12px;
+            margin-bottom: 14px;
+            gap: 8px;
+        }
+        .wage-week-label {
+            font-size: 13px;
+            font-weight: 800;
+            color: #1e293b;
+            text-align: center;
+            flex: 1;
+        }
+        .wage-week-btn {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 750;
+            color: #334155;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .wage-week-btn:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+        .wage-week-btn.active {
+            background: #0f172a;
+            color: #ffffff;
+            border-color: #0f172a;
+        }
+        .wage-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .wage-summary-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 10px 8px;
+            text-align: center;
+        }
+        .wage-summary-card small {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .wage-summary-card b {
+            font-size: 14px;
+            font-weight: 850;
+            color: #0f172a;
+        }
+        @media(max-width: 480px) {
+            .wage-summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        .wage-filter-bar {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            margin-bottom: 14px;
+            padding-bottom: 2px;
+            scrollbar-width: none;
+        }
+        .wage-filter-bar::-webkit-scrollbar { display: none; }
+        .wage-filter-btn {
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 750;
+            color: #64748b;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+        .wage-filter-btn.active {
+            background: #0f172a;
+            color: #ffffff;
+            border-color: #0f172a;
+        }
+        .wage-emp-card {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            transition: all 0.18s ease;
+        }
+        .wage-emp-card:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+        }
+        .wage-emp-card.paid {
+            background: #fbfcfe;
+            border-color: #e2e8f0;
+        }
+        .wage-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .wage-card-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+        .wage-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+            border: 1px solid #cbd5e1;
+        }
+        .wage-card-name {
+            font-size: 16px;
+            font-weight: 850;
+            color: #0f172a;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .wage-card-role {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        .wage-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .wage-status-pill.pending {
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+        }
+        .wage-status-pill.partial {
+            background: #fef3c7;
+            color: #b45309;
+            border: 1px solid #fde68a;
+        }
+        .wage-status-pill.full-advance {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }
+        .wage-status-pill.paid {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+        }
+        .wage-stats-3col {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 6px;
+            background: #f8fafc;
+            border: 1px solid #f1f5f9;
+            border-radius: 12px;
+            padding: 8px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .wage-stats-3col small {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 2px;
+        }
+        .wage-stats-3col b {
+            font-size: 13.5px;
+            font-weight: 850;
+            color: #0f172a;
+        }
+        .wage-bar-container {
+            margin-bottom: 14px;
+        }
+        .wage-bar-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 6px;
+        }
+        .wage-bar-info-left {
+            font-size: 14px;
+            font-weight: 850;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .wage-bar-info-right {
+            font-size: 13px;
+            font-weight: 700;
+            color: #64748b;
+        }
+        .wage-status-track {
+            height: 14px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+            display: flex;
+            position: relative;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .wage-status-remaining {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            transition: width 0.35s ease;
+        }
+        .wage-status-advance {
+            height: 100%;
+            background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+            transition: width 0.35s ease;
+        }
+        .wage-status-paid {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+        }
+        .wage-bar-subtext {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11.5px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        .wage-card-btns {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .wage-card-btns .btn {
+            min-height: 38px;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            border-radius: 12px;
+        }
     </style>
 </head>
 
@@ -1436,6 +1723,7 @@
                 <div class="title">ศูนย์รายรับ–รายจ่าย</div>
                 <div class="entry-subtabs">
                     <button id="entrySubTabQuick" class="entry-subtab active" onclick="switchEntrySubTab('quick')">⚡ พิมพ์ด่วน</button>
+                    <button id="entrySubTabWages" class="entry-subtab" onclick="switchEntrySubTab('wages')">💵 ค่าแรงพนักงาน</button>
                     <button id="entrySubTabDividend" class="entry-subtab" onclick="switchEntrySubTab('dividend')">💎 ปันผลเจ้าของ</button>
                     <button id="entrySubTabBuy" class="entry-subtab" onclick="switchEntrySubTab('buy')">🛒 ซื้อของ</button>
                     <button id="entrySubTabCategory" class="entry-subtab" onclick="switchEntrySubTab('category')">📁 จัดการหมวดหมู่</button>
@@ -1514,6 +1802,61 @@
                             </div>
                             <button id="smartSaveBtn" class="btn full" style="margin-top:10px" onclick="saveSmartParsed()">💾 บันทึกทุกรายการทันที</button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Sub-section: Employee Wages & Advances Hub -->
+                <div id="entrySectionWages" class="entry-section hidden">
+                    <div class="wage-hub-card">
+                        <!-- Hub Header -->
+                        <div class="wage-hub-header">
+                            <div>
+                                <b style="font-size:16px;display:flex;align-items:center;gap:6px">💵 ค่าแรงพนักงานประจำสัปดาห์</b>
+                                <div class="muted" style="font-size:12px;margin-top:2px">ตรวจสอบการรับเงิน ยอดเบิกล่วงหน้า และเปอร์เซ็นต์คงเหลือรับ (รอบ จันทร์ - อาทิตย์)</div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:6px">
+                                <button type="button" class="mini-btn" style="border-radius:10px;padding:6px 10px;font-size:11px" onclick="refreshWeeklyWages()">🔄 รีเฟรช</button>
+                                <button type="button" class="mini-btn" id="wageResetWeekBtn" style="border-radius:10px;padding:6px 10px;font-size:11px;background:#fef2f2;color:#b91c1c;border-color:#fecaca" onclick="resetCurrentWeekWages()">↺ รีเซ็ตสัปดาห์</button>
+                            </div>
+                        </div>
+
+                        <!-- Week Selector Bar -->
+                        <div class="wage-week-bar">
+                            <button type="button" class="wage-week-btn" onclick="changeWageWeek(-1)">◀ สัปดาห์ก่อน</button>
+                            <div id="wageWeekLabel" class="wage-week-label">สัปดาห์ปัจจุบัน</div>
+                            <button type="button" class="wage-week-btn" onclick="changeWageWeek(1)">สัปดาห์ถัดไป ▶</button>
+                        </div>
+
+                        <!-- 4 Summary KPI Cards -->
+                        <div class="wage-summary-grid">
+                            <div class="wage-summary-card">
+                                <small>👥 พนักงานทั้งหมด</small>
+                                <b id="wageKpiTotalEmp">0 คน</b>
+                            </div>
+                            <div class="wage-summary-card">
+                                <small>⏳ รอยอดรับเงิน</small>
+                                <b id="wageKpiPendingAmount" class="positive">฿0.00</b>
+                            </div>
+                            <div class="wage-summary-card">
+                                <small>💸 ยอดเบิกล่วงหน้า</small>
+                                <b id="wageKpiAdvanceAmount" style="color:#d97706">฿0.00</b>
+                            </div>
+                            <div class="wage-summary-card">
+                                <small>✓ จ่ายครบแล้ว</small>
+                                <b id="wageKpiPaidCount" style="color:#2563eb">0 คน</b>
+                            </div>
+                        </div>
+
+                        <!-- Filter Bar -->
+                        <div class="wage-filter-bar">
+                            <button type="button" class="wage-filter-btn active" data-filter="ALL" onclick="setWageFilter('ALL', this)">ทั้งหมด (<span id="wageFilterCountAll">0</span>)</button>
+                            <button type="button" class="wage-filter-btn" data-filter="PENDING" onclick="setWageFilter('PENDING', this)">รอรับ 100% (<span id="wageFilterCountPending">0</span>)</button>
+                            <button type="button" class="wage-filter-btn" data-filter="PARTIAL" onclick="setWageFilter('PARTIAL', this)">มีการเบิก (<span id="wageFilterCountPartial">0</span>)</button>
+                            <button type="button" class="wage-filter-btn" data-filter="PAID" onclick="setWageFilter('PAID', this)">จ่ายแล้ว (<span id="wageFilterCountPaid">0</span>)</button>
+                        </div>
+
+                        <!-- Employee Cards Container -->
+                        <div id="wageEmployeeGrid"></div>
                     </div>
                 </div>
 
@@ -1857,6 +2200,9 @@
                     <button type="button" id="userSubTabEmployees" class="user-seg-btn active" onclick="switchUserSubTab('employees')">
                         <span>👥 พนักงานร้าน</span>
                         <span id="userEmpCountBadge" class="seg-badge">0</span>
+                    </button>
+                    <button type="button" id="userSubTabWages" class="user-seg-btn" onclick="showPageAndSub('entry','wages')">
+                        <span>💵 ค่าแรงรายสัปดาห์</span>
                     </button>
                     <button type="button" id="userSubTabLogins" class="user-seg-btn" onclick="switchUserSubTab('logins')">
                         <span>🔐 ผู้ใช้ระบบ</span>
@@ -2206,12 +2552,13 @@
             }
         };
         function switchEntrySubTab(tab) {
-            ['quick', 'dividend', 'buy', 'category', 'history'].forEach(t => {
+            ['quick', 'wages', 'dividend', 'buy', 'category', 'history'].forEach(t => {
                 const btn = $('entrySubTab' + t.charAt(0).toUpperCase() + t.slice(1));
                 const sec = $('entrySection' + t.charAt(0).toUpperCase() + t.slice(1));
                 if (btn) btn.classList.toggle('active', t === tab);
                 if (sec) sec.classList.toggle('hidden', t !== tab);
             });
+            if (tab === 'wages') renderWeeklyWages();
             if (tab === 'dividend') renderDividends();
             if (tab === 'category') switchCatSegment(S.currentCatSegment || 'tx');
         }
@@ -2680,7 +3027,7 @@
         function clearAppCache(){try{Object.keys(sessionStorage).filter(k=>k.indexOf('wd_app_cache_')===0).forEach(k=>sessionStorage.removeItem(k));Object.keys(localStorage).filter(k=>k.indexOf('wd_app_cache_')===0).forEach(k=>localStorage.removeItem(k))}catch(e){}}
         async function init() { try {if(!S.token&&parent!==window){notifyHost({type:'WD_TOKEN_REQUEST'})}if (S.token) { S.initialized=true;const cached=readAppCache();if(cached){applyAppData(cached);loadApp(true);return}await loadApp(); return } S.initialized = true; } catch (e) { if(e.message!=='SESSION_EXPIRED')alertError(e.message||'เกิดข้อผิดพลาดในการโหลดระบบ') } }
         $('rememberLogin').checked=S.remember;$('authForm').onsubmit = async e => { e.preventDefault(); const username=($('username').value||'').trim(),password=$('password').value||''; if(!username){alertError('กรุณากรอกชื่อผู้ใช้');$('username').focus();return} if(!password){alertError('กรุณากรอกรหัสผ่าน');$('password').focus();return} const btn = $('authBtn'),originalHtml=btn.innerHTML; btn.disabled = true; btn.innerHTML='กำลังเข้าสู่ระบบ...'; try { const r = await call('login', { username, password }); S.token = r.token;S.remember=$('rememberLogin').checked;localStorage.setItem('wd_remember_login',S.remember?'1':'0');localStorage.removeItem('wd_token');sessionStorage.removeItem('wd_token');(S.remember?localStorage:sessionStorage).setItem('wd_token',S.token);notifyHost({type:'WD_TOKEN',token:S.token,remember:S.remember}); if(r.appData){ applyAppData(r.appData); toast(S.remember?'จดจำการเข้าสู่ระบบบนเครื่องนี้แล้ว':'เข้าสู่ระบบสำเร็จ'); } else { loading(true,'กำลังเตรียมข้อมูลระบบ...'); await loadApp(false); toast(S.remember?'จดจำการเข้าสู่ระบบบนเครื่องนี้แล้ว':'เข้าสู่ระบบสำเร็จ'); } $('password').value=''; } catch (x) { $('password').focus(); alertError(x.message||'เข้าสู่ระบบไม่สำเร็จ') } finally { btn.disabled = false; btn.innerHTML=originalHtml; } };
-        function applyAppData(data){S.data=data;S.revision=String(data.revision||'0');writeAppCache(data);const allowed=(S.data.productCategories||[]).map(x=>x.name);S.data.products.forEach(p=>{if(!allowed.includes(p.category))p.category=''});$('auth').classList.add('hidden');$('app').classList.remove('hidden');const finance=!!S.data.permissions.canViewFinance;$('financeDashboard').classList.toggle('hidden',!finance);$('limitedDashboard').classList.toggle('hidden',finance);render();if(finance)renderDashboardPeriod(($('dashboardPeriod')||{}).value||'DAY');renderCategoryManagerV2();if(!S.data.allTransactionHistory||data.transactionHistory)S.data.allTransactionHistory=data.transactionHistory||[];applyHistoryPeriodFilter(S.historyPeriodKey||'TODAY',S.transactionHistoryRange||transactionPeriodRange('TODAY'));renderAccountSettings();renderCatalogManager();renderAnalyticsAccess();renderQuickEmployeeChips();renderDividends();if(S.items.length)renderItemsV2();updateRoleLayout();renderManagerDonut()}
+        function applyAppData(data){S.data=data;S.revision=String(data.revision||'0');writeAppCache(data);const allowed=(S.data.productCategories||[]).map(x=>x.name);S.data.products.forEach(p=>{if(!allowed.includes(p.category))p.category=''});$('auth').classList.add('hidden');$('app').classList.remove('hidden');const finance=!!S.data.permissions.canViewFinance;$('financeDashboard').classList.toggle('hidden',!finance);$('limitedDashboard').classList.toggle('hidden',finance);render();if(finance)renderDashboardPeriod(($('dashboardPeriod')||{}).value||'DAY');renderCategoryManagerV2();if(!S.data.allTransactionHistory||data.transactionHistory)S.data.allTransactionHistory=data.transactionHistory||[];applyHistoryPeriodFilter(S.historyPeriodKey||'TODAY',S.transactionHistoryRange||transactionPeriodRange('TODAY'));renderAccountSettings();renderCatalogManager();renderAnalyticsAccess();renderQuickEmployeeChips();renderDividends();renderWeeklyWages();if(S.items.length)renderItemsV2();updateRoleLayout();renderManagerDonut()}
         async function recoverSession(expiredToken){if(S.recoveringSession)return;S.recoveringSession=true;const requested=Date.now();notifyHost({type:'WD_TOKEN_REQUEST'});while(Date.now()-requested<900&&S.hostTokenAt<requested)await new Promise(resolve=>setTimeout(resolve,60));try{for(let attempt=0;attempt<3;attempt++){try{if(S.token){applyAppData(await callSilent('bootstrap'));return}}catch(e){if(e.message!=='SESSION_EXPIRED')throw e}await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)))}if(!S.data)await logout();else toast('ยังเชื่อมต่อ Session ไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ','warning')}finally{S.recoveringSession=false}}
         let appLoading=false; async function loadApp(silent=false) { if(appLoading)return; appLoading=true; try { applyAppData(await (silent?callSilent('bootstrap'):call('bootstrap'))) } catch (e) { if (e.message === 'SESSION_EXPIRED')await recoverSession(S.token); else { if(!silent)alertError(e.message||'เชื่อมต่อข้อมูลไม่สำเร็จ'); throw e; } } finally { appLoading=false; } }
         function render() { const d = S.data,buyAccount=$('buyAccount')?.value,buyDate=$('buyDate')?.value; $('who').textContent = d.user.name + ' · ' + roleName(d.user.role); const sum = d.balances.reduce((s, x) => s + x.balance, 0); $('totalBalance').textContent = money(sum); requestAnimationFrame(fitBalanceAmount); $('balances').innerHTML = d.balances.map(x => `<div class="metric">${esc(x.name)}<b class="${x.balance < 0 ? 'negative' : ''}">${money(x.balance)}</b></div>`).join(''); $('monthIncome').textContent = money(d.month.income); $('monthExpense').textContent = money(d.month.expense); $('monthNet').textContent = money(d.month.net); $('monthNet').className = 'money ' + (d.month.net < 0 ? 'negative' : 'positive'); $('incomeChange').textContent = changeText(d.month.income, d.previousMonth.income); $('expenseChange').textContent = changeText(d.month.expense, d.previousMonth.expense); renderBuyAccounts();if(buyAccount&&d.accounts.some(x=>x.id===buyAccount)){$('buyAccount').value=buyAccount;renderBuyAccounts()} if($('buyDate'))$('buyDate').value = buyDate||today(); renderUsers(); initSmartQuickInputs(); }
@@ -2921,9 +3268,555 @@
             }
         }
 
-        function showPage(name, el) { if(name==='category'||name==='categories')return showPageAndSub('entry','category');if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll')return showPageAndSub('entry','quick');if(name==='dividends')return showPageAndSub('entry','dividend');document.querySelectorAll('[id^="page-"]').forEach(x => x.classList.add('hidden')); const target=$('page-' + name); if(target)target.classList.remove('hidden'); document.querySelectorAll('.tab').forEach(x => x.classList.remove('active')); if(el)el.classList.add('active');if(name==='entry')initSmartQuickInputs(); }
-        function goToPage(name){if(name==='category'||name==='categories')return showPageAndSub('entry','category');if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll')return showPageAndSub('entry','quick');if(name==='dividends')return showPageAndSub('entry','dividend');const tab=document.querySelector(`[data-page="${name}"]`);if(tab&&!tab.classList.contains('hidden'))showPage(name,tab);else showPage(name,null)}
-        function updateRoleLayout(){const role=S.data.user.role,visible=[...document.querySelectorAll('.tabs .tab:not(.hidden)')];document.querySelector('.tabs').style.gridTemplateColumns=`repeat(${visible.length},minmax(0,1fr))`;const copy={MANAGER:['พื้นที่ผู้จัดการ','จัดการรายการซื้อ รายรับ–รายจ่าย และหมวดสำหรับงานประจำวัน'],STAFF:['พื้นที่พนักงาน','บันทึกรายการได้รวดเร็ว และดูประวัติรายการของคุณเอง']};if(copy[role]){$('roleHomeTitle').textContent=copy[role][0];$('roleHomeText').textContent=copy[role][1]}document.body.dataset.role=role;const catTab=$('entrySubTabCategory');if(catTab)catTab.classList.toggle('hidden',!['ADMIN','MANAGER','OWNER'].includes(role));}
+        // ==========================================
+        // Weekly Employee Wages & Advances Hub (ค่าแรงพนักงาน)
+        // ==========================================
+        function setWageFilter(filter, button) {
+            S.currentWageFilter = filter;
+            document.querySelectorAll('.wage-filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn === button || btn.getAttribute('data-filter') === filter);
+            });
+            renderWeeklyWages();
+        }
+
+        function renderWeeklyWages() {
+            const wages = S.data && S.data.wages;
+            const sec = $('entrySectionWages');
+            if (!sec) return;
+            if (!wages || !['ADMIN', 'MANAGER', 'OWNER'].includes(S.data.user.role)) {
+                sec.innerHTML = '<div class="card muted" style="text-align:center;padding:24px">เฉพาะแอดมิน ผู้จัดการ และเจ้าของร้านที่สามารถดูค่าแรงพนักงานได้</div>';
+                return;
+            }
+
+            // 1. Week Label
+            const weekLabelEl = $('wageWeekLabel');
+            if (weekLabelEl) {
+                const badge = wages.isCurrentWeek 
+                    ? '<span class="pill" style="background:#ecfdf5;color:#047857;margin-left:6px;font-size:11px">สัปดาห์นี้</span>' 
+                    : '<span class="pill" style="background:#f1f5f9;color:#64748b;margin-left:6px;font-size:11px">ย้อนหลัง</span>';
+                weekLabelEl.innerHTML = esc(wages.weekLabel) + ' ' + badge;
+            }
+
+            // 2. Summary KPI Cards
+            const summary = wages.summary || {};
+            if ($('wageKpiTotalEmp')) $('wageKpiTotalEmp').textContent = (summary.totalEmployees || 0) + ' คน';
+            if ($('wageKpiPendingAmount')) $('wageKpiPendingAmount').textContent = money(summary.totalRemaining || 0);
+            if ($('wageKpiAdvanceAmount')) $('wageKpiAdvanceAmount').textContent = money(summary.totalAdvances || 0);
+            if ($('wageKpiPaidCount')) $('wageKpiPaidCount').textContent = `${summary.paidCount || 0} / ${summary.totalEmployees || 0} คน`;
+
+            // 3. Filter Badge Counts
+            const emps = wages.employees || [];
+            const countAll = emps.length;
+            const countPending = emps.filter(e => !e.isPaid && Number(e.advanceTotal || 0) === 0).length;
+            const countPartial = emps.filter(e => !e.isPaid && Number(e.advanceTotal || 0) > 0).length;
+            const countPaid = emps.filter(e => e.isPaid).length;
+
+            if ($('wageFilterCountAll')) $('wageFilterCountAll').textContent = countAll;
+            if ($('wageFilterCountPending')) $('wageFilterCountPending').textContent = countPending;
+            if ($('wageFilterCountPartial')) $('wageFilterCountPartial').textContent = countPartial;
+            if ($('wageFilterCountPaid')) $('wageFilterCountPaid').textContent = countPaid;
+
+            // 4. Filter List
+            const filter = S.currentWageFilter || 'ALL';
+            const filteredEmps = emps.filter(e => {
+                if (filter === 'PENDING') return !e.isPaid && Number(e.advanceTotal || 0) === 0;
+                if (filter === 'PARTIAL') return !e.isPaid && Number(e.advanceTotal || 0) > 0;
+                if (filter === 'PAID') return e.isPaid;
+                return true;
+            });
+
+            const grid = $('wageEmployeeGrid');
+            if (!grid) return;
+
+            if (!filteredEmps.length) {
+                grid.innerHTML = '<div class="card muted" style="text-align:center;padding:24px 16px;border-radius:16px;background:#f8fafc">ไม่มีรายการพนักงานในหมวดนี้</div>';
+                return;
+            }
+
+            grid.innerHTML = filteredEmps.map(emp => {
+                const isPaid = !!emp.isPaid;
+                const advTotal = Number(emp.advanceTotal || 0);
+                const weeklyWage = Number(emp.weeklyWage || 0);
+                const remaining = Number(emp.remaining || 0);
+                const pctRem = Number(emp.percentRemaining || 0);
+
+                // Status Pill
+                let statusPill = '';
+                if (isPaid) {
+                    statusPill = '<span class="wage-status-pill paid">✓ ได้รับเงินแล้ว (100%)</span>';
+                } else if (advTotal >= weeklyWage && weeklyWage > 0) {
+                    statusPill = '<span class="wage-status-pill full-advance">⚠️ เบิกเต็มจำนวนแล้ว</span>';
+                } else if (advTotal > 0) {
+                    statusPill = '<span class="wage-status-pill partial">⏳ เบิกบางส่วน</span>';
+                } else {
+                    statusPill = '<span class="wage-status-pill pending">⏳ รอรับเงินเต็ม 100%</span>';
+                }
+
+                // Status Bar Fill Widths
+                let barHtml = '';
+                let barInfoLeft = '';
+                let barInfoRight = '';
+                if (isPaid) {
+                    barInfoLeft = '<span>✓ ได้รับค่าแรงครบแล้ว</span>';
+                    barInfoRight = '100% เต็ม';
+                    barHtml = '<div class="wage-status-paid"></div>';
+                } else {
+                    barInfoLeft = `<span>คงเหลือยอดรับ: <b style="color:${pctRem > 0 ? '#059669' : '#dc2626'}">${pctRem.toFixed(1)}%</b></span>`;
+                    barInfoRight = `เหลือรับ ${money(remaining)}`;
+                    const remWidth = Math.min(100, Math.max(0, pctRem));
+                    const advWidth = Math.min(100, Math.max(0, 100 - remWidth));
+                    barHtml = `
+                        <div class="wage-status-remaining" style="width:${remWidth}%"></div>
+                        <div class="wage-status-advance" style="width:${advWidth}%"></div>
+                    `;
+                }
+
+                // Action Buttons
+                const btnsHtml = `
+                    <div class="wage-card-btns">
+                        ${!isPaid ? `
+                            <button type="button" class="btn" style="background:#fffbeb;color:#92400e;border:1.5px solid #fde68a" onclick="openWageAdvanceModal('${esc(emp.id)}')">
+                                💸 เบิกล่วงหน้า
+                            </button>
+                            <button type="button" class="btn" style="background:#0f172a;color:#ffffff" onclick="openPayWageModal('${esc(emp.id)}')">
+                                ✓ จ่ายค่าแรง (${money(remaining)})
+                            </button>
+                        ` : `
+                            <button type="button" class="btn light" style="color:#b91c1c;border-color:#fecaca" onclick="cancelWagePaymentModal('${esc(emp.id)}')">
+                                ↩ ยกเลิกการจ่าย
+                            </button>
+                        `}
+                        <button type="button" class="btn light" onclick="openWageHistoryModal('${esc(emp.id)}')">
+                            📜 ประวัติ (${(emp.advances || []).length + (emp.payments || []).length})
+                        </button>
+                    </div>
+                `;
+
+                return `
+                    <div class="wage-emp-card ${isPaid ? 'paid' : ''}">
+                        <div class="wage-card-top">
+                            <div class="wage-card-user">
+                                <div class="wage-avatar">${isPaid ? '✓' : '👤'}</div>
+                                <div>
+                                    <div class="wage-card-name">${esc(emp.name)}</div>
+                                    <div class="wage-card-role">${esc(emp.position || 'พนักงานทั่วไป')} · ${emp.employmentType === 'PART_TIME' ? 'พาร์ทไทม์' : 'ประจำ'}</div>
+                                </div>
+                            </div>
+                            ${statusPill}
+                        </div>
+
+                        <div class="wage-stats-3col">
+                            <div>
+                                <small>ฐานค่าแรงสัปดาห์</small>
+                                <b>${money(weeklyWage)}</b>
+                            </div>
+                            <div>
+                                <small>ยอดเบิกสะสม</small>
+                                <b style="color:#d97706">${money(advTotal)}</b>
+                            </div>
+                            <div>
+                                <small>ยอดคงเหลือรับ</small>
+                                <b class="${isPaid ? 'muted' : 'positive'}">${isPaid ? '฿0.00' : money(remaining)}</b>
+                            </div>
+                        </div>
+
+                        <div class="wage-bar-container">
+                            <div class="wage-bar-info">
+                                <div class="wage-bar-info-left">${barInfoLeft}</div>
+                                <div class="wage-bar-info-right">${barInfoRight}</div>
+                            </div>
+                            <div class="wage-status-track">
+                                ${barHtml}
+                            </div>
+                            <div class="wage-bar-subtext">
+                                <span>เบิกล่วงหน้าสะสม: ${money(advTotal)}</span>
+                                <span>รอบสัปดาห์ (จ. - อา.)</span>
+                            </div>
+                        </div>
+
+                        ${btnsHtml}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function changeWageWeek(delta) {
+            if (!S.data || !S.data.wages) return;
+            const curStart = S.data.wages.weekStart;
+            const curD = new Date(curStart + 'T12:00:00');
+            curD.setDate(curD.getDate() + (delta * 7));
+            const targetStart = curD.toISOString().slice(0, 10);
+            try {
+                loading(true, 'กำลังโหลดข้อมูลสัปดาห์...');
+                const r = await call('getWeeklyWages', { data: { weekStart: targetStart } });
+                if (r && r.wages) {
+                    S.data.wages = r.wages;
+                    renderWeeklyWages();
+                }
+            } catch (e) {
+                alertError(e.message || 'โหลดข้อมูลสัปดาห์ไม่สำเร็จ');
+            } finally {
+                loading(false);
+            }
+        }
+
+        async function refreshWeeklyWages() {
+            if (!S.data || !S.data.wages) return;
+            try {
+                loading(true, 'กำลังรีเฟรชข้อมูลค่าแรง...');
+                const r = await call('getWeeklyWages', { data: { weekStart: S.data.wages.weekStart } });
+                if (r && r.wages) {
+                    S.data.wages = r.wages;
+                    renderWeeklyWages();
+                    toast('อัปเดตข้อมูลค่าแรงล่าสุดแล้ว');
+                }
+            } catch (e) {
+                alertError(e.message || 'รีเฟรชข้อมูลไม่สำเร็จ');
+            } finally {
+                loading(false);
+            }
+        }
+
+        async function resetCurrentWeekWages() {
+            if (!S.data || !S.data.wages) return;
+            const ask = await Swal.fire({
+                icon: 'warning',
+                title: 'รีเซ็ตสถานะสัปดาห์นี้เป็น 0?',
+                html: `รอบสัปดาห์ <b>${esc(S.data.wages.weekLabel)}</b><br><br>
+                <div class="notice" style="text-align:left;font-size:12px">
+                    💡 ปกติระบบจะรีเซ็ตอัตโนมัติทุกเที่ยงคืนวันอาทิตย์ (00:00 น. ก่อนเริ่มวันจันทร์) อยู่แล้ว<br>
+                    หากกดยืนยัน รายการเบิกและจ่ายของสัปดาห์นี้จะถูกเคลียร์เป็น 0 และทุกคนจะรอรับ 100%
+                </div>`,
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันรีเซ็ตเป็น 0',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#dc2626'
+            });
+            if (!ask.isConfirmed) return;
+
+            try {
+                loading(true, 'กำลังรีเซ็ตรอบสัปดาห์...');
+                const r = await call('resetPayrollWeek', { data: { weekStart: S.data.wages.weekStart } });
+                toast('รีเซ็ตสถานะรอบสัปดาห์เป็น 0 เรียบร้อย');
+                if (r && r.refresh) applyAppData(r.refresh);
+                else refreshWeeklyWages();
+            } catch (e) {
+                alertError(e.message || 'รีเซ็ตไม่สำเร็จ');
+            } finally {
+                loading(false);
+            }
+        }
+
+        async function openWageAdvanceModal(empId) {
+            const emp = (S.data && S.data.wages && S.data.wages.employees.find(x => x.id === empId));
+            if (!emp) return;
+            const accounts = (S.data && S.data.accounts) || [];
+            const accOptions = accounts.map(a => `<option value="${a.id}">${esc(a.name)} (${money(a.balance)})</option>`).join('');
+
+            const res = await Swal.fire({
+                customClass: { popup: 'compact-modal' },
+                title: '💸 บันทึกเบิกค่าแรงล่วงหน้า',
+                html: `
+                    <div style="text-align:left">
+                        <div class="notice" style="margin-bottom:12px">
+                            พนักงาน: <b>${esc(emp.name)}</b> (${esc(emp.position)})<br>
+                            ฐานค่าแรง: <b>${money(emp.weeklyWage)}</b> | เบิกแล้ว: <b style="color:#d97706">${money(emp.advanceTotal)}</b> | คงเหลือรับ: <b class="positive">${money(emp.remaining)}</b>
+                        </div>
+                        <div class="modal-field">
+                            <label>วันที่เบิก</label>
+                            <input id="wageAdvDate" type="date" value="${today()}">
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>จ่ายจากบัญชี</label>
+                            <select id="wageAdvAccount">${accOptions}</select>
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>จำนวนเงินที่เบิก (บาท)</label>
+                            <input id="wageAdvAmount" type="number" min="1" step="10" placeholder="เช่น 500" style="font-size:16px;font-weight:700">
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>หมายเหตุ (ถ้ามี)</label>
+                            <input id="wageAdvNote" placeholder="เช่น เบิกค่าน้ำมัน, เบิกค่าข้าว">
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกเบิกล่วงหน้า',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const date = $('wageAdvDate')?.value || today();
+                    const accountId = $('wageAdvAccount')?.value;
+                    const amount = Number($('wageAdvAmount')?.value || 0);
+                    const note = ($('wageAdvNote')?.value || '').trim();
+                    if (!accountId) { Swal.showValidationMessage('กรุณาเลือกบัญชีที่จ่ายเงิน'); return false; }
+                    if (!amount || amount <= 0) { Swal.showValidationMessage('กรุณาระบุจำนวนเงินที่เบิก'); return false; }
+                    return { date, accountId, amount, note };
+                }
+            });
+
+            if (!res.isConfirmed) return;
+            const { date, accountId, amount, note } = res.value;
+
+            // 0ms Optimistic Update
+            emp.advanceTotal = round_(emp.advanceTotal + amount);
+            emp.remaining = round_(Math.max(0, emp.weeklyWage - emp.advanceTotal));
+            emp.percentRemaining = emp.weeklyWage > 0 ? round_((emp.remaining / emp.weeklyWage) * 100) : 0;
+            emp.progress = emp.percentRemaining;
+            emp.status = emp.remaining <= 0 ? 'FULL_ADVANCE' : 'PARTIAL';
+            if (!emp.advances) emp.advances = [];
+            emp.advances.push({
+                id: 'OPT-ADV-' + Date.now(),
+                date,
+                accountId,
+                amount,
+                note: note || 'เบิกล่วงหน้า'
+            });
+
+            const acc = (S.data.accounts || []).find(a => a.id === accountId);
+            if (acc) acc.balance = round_((acc.balance || 0) - amount);
+            if (S.data.balances) {
+                const bal = S.data.balances.find(a => a.id === accountId);
+                if (bal) bal.balance = round_((bal.balance || 0) - amount);
+            }
+            if (S.data.wages && S.data.wages.summary) {
+                S.data.wages.summary.totalAdvances = round_((S.data.wages.summary.totalAdvances || 0) + amount);
+                S.data.wages.summary.totalRemaining = round_(Math.max(0, (S.data.wages.summary.totalRemaining || 0) - amount));
+            }
+
+            renderWeeklyWages();
+            toast(`⚡ บันทึกเบิกค่าแรง ${esc(emp.name)} ${money(amount)} สำเร็จ (0ms)`);
+
+            // Silent background save
+            try {
+                const r = await callSilent('saveWageAdvance', {
+                    data: {
+                        employeeId: emp.id,
+                        date,
+                        accountId,
+                        amount,
+                        note,
+                        weekStart: S.data.wages.weekStart
+                    }
+                });
+                if (r && r.refresh) applyAppData(r.refresh);
+            } catch (err) {
+                alertError(err.message || 'บันทึกเบิกค่าแรงไม่สำเร็จ กำลังดึงข้อมูลล่าสุด');
+                loadApp(true);
+            }
+        }
+
+        async function openPayWageModal(empId) {
+            const emp = (S.data && S.data.wages && S.data.wages.employees.find(x => x.id === empId));
+            if (!emp) return;
+            const accounts = (S.data && S.data.accounts) || [];
+            const accOptions = accounts.map(a => `<option value="${a.id}">${esc(a.name)} (${money(a.balance)})</option>`).join('');
+            const defaultAmount = emp.remaining > 0 ? emp.remaining : 0;
+
+            const res = await Swal.fire({
+                customClass: { popup: 'compact-modal' },
+                title: '✓ บันทึกจ่ายค่าแรงสัปดาห์นี้',
+                html: `
+                    <div style="text-align:left">
+                        <div class="notice" style="margin-bottom:12px">
+                            พนักงาน: <b>${esc(emp.name)}</b> (${esc(emp.position)})<br>
+                            ฐานค่าแรง: <b>${money(emp.weeklyWage)}</b> | เบิกแล้ว: <b style="color:#d97706">${money(emp.advanceTotal)}</b><br>
+                            ยอดคงเหลือที่ต้องจ่ายจริง: <b class="positive" style="font-size:16px">${money(defaultAmount)}</b>
+                        </div>
+                        <div class="modal-field">
+                            <label>วันที่จ่าย</label>
+                            <input id="wagePayDate" type="date" value="${today()}">
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>จ่ายจากบัญชี</label>
+                            <select id="wagePayAccount">${accOptions}</select>
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>ยอดเงินที่จ่ายจริง (บาท)</label>
+                            <input id="wagePayAmount" type="number" min="0" step="10" value="${defaultAmount}" style="font-size:16px;font-weight:700">
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>หมายเหตุ</label>
+                            <input id="wagePayNote" placeholder="เช่น ค่าแรงสัปดาห์นี้">
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันจ่ายเงินค่าแรง',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const date = $('wagePayDate')?.value || today();
+                    const accountId = $('wagePayAccount')?.value;
+                    const amount = Number($('wagePayAmount')?.value || 0);
+                    const note = ($('wagePayNote')?.value || '').trim();
+                    if (!accountId && amount > 0) { Swal.showValidationMessage('กรุณาเลือกบัญชีที่จ่ายเงิน'); return false; }
+                    if (amount < 0) { Swal.showValidationMessage('จำนวนเงินต้องไม่ติดลบ'); return false; }
+                    return { date, accountId, amount, note };
+                }
+            });
+
+            if (!res.isConfirmed) return;
+            const { date, accountId, amount, note } = res.value;
+
+            // 0ms Optimistic Update
+            emp.isPaid = true;
+            emp.status = 'PAID';
+            emp.remaining = 0;
+            emp.percentRemaining = 0;
+            emp.progress = 100;
+            if (!emp.payments) emp.payments = [];
+            emp.payments.push({
+                id: 'OPT-PAY-' + Date.now(),
+                date,
+                accountId,
+                amount,
+                note: note || 'จ่ายค่าแรงสัปดาห์'
+            });
+
+            if (amount > 0) {
+                const acc = (S.data.accounts || []).find(a => a.id === accountId);
+                if (acc) acc.balance = round_((acc.balance || 0) - amount);
+                if (S.data.balances) {
+                    const bal = S.data.balances.find(a => a.id === accountId);
+                    if (bal) bal.balance = round_((bal.balance || 0) - amount);
+                }
+            }
+            if (S.data.wages && S.data.wages.summary) {
+                S.data.wages.summary.paidCount = (S.data.wages.summary.paidCount || 0) + 1;
+                S.data.wages.summary.totalPaid = round_((S.data.wages.summary.totalPaid || 0) + amount);
+                S.data.wages.summary.totalRemaining = round_(Math.max(0, (S.data.wages.summary.totalRemaining || 0) - defaultAmount));
+            }
+
+            renderWeeklyWages();
+            toast(`⚡ บันทึกจ่ายค่าแรง ${esc(emp.name)} ${money(amount)} เรียบร้อย (0ms)`);
+
+            // Silent background save
+            try {
+                const r = await callSilent('payWeeklyWage', {
+                    data: {
+                        employeeId: emp.id,
+                        date,
+                        accountId,
+                        amount,
+                        note,
+                        weekStart: S.data.wages.weekStart
+                    }
+                });
+                if (r && r.refresh) applyAppData(r.refresh);
+            } catch (err) {
+                alertError(err.message || 'บันทึกจ่ายค่าแรงไม่สำเร็จ กำลังดึงข้อมูลล่าสุด');
+                loadApp(true);
+            }
+        }
+
+        async function cancelWagePaymentModal(empId) {
+            const emp = (S.data && S.data.wages && S.data.wages.employees.find(x => x.id === empId));
+            if (!emp) return;
+            const ask = await Swal.fire({
+                icon: 'warning',
+                title: 'ยกเลิกการจ่ายค่าแรง?',
+                html: `ต้องการยกเลิกสถานะจ่ายแล้วของ <b>${esc(emp.name)}</b> ใช่หรือไม่?<br><div class="muted" style="font-size:12px;margin-top:4px">ระบบจะคืนยอดเงินเข้าบัญชีและปรับสถานะกลับเป็นรอจ่าย</div>`,
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันยกเลิก',
+                cancelButtonText: 'กลับ',
+                confirmButtonColor: '#dc2626'
+            });
+            if (!ask.isConfirmed) return;
+
+            try {
+                const payment = emp.payments && emp.payments[0];
+                const paymentId = payment ? payment.id : '';
+                const r = await call('cancelWagePayment', {
+                    data: {
+                        paymentId,
+                        employeeId: emp.id,
+                        weekStart: S.data.wages.weekStart
+                    }
+                });
+                toast('ยกเลิกการจ่ายค่าแรงเรียบร้อย');
+                if (r && r.refresh) applyAppData(r.refresh);
+                else refreshWeeklyWages();
+            } catch (e) {
+                alertError(e.message || 'ยกเลิกการจ่ายไม่สำเร็จ');
+            }
+        }
+
+        function openWageHistoryModal(empId) {
+            const emp = (S.data && S.data.wages && S.data.wages.employees.find(x => x.id === empId));
+            if (!emp) return;
+            const advances = emp.advances || [];
+            const payments = emp.payments || [];
+
+            const advRows = advances.length ? advances.map(a => `
+                <div class="compact-row" style="margin-bottom:6px">
+                    <div>
+                        <b style="color:#d97706">💸 เบิก ${money(a.amount)}</b>
+                        <small>${esc(a.date)} · ${esc(a.note || 'เบิกล่วงหน้า')}</small>
+                    </div>
+                    ${!emp.isPaid ? `<button type="button" class="mini-btn delete" onclick="deleteWageAdvanceModal('${esc(a.id)}', '${esc(emp.id)}')">ลบ</button>` : ''}
+                </div>
+            `).join('') : '<div class="muted" style="font-size:12px;padding:6px 0">ไม่มีรายการเบิกล่วงหน้า</div>';
+
+            const payRows = payments.length ? payments.map(p => `
+                <div class="compact-row" style="margin-bottom:6px">
+                    <div>
+                        <b style="color:#2563eb">✓ จ่าย ${money(p.amount)}</b>
+                        <small>${esc(p.date)} · ${esc(p.note || 'จ่ายค่าแรงรอบสัปดาห์')}</small>
+                    </div>
+                </div>
+            `).join('') : '<div class="muted" style="font-size:12px;padding:6px 0">ยังไม่มีประวัติการจ่ายรอบนี้</div>';
+
+            Swal.fire({
+                customClass: { popup: 'compact-modal' },
+                title: '📜 ประวัติเบิก–จ่าย · ' + esc(emp.name),
+                html: `
+                    <div style="text-align:left">
+                        <div class="notice" style="margin-bottom:10px">
+                            รอบสัปดาห์: <b>${esc(S.data.wages.weekLabel)}</b><br>
+                            ฐานค่าแรง: <b>${money(emp.weeklyWage)}</b> | รวมเบิก: <b style="color:#d97706">${money(emp.advanceTotal)}</b> | คงเหลือรับ: <b class="positive">${money(emp.remaining)}</b>
+                        </div>
+                        <div style="font-size:13px;font-weight:800;margin:10px 0 6px">รายการเบิกล่วงหน้า (${advances.length} รายการ):</div>
+                        <div class="compact-list">${advRows}</div>
+                        <div style="font-size:13px;font-weight:800;margin:14px 0 6px">รายการจ่ายเงิน (${payments.length} รายการ):</div>
+                        <div class="compact-list">${payRows}</div>
+                    </div>
+                `,
+                confirmButtonText: 'ปิด'
+            });
+        }
+
+        async function deleteWageAdvanceModal(advanceId, empId) {
+            Swal.close();
+            const ask = await Swal.fire({
+                icon: 'warning',
+                title: 'ลบรายการเบิกนี้?',
+                text: 'ระบบจะคืนเงินเข้าบัญชีเดิม และปรับยอดคงเหลือรับของพนักงานเพิ่มขึ้น',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันลบ',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#dc2626'
+            });
+            if (!ask.isConfirmed) return openWageHistoryModal(empId);
+
+            try {
+                const r = await call('deleteWageAdvance', {
+                    data: {
+                        advanceId,
+                        employeeId: empId,
+                        weekStart: S.data.wages.weekStart
+                    }
+                });
+                toast('ลบรายการเบิกล่วงหน้าแล้ว');
+                if (r && r.refresh) applyAppData(r.refresh);
+                else refreshWeeklyWages();
+            } catch (e) {
+                alertError(e.message || 'ลบรายการเบิกไม่สำเร็จ');
+                openWageHistoryModal(empId);
+            }
+        }
+
+        function showPage(name, el) { if(name==='category'||name==='categories')return showPageAndSub('entry','category');if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll'||name==='wages'||name==='wage')return showPageAndSub('entry','wages');if(name==='dividends')return showPageAndSub('entry','dividend');document.querySelectorAll('[id^="page-"]').forEach(x => x.classList.add('hidden')); const target=$('page-' + name); if(target)target.classList.remove('hidden'); document.querySelectorAll('.tab').forEach(x => x.classList.remove('active')); if(el)el.classList.add('active');if(name==='entry')initSmartQuickInputs(); }
+        function goToPage(name){if(name==='category'||name==='categories')return showPageAndSub('entry','category');if(name==='buy')return showPageAndSub('entry','buy');if(name==='history')return showPageAndSub('entry','history');if(name==='payroll'||name==='wages'||name==='wage')return showPageAndSub('entry','wages');if(name==='dividends')return showPageAndSub('entry','dividend');const tab=document.querySelector(`[data-page="${name}"]`);if(tab&&!tab.classList.contains('hidden'))showPage(name,tab);else showPage(name,null)}
+        function updateRoleLayout(){const role=S.data.user.role,visible=[...document.querySelectorAll('.tabs .tab:not(.hidden)')];document.querySelector('.tabs').style.gridTemplateColumns=`repeat(${visible.length},minmax(0,1fr))`;const copy={MANAGER:['พื้นที่ผู้จัดการ','จัดการรายการซื้อ รายรับ–รายจ่าย และหมวดสำหรับงานประจำวัน'],STAFF:['พื้นที่พนักงาน','บันทึกรายการได้รวดเร็ว และดูประวัติรายการของคุณเอง']};if(copy[role]){$('roleHomeTitle').textContent=copy[role][0];$('roleHomeText').textContent=copy[role][1]}document.body.dataset.role=role;const catTab=$('entrySubTabCategory');if(catTab)catTab.classList.toggle('hidden',!['ADMIN','MANAGER','OWNER'].includes(role));const wageTab=$('entrySubTabWages');if(wageTab)wageTab.classList.toggle('hidden',!['ADMIN','MANAGER','OWNER'].includes(role));}
 function addItem() { const u=(S.data&&S.data.units&&S.data.units[0])||{name:'ชิ้น',factor:1,baseUnit:'ชิ้น'};S.items.push({name:'',category:'อื่น ๆ',quantity:1,unit:u.name,unitFactor:Number(u.factor),baseUnit:u.baseUnit,lineTotal:''});renderItemsV2() }
 function guessCategory(name) { const n = name.toLowerCase(); const saved = S.data && S.data.products.find(p => String(p.name).toLowerCase() === n); if (saved && saved.category) return saved.category; const rules = [['อาหารสัตว์', ['อาหารเป็ด', 'อาหารปลา', 'อาหารสัตว์', 'อาหารนก', 'หนอนอบ', 'เมล็ดทานตะวัน']], ['ถุงเท้า/เครื่องแต่งกาย', ['ถุงเท้า', 'เสื้อ', 'กางเกง', 'หมวก', 'ผ้ากันเปื้อน']], ['ของเล่น', ['ของเล่น', 'ตุ๊กตา', 'ลูกบอล', 'เลโก้', 'สติ๊กเกอร์', 'สีเทียน']], ['ทำความสะอาด', ['น้ำยาล้าง', 'น้ำยาถู', 'ผงซัก', 'สบู่', 'ถุงขยะ', 'ไม้กวาด', 'ฟองน้ำ', 'ฆ่าเชื้อ']], ['บรรจุภัณฑ์', ['แก้วพลาสติก', 'แก้วกระดาษ', 'หลอด', 'กล่องอาหาร', 'ช้อนพลาสติก', 'ส้อมพลาสติก', 'ถุงหิ้ว', 'ฝาแก้ว', 'กระดาษรอง']], ['เนื้อสัตว์และอาหารทะเล', ['เนื้อ', 'หมู', 'ไก่', 'ปลา', 'กุ้ง', 'หมึก', 'ปู', 'แฮม', 'เบคอน', 'ไส้กรอก', 'ไข่']], ['บาร์น้ำและเครื่องดื่ม', ['กาแฟ', 'ชา', 'โกโก้', 'นม', 'ไซรัป', 'โซดา', 'น้ำแข็ง', 'น้ำผลไม้', 'น้ำดื่ม', 'ครีมเทียม']], ['ขนมและเบเกอรี่', ['ขนม', 'เค้ก', 'คุกกี้', 'บราวนี่', 'เบเกอรี่', 'ไอศกรีม', 'ช็อกโกแลต', 'เยลลี่']], ['ผักและผลไม้', ['ผัก', 'ผลไม้', 'มะม่วง', 'มะพร้าว', 'มะเขือ', 'มะนาว', 'มะกรูด', 'แตง', 'กะหล่ำ', 'คะน้า', 'แครอท', 'หอม', 'กระเทียม', 'มันฝรั่ง', 'ข้าวโพด', 'กล้วย', 'ส้ม', 'แอปเปิล', 'องุ่น', 'สับปะรด', 'เห็ด', 'พริก', 'กะเพรา']], ['วัตถุดิบครัว/ของแห้ง', ['ข้าว', 'แป้ง', 'น้ำตาล', 'น้ำมัน', 'เกลือ', 'ซอส', 'ซีอิ๊ว', 'น้ำปลา', 'เครื่องปรุง', 'เส้น', 'พาสต้า', 'กะทิ', 'เนย', 'ชีส']]]; for (const [cat, words] of rules) if (words.some(w => n.includes(w))) return cat; return 'อื่น ๆ' }
 function parseQuickItems() { const lines = $('quickItems').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean); if (!lines.length) return Swal.fire({ icon: 'info', title: 'ลองพิมพ์รายการก่อน', html: 'ตัวอย่าง<br><b>มะม่วง 1 กก 40 บาท</b>', confirmButtonText: 'เข้าใจแล้ว' }); const parsed = [], failed = []; const re = /^(.+?)\s+(\d+(?:[.,]\d+)?)\s*(กก\.?|กิโล(?:กรัม)?|กรัม|ลูก|ชิ้น|แพ็ก|แพค|ถุง|ขวด|กล่อง|ลัง|ลิตร|มล\.?)\s+(?:ราคา\s*)?(\d+(?:[.,]\d+)?)\s*(?:บาท)?$/i; lines.forEach((line, i) => { const m = line.match(re); if (!m) return failed.push((i + 1) + '. ' + line); let unit = m[3].replace('.', ''); if (/^กิโล/.test(unit)) unit = 'กก.'; if (unit === 'กก') unit = 'กก.'; if (unit === 'แพค') unit = 'แพ็ก'; if (unit === 'มล') unit = 'มล.'; let factor = 1, baseUnit = unit; if (unit === 'กรัม') { factor = .001; baseUnit = 'กก.' } else if (unit === 'มล.') { factor = .001; baseUnit = 'ลิตร' } const name = m[1].trim(); parsed.push({ name, category: guessCategory(name), quantity: Number(m[2].replace(',', '.')), unit, unitFactor: factor, baseUnit, lineTotal: Number(m[4].replace(',', '.')) }) }); if (failed.length) return Swal.fire({ icon: 'warning', title: 'มีบรรทัดที่ยังแยกไม่ได้', html: 'ตรวจรูปแบบ: <b>ชื่อ จำนวน หน่วย ราคา</b><br><br>' + failed.map(esc).join('<br>'), confirmButtonText: 'กลับไปแก้ไข' }); S.items = parsed; renderItems(); toast('แยกข้อมูลและหมวดสำเร็จ ' + parsed.length + ' รายการ'); setTimeout(() => $('buyItems').scrollIntoView({ behavior: 'smooth', block: 'start' }), 200) }
