@@ -1610,65 +1610,6 @@
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
         }
-        .wage-period-tools {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            margin-top: 10px;
-            padding-top: 9px;
-            border-top: 1px dashed #e2e8f0;
-            flex-wrap: wrap;
-        }
-        .wage-date-jump-wrap {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            min-width: 0;
-        }
-        .wage-tools-hint {
-            font-size: 11.5px;
-            font-weight: 700;
-            color: #64748b;
-            white-space: nowrap;
-        }
-        .wage-date-input {
-            min-height: 34px;
-            padding: 4px 8px;
-            background: #ffffff;
-            border: 1px solid #cbd5e1;
-            border-radius: 9px;
-            font-size: 12px;
-            font-weight: 600;
-            color: #334155;
-            outline: none;
-        }
-        .wage-this-week-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 6px 12px;
-            min-height: 34px;
-            background: #ffffff;
-            border: 1.5px solid #cbd5e1;
-            border-radius: 10px;
-            font-size: 12px;
-            font-weight: 750;
-            color: #475569;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            white-space: nowrap;
-        }
-        .wage-this-week-btn:hover {
-            background: #f1f5f9;
-            border-color: #94a3b8;
-        }
-        .wage-this-week-btn.active {
-            background: #ecfdf5;
-            border-color: #10b981;
-            color: #047857;
-            box-shadow: 0 1px 3px rgba(16, 185, 129, 0.15);
-        }
         .wage-week-bar {
             display: flex;
             align-items: center;
@@ -1753,18 +1694,6 @@
                 min-height: 36px;
                 font-size: 12.5px;
                 padding: 5px 6px;
-            }
-            .wage-period-tools {
-                gap: 8px;
-                margin-top: 8px;
-                padding-top: 8px;
-            }
-            .wage-date-jump-wrap {
-                flex: 1 1 auto;
-            }
-            .wage-date-input {
-                width: 100%;
-                min-width: 0;
             }
             .wage-week-bar {
                 padding: 6px 8px;
@@ -2586,17 +2515,6 @@
                                     <label class="wage-period-label">รอบสัปดาห์ในเดือน</label>
                                     <select id="wageSelectWeek" class="wage-select" onchange="onWageWeekSelectChange()"></select>
                                 </div>
-                            </div>
-
-                            <!-- Quick Tools Sub-bar: Jump to specific date + Current week reset -->
-                            <div class="wage-period-tools">
-                                <div class="wage-date-jump-wrap">
-                                    <span class="wage-tools-hint">📅 เจาะจงวัน:</span>
-                                    <input type="date" id="wageDateJumpInput" class="wage-date-input" onchange="onWageDateJump(this.value)">
-                                </div>
-                                <button type="button" id="wageBtnThisWeek" class="wage-this-week-btn active" onclick="jumpToCurrentWageWeek()">
-                                    <span>⚡ สัปดาห์ปัจจุบัน</span>
-                                </button>
                             </div>
                         </div>
 
@@ -4744,11 +4662,9 @@
             const yearSelect = $('wageSelectYear');
             const monthSelect = $('wageSelectMonth');
             const weekSelect = $('wageSelectWeek');
-            const jumpInput = $('wageDateJumpInput');
 
             if (yearSelect) yearSelect.value = year;
             if (monthSelect) monthSelect.value = month;
-            if (jumpInput) jumpInput.value = weekStartStr;
 
             if (weekSelect) {
                 const weeks = getWeeksInMonth(year, month);
@@ -4769,13 +4685,6 @@
                     const mark = isCur ? ' ⚡ สัปดาห์นี้' : '';
                     return `<option value="${w.weekStart}" ${w.weekStart === weekStartStr ? 'selected' : ''}>${esc(w.label)}${mark}</option>`;
                 }).join('');
-            }
-
-            const curMonday = S.currentPayrollWeekStart || payrollMondayToday();
-            const isCurrentWeek = weekStartStr === curMonday;
-            const btnThisWeek = $('wageBtnThisWeek');
-            if (btnThisWeek) {
-                btnThisWeek.classList.toggle('active', isCurrentWeek);
             }
         }
 
@@ -4799,20 +4708,6 @@
             if (weekSelect && weekSelect.value) {
                 loadWageWeek(weekSelect.value);
             }
-        }
-
-        function onWageDateJump(val) {
-            if (!val) return;
-            const d = new Date(val + 'T12:00:00');
-            if (isNaN(d.getTime())) return;
-            const day = (d.getDay() + 6) % 7;
-            d.setDate(d.getDate() - day);
-            loadWageWeek(d.toISOString().slice(0, 10));
-        }
-
-        function jumpToCurrentWageWeek() {
-            const curMonday = S.currentPayrollWeekStart || payrollMondayToday();
-            loadWageWeek(curMonday);
         }
 
         async function loadWageWeek(targetStart, forceRefresh = false) {
