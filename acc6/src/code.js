@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.10.12',
+  version: '3.10.16',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
