@@ -1,6 +1,6 @@
 const APP = {
   name: 'Wonder Duck Accounts',
-  version: '3.10.8',
+  version: '3.10.9',
   sheets: {
     Users: ['id','username','passwordHash','name','role','active','createdAt','createdBy'],
     Accounts: ['id','name','type','openingBalance','active'],
@@ -425,6 +425,17 @@ function buildEmployees_(){
   return list;
 }
 
+function formatWeekLabel_(start, end) {
+  try {
+    const s = new Date(start + 'T12:00:00');
+    const e = new Date(end + 'T12:00:00');
+    const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    return `จ. ${s.getDate()} ${months[s.getMonth()]} – อา. ${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear() + 543}`;
+  } catch(err) {
+    return `${start} ถึง ${end}`;
+  }
+}
+
 function buildWeeklyWages_(targetWeekStart){
   const currentWeek = payrollWeek_();
   const weekStart = targetWeekStart ? validDate_(targetWeekStart) : currentWeek.start;
@@ -547,6 +558,7 @@ function buildWeeklyWages_(targetWeekStart){
       isPaid,
       status,
       payment: paidRecord,
+      payments: paidRecord ? [paidRecord] : [],
       advances: allAdv
     };
   });
@@ -559,12 +571,19 @@ function buildWeeklyWages_(targetWeekStart){
   const pendingCount = items.filter(x => !x.isPaid).length;
   const partialCount = items.filter(x => !x.isPaid && x.advanceTotal > 0).length;
 
+  const weekLabel = formatWeekLabel_(weekStart, weekEnd);
   return {
+    weekStart: weekStart,
+    weekEnd: weekEnd,
+    weekLabel: weekLabel,
+    isCurrentWeek: weekStart === currentWeek.start,
     week: {
       start: weekStart,
       end: weekEnd,
+      label: weekLabel,
       isCurrentWeek: weekStart === currentWeek.start
     },
+    employees: items,
     items,
     summary: {
       totalEmployees: items.length,
@@ -789,7 +808,8 @@ function getPayrollSchedule_(user,data){if(!canManage_(user))throw new Error('�
 function getPayrollWeekStatus_(user,data){
   if(!canManage_(user))throw new Error('ไม่มีสิทธิ์ดูสถานะค่าจ้าง');
   const weekStart = data && data.weekStart ? validDate_(data.weekStart) : payrollWeek_().start;
-  return ok(buildWeeklyWages_(weekStart));
+  const wages = buildWeeklyWages_(weekStart);
+  return ok({ wages, ...wages });
 }
 function savePayrollSchedule_(user,data){if(!canManage_(user))throw new Error('ไม่มีสิทธิ์กำหนดรอบจ่ายค่าจ้าง');const month=validPayrollMonth_(data&&data.month),input=Array.isArray(data.weeks)?data.weeks:[],valid=payrollMonthSchedule_(month),allowed=new Set(valid.weeks.map(x=>x.weekStart)),lock=LockService.getScriptLock();lock.waitLock(20000);try{const sh=sheet_('PayrollSchedule'),values=sh.getDataRange().getValues(),head=values[0],existing={};values.slice(1).forEach((r,i)=>{if(r[1]===month)existing[dateKey_(r[2])]=i+2});valid.weeks.forEach(def=>{const item=input.find(x=>x.weekStart===def.weekStart)||def,payDate=validDate_(item.payDate||def.payDate);if(!allowed.has(def.weekStart))throw new Error('รอบสัปดาห์ไม่ถูกต้อง');const row=[existing[def.weekStart]?values[existing[def.weekStart]-1][0]:id_('SCH'),month,def.weekStart,def.weekEnd,payDate,item.active!==false,existing[def.weekStart]?values[existing[def.weekStart]-1][6]:now_(),user.id,now_()];if(existing[def.weekStart])sh.getRange(existing[def.weekStart],1,1,head.length).setValues([row]);else sh.appendRow(row)});invalidateRows_('PayrollSchedule');audit_(user,'UPDATE','PAYROLL_SCHEDULE',month,'กำหนด '+valid.weeks.length+' รอบ');return ok({schedule:payrollMonthSchedule_(month)})}finally{lock.releaseLock()}}
 function cancelWagePayment_(user,data){if(!canManage_(user))throw new Error('ไม่มีสิทธิ์ยกเลิกรายการจ่าย');const id=clean_(data&&data.id),lock=LockService.getScriptLock();lock.waitLock(20000);try{const paymentSheet=sheet_('WagePayments'),values=paymentSheet.getDataRange().getValues(),head=values[0],index=values.findIndex((r,i)=>i>0&&r[0]===id),statusCol=head.indexOf('status')+1;if(index<1){const tx=sheet_('Transactions'),tv=tx.getDataRange().getValues(),ti=tv.findIndex((r,i)=>i>0&&r[0]===id);if(ti>0){tx.getRange(ti+1,12).setValue('CANCELLED');SpreadsheetApp.flush();invalidateRows_('Transactions');audit_(user,'CANCEL','WAGE_PAYMENT_TX',id,'ยกเลิกการจ่ายค่าจ้าง');return ok({refresh:bootstrap_(user).data})}}if(statusCol<1)throw new Error('โครงสร้างสถานะค่าจ้างไม่สมบูรณ์');const payment=Object.fromEntries(head.map((h,j)=>[h,values[index][j]])),weekStart=paymentWeekStart_(payment);if(String(payment.status||'CONFIRMED')==='CANCELLED')return ok({duplicate:true,weekStart,refresh:bootstrap_(user).data});paymentSheet.getRange(index+1,statusCol).setValue('CANCELLED');if(payment.transactionId){const tx=sheet_('Transactions'),tv=tx.getDataRange().getValues(),ti=tv.findIndex((r,i)=>i>0&&r[0]===payment.transactionId);if(ti>0)tx.getRange(ti+1,12).setValue('CANCELLED')}const work=sheet_('PartTimeWorkDays'),wv=work.getDataRange().getValues();wv.slice(1).forEach((r,i)=>{if(r[6]===id)work.getRange(i+2,6,1,2).setValues([['PENDING','']])});SpreadsheetApp.flush();invalidateRows_('WagePayments');invalidateRows_('Transactions');invalidateRows_('PartTimeWorkDays');audit_(user,'CANCEL','WAGE_PAYMENT',id,'คืนยอดและเปิดรอบ '+weekStart);return ok({weekStart,refresh:bootstrap_(user).data})}finally{lock.releaseLock()}}

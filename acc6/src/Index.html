@@ -3280,32 +3280,42 @@
         }
 
         function renderWeeklyWages() {
-            const wages = S.data && S.data.wages;
             const sec = $('entrySectionWages');
             if (!sec) return;
-            if (!wages || !['ADMIN', 'MANAGER', 'OWNER'].includes(S.data.user.role)) {
+            const role = (S.data && S.data.user && S.data.user.role) || '';
+            if (!['ADMIN', 'MANAGER', 'OWNER'].includes(role)) {
                 sec.innerHTML = '<div class="card muted" style="text-align:center;padding:24px">เฉพาะแอดมิน ผู้จัดการ และเจ้าของร้านที่สามารถดูค่าแรงพนักงานได้</div>';
+                return;
+            }
+
+            const wages = S.data && S.data.wages;
+            const grid = $('wageEmployeeGrid');
+            if (!wages) {
+                if (grid) grid.innerHTML = '<div class="card muted" style="text-align:center;padding:24px">⏳ กำลังเชื่อมต่อข้อมูลค่าแรงพนักงาน...</div>';
+                refreshWeeklyWages();
                 return;
             }
 
             // 1. Week Label
             const weekLabelEl = $('wageWeekLabel');
             if (weekLabelEl) {
-                const badge = wages.isCurrentWeek 
+                const label = wages.weekLabel || (wages.week && wages.week.label) || 'สัปดาห์ปัจจุบัน';
+                const isCurrent = wages.isCurrentWeek !== undefined ? wages.isCurrentWeek : (wages.week && wages.week.isCurrentWeek);
+                const badge = isCurrent 
                     ? '<span class="pill" style="background:#ecfdf5;color:#047857;margin-left:6px;font-size:11px">สัปดาห์นี้</span>' 
                     : '<span class="pill" style="background:#f1f5f9;color:#64748b;margin-left:6px;font-size:11px">ย้อนหลัง</span>';
-                weekLabelEl.innerHTML = esc(wages.weekLabel) + ' ' + badge;
+                weekLabelEl.innerHTML = esc(label) + ' ' + badge;
             }
 
             // 2. Summary KPI Cards
             const summary = wages.summary || {};
-            if ($('wageKpiTotalEmp')) $('wageKpiTotalEmp').textContent = (summary.totalEmployees || 0) + ' คน';
+            const emps = wages.employees || wages.items || [];
+            if ($('wageKpiTotalEmp')) $('wageKpiTotalEmp').textContent = (summary.totalEmployees || emps.length || 0) + ' คน';
             if ($('wageKpiPendingAmount')) $('wageKpiPendingAmount').textContent = money(summary.totalRemaining || 0);
             if ($('wageKpiAdvanceAmount')) $('wageKpiAdvanceAmount').textContent = money(summary.totalAdvances || 0);
-            if ($('wageKpiPaidCount')) $('wageKpiPaidCount').textContent = `${summary.paidCount || 0} / ${summary.totalEmployees || 0} คน`;
+            if ($('wageKpiPaidCount')) $('wageKpiPaidCount').textContent = `${summary.paidCount || 0} / ${summary.totalEmployees || emps.length || 0} คน`;
 
             // 3. Filter Badge Counts
-            const emps = wages.employees || [];
             const countAll = emps.length;
             const countPending = emps.filter(e => !e.isPaid && Number(e.advanceTotal || 0) === 0).length;
             const countPartial = emps.filter(e => !e.isPaid && Number(e.advanceTotal || 0) > 0).length;
@@ -3316,7 +3326,25 @@
             if ($('wageFilterCountPartial')) $('wageFilterCountPartial').textContent = countPartial;
             if ($('wageFilterCountPaid')) $('wageFilterCountPaid').textContent = countPaid;
 
-            // 4. Filter List
+            // 4. Owner Banner Check: If logged in user (e.g. Owner) is not in emps, show banner!
+            const userName = (S.data.user && S.data.user.name) || '';
+            const userInEmps = emps.some(e => String(e.name || '').trim().toLowerCase() === userName.trim().toLowerCase());
+            let ownerBannerHtml = '';
+            if (['OWNER', 'MANAGER'].includes(role) && !userInEmps) {
+                ownerBannerHtml = `
+                    <div class="card" style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:16px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                        <div style="font-size:12.5px;color:#92400e;line-height:1.4">
+                            💡 <b>${esc(userName)}</b> (${roleName(role)}) ยังไม่ได้อยู่ในรายชื่อรับค่าแรง<br>
+                            <span class="muted" style="font-size:11.5px">หากท่านรับค่าแรงรายสัปดาห์ด้วย สามารถกดเพิ่มชื่อเข้าสู่ระบบเพื่อติดตามยอดและเบิกได้ทันที</span>
+                        </div>
+                        <button type="button" class="btn" style="background:#d97706;color:#ffffff;padding:6px 14px;min-height:36px;font-size:12px;border-radius:10px" onclick="addOwnerToWages()">
+                            ＋ เพิ่มชื่อ ${esc(userName)} ลงในค่าแรง
+                        </button>
+                    </div>
+                `;
+            }
+
+            // 5. Filter List
             const filter = S.currentWageFilter || 'ALL';
             const filteredEmps = emps.filter(e => {
                 if (filter === 'PENDING') return !e.isPaid && Number(e.advanceTotal || 0) === 0;
@@ -3325,15 +3353,14 @@
                 return true;
             });
 
-            const grid = $('wageEmployeeGrid');
             if (!grid) return;
 
             if (!filteredEmps.length) {
-                grid.innerHTML = '<div class="card muted" style="text-align:center;padding:24px 16px;border-radius:16px;background:#f8fafc">ไม่มีรายการพนักงานในหมวดนี้</div>';
+                grid.innerHTML = ownerBannerHtml + '<div class="card muted" style="text-align:center;padding:24px 16px;border-radius:16px;background:#f8fafc">ไม่มีรายการพนักงานในหมวดนี้</div>';
                 return;
             }
 
-            grid.innerHTML = filteredEmps.map(emp => {
+            grid.innerHTML = ownerBannerHtml + filteredEmps.map(emp => {
                 const isPaid = !!emp.isPaid;
                 const advTotal = Number(emp.advanceTotal || 0);
                 const weeklyWage = Number(emp.weeklyWage || 0);
@@ -3440,17 +3467,68 @@
             }).join('');
         }
 
+        async function addOwnerToWages() {
+            const ownerName = (S.data && S.data.user && S.data.user.name) || 'เจ้าของร้าน';
+            const res = await Swal.fire({
+                customClass: { popup: 'compact-modal' },
+                title: '＋ เพิ่มเจ้าของร้านลงในค่าแรง',
+                html: `
+                    <div style="text-align:left">
+                        <div class="notice" style="margin-bottom:10px">
+                            เพิ่มชื่อ <b>${esc(ownerName)}</b> ลงในระบบติดตามค่าแรงสัปดาห์ เพื่อให้สามารถบันทึกค่าแรง เบิกล่วงหน้า และแสดงหลอดสถานะได้
+                        </div>
+                        <div class="modal-field">
+                            <label>ชื่อที่ใช้ลงรายการ</label>
+                            <input id="ownerEmpName" value="${esc(ownerName)}">
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>ฐานค่าแรงต่อสัปดาห์ (บาท)</label>
+                            <input id="ownerEmpWage" type="number" value="3000" min="0" step="100" style="font-size:16px;font-weight:700">
+                        </div>
+                        <div class="modal-field" style="margin-top:8px">
+                            <label>ตำแหน่ง</label>
+                            <input id="ownerEmpPosition" value="เจ้าของร้าน">
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกเข้าสู่ระบบค่าแรง',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const name = ($('ownerEmpName')?.value || '').trim();
+                    const wage = Number($('ownerEmpWage')?.value || 0);
+                    const position = ($('ownerEmpPosition')?.value || '').trim() || 'เจ้าของร้าน';
+                    if (name.length < 2) { Swal.showValidationMessage('กรุณาระบุชื่ออย่างน้อย 2 ตัวอักษร'); return false; }
+                    return { name, weeklyWage: wage, position, employmentType: 'FULL_TIME' };
+                }
+            });
+
+            if (!res.isConfirmed) return;
+            try {
+                loading(true, 'กำลังเพิ่มเจ้าของร้านเข้าสู่ระบบค่าแรง...');
+                const r = await call('saveEmployee', { data: res.value });
+                toast(`เพิ่ม ${esc(res.value.name)} ลงในระบบค่าแรงเรียบร้อยแล้ว`);
+                if (r && r.refresh) applyAppData(r.refresh);
+                else refreshWeeklyWages();
+            } catch (e) {
+                alertError(e.message || 'เพิ่มไม่สำเร็จ');
+            } finally {
+                loading(false);
+            }
+        }
+
         async function changeWageWeek(delta) {
-            if (!S.data || !S.data.wages) return;
-            const curStart = S.data.wages.weekStart;
+            if (!S.data) return;
+            const wages = S.data.wages;
+            const curStart = (wages && (wages.weekStart || (wages.week && wages.week.start))) || today();
             const curD = new Date(curStart + 'T12:00:00');
             curD.setDate(curD.getDate() + (delta * 7));
             const targetStart = curD.toISOString().slice(0, 10);
             try {
                 loading(true, 'กำลังโหลดข้อมูลสัปดาห์...');
                 const r = await call('getWeeklyWages', { data: { weekStart: targetStart } });
-                if (r && r.wages) {
-                    S.data.wages = r.wages;
+                if (r) {
+                    S.data.wages = r.wages || r;
                     renderWeeklyWages();
                 }
             } catch (e) {
@@ -3461,28 +3539,29 @@
         }
 
         async function refreshWeeklyWages() {
-            if (!S.data || !S.data.wages) return;
+            if (!S.data) return;
+            const wages = S.data.wages;
+            const curStart = (wages && (wages.weekStart || (wages.week && wages.week.start))) || '';
             try {
-                loading(true, 'กำลังรีเฟรชข้อมูลค่าแรง...');
-                const r = await call('getWeeklyWages', { data: { weekStart: S.data.wages.weekStart } });
-                if (r && r.wages) {
-                    S.data.wages = r.wages;
+                const r = await callSilent('getWeeklyWages', { data: { weekStart: curStart } });
+                if (r) {
+                    S.data.wages = r.wages || r;
                     renderWeeklyWages();
-                    toast('อัปเดตข้อมูลค่าแรงล่าสุดแล้ว');
                 }
             } catch (e) {
-                alertError(e.message || 'รีเฟรชข้อมูลไม่สำเร็จ');
-            } finally {
-                loading(false);
+                console.error('refreshWeeklyWages failed:', e);
             }
         }
 
         async function resetCurrentWeekWages() {
-            if (!S.data || !S.data.wages) return;
+            if (!S.data) return;
+            const wages = S.data.wages;
+            const weekStart = (wages && (wages.weekStart || (wages.week && wages.week.start))) || '';
+            const weekLabel = (wages && (wages.weekLabel || (wages.week && wages.week.label))) || 'สัปดาห์ปัจจุบัน';
             const ask = await Swal.fire({
                 icon: 'warning',
                 title: 'รีเซ็ตสถานะสัปดาห์นี้เป็น 0?',
-                html: `รอบสัปดาห์ <b>${esc(S.data.wages.weekLabel)}</b><br><br>
+                html: `รอบสัปดาห์ <b>${esc(weekLabel)}</b><br><br>
                 <div class="notice" style="text-align:left;font-size:12px">
                     💡 ปกติระบบจะรีเซ็ตอัตโนมัติทุกเที่ยงคืนวันอาทิตย์ (00:00 น. ก่อนเริ่มวันจันทร์) อยู่แล้ว<br>
                     หากกดยืนยัน รายการเบิกและจ่ายของสัปดาห์นี้จะถูกเคลียร์เป็น 0 และทุกคนจะรอรับ 100%
@@ -3496,7 +3575,7 @@
 
             try {
                 loading(true, 'กำลังรีเซ็ตรอบสัปดาห์...');
-                const r = await call('resetPayrollWeek', { data: { weekStart: S.data.wages.weekStart } });
+                const r = await call('resetPayrollWeek', { data: { weekStart } });
                 toast('รีเซ็ตสถานะรอบสัปดาห์เป็น 0 เรียบร้อย');
                 if (r && r.refresh) applyAppData(r.refresh);
                 else refreshWeeklyWages();
@@ -3508,7 +3587,8 @@
         }
 
         async function openWageAdvanceModal(empId) {
-            const emp = (S.data && S.data.wages && S.data.wages.employees.find(x => x.id === empId));
+            const empList = (S.data && S.data.wages && (S.data.wages.employees || S.data.wages.items)) || [];
+            const emp = empList.find(x => x.id === empId);
             if (!emp) return;
             const accounts = (S.data && S.data.accounts) || [];
             const accOptions = accounts.map(a => `<option value="${a.id}">${esc(a.name)} (${money(a.balance)})</option>`).join('');
@@ -3588,6 +3668,7 @@
 
             // Silent background save
             try {
+                const curWeekStart = (S.data.wages && (S.data.wages.weekStart || (S.data.wages.week && S.data.wages.week.start))) || '';
                 const r = await callSilent('saveWageAdvance', {
                     data: {
                         employeeId: emp.id,
@@ -3595,7 +3676,7 @@
                         accountId,
                         amount,
                         note,
-                        weekStart: S.data.wages.weekStart
+                        weekStart: curWeekStart
                     }
                 });
                 if (r && r.refresh) applyAppData(r.refresh);
@@ -3606,7 +3687,8 @@
         }
 
         async function openPayWageModal(empId) {
-            const emp = (S.data && S.data.wages && S.data.wages.employees.find(x => x.id === empId));
+            const empList = (S.data && S.data.wages && (S.data.wages.employees || S.data.wages.items)) || [];
+            const emp = empList.find(x => x.id === empId);
             if (!emp) return;
             const accounts = (S.data && S.data.accounts) || [];
             const accOptions = accounts.map(a => `<option value="${a.id}">${esc(a.name)} (${money(a.balance)})</option>`).join('');
@@ -3691,6 +3773,7 @@
 
             // Silent background save
             try {
+                const curWeekStart = (S.data.wages && (S.data.wages.weekStart || (S.data.wages.week && S.data.wages.week.start))) || '';
                 const r = await callSilent('payWeeklyWage', {
                     data: {
                         employeeId: emp.id,
@@ -3698,7 +3781,7 @@
                         accountId,
                         amount,
                         note,
-                        weekStart: S.data.wages.weekStart
+                        weekStart: curWeekStart
                     }
                 });
                 if (r && r.refresh) applyAppData(r.refresh);
@@ -3709,7 +3792,8 @@
         }
 
         async function cancelWagePaymentModal(empId) {
-            const emp = (S.data && S.data.wages && S.data.wages.employees.find(x => x.id === empId));
+            const empList = (S.data && S.data.wages && (S.data.wages.employees || S.data.wages.items)) || [];
+            const emp = empList.find(x => x.id === empId);
             if (!emp) return;
             const ask = await Swal.fire({
                 icon: 'warning',
@@ -3725,11 +3809,12 @@
             try {
                 const payment = emp.payments && emp.payments[0];
                 const paymentId = payment ? payment.id : '';
+                const curWeekStart = (S.data.wages && (S.data.wages.weekStart || (S.data.wages.week && S.data.wages.week.start))) || '';
                 const r = await call('cancelWagePayment', {
                     data: {
                         paymentId,
                         employeeId: emp.id,
-                        weekStart: S.data.wages.weekStart
+                        weekStart: curWeekStart
                     }
                 });
                 toast('ยกเลิกการจ่ายค่าแรงเรียบร้อย');
@@ -3741,7 +3826,8 @@
         }
 
         function openWageHistoryModal(empId) {
-            const emp = (S.data && S.data.wages && S.data.wages.employees.find(x => x.id === empId));
+            const empList = (S.data && S.data.wages && (S.data.wages.employees || S.data.wages.items)) || [];
+            const emp = empList.find(x => x.id === empId);
             if (!emp) return;
             const advances = emp.advances || [];
             const payments = emp.payments || [];
@@ -3765,13 +3851,14 @@
                 </div>
             `).join('') : '<div class="muted" style="font-size:12px;padding:6px 0">ยังไม่มีประวัติการจ่ายรอบนี้</div>';
 
+            const curWeekLabel = (S.data && S.data.wages && (S.data.wages.weekLabel || (S.data.wages.week && S.data.wages.week.label))) || 'สัปดาห์ปัจจุบัน';
             Swal.fire({
                 customClass: { popup: 'compact-modal' },
                 title: '📜 ประวัติเบิก–จ่าย · ' + esc(emp.name),
                 html: `
                     <div style="text-align:left">
                         <div class="notice" style="margin-bottom:10px">
-                            รอบสัปดาห์: <b>${esc(S.data.wages.weekLabel)}</b><br>
+                            รอบสัปดาห์: <b>${esc(curWeekLabel)}</b><br>
                             ฐานค่าแรง: <b>${money(emp.weeklyWage)}</b> | รวมเบิก: <b style="color:#d97706">${money(emp.advanceTotal)}</b> | คงเหลือรับ: <b class="positive">${money(emp.remaining)}</b>
                         </div>
                         <div style="font-size:13px;font-weight:800;margin:10px 0 6px">รายการเบิกล่วงหน้า (${advances.length} รายการ):</div>
@@ -3798,11 +3885,12 @@
             if (!ask.isConfirmed) return openWageHistoryModal(empId);
 
             try {
+                const curWeekStart = (S.data && S.data.wages && (S.data.wages.weekStart || (S.data.wages.week && S.data.wages.week.start))) || '';
                 const r = await call('deleteWageAdvance', {
                     data: {
                         advanceId,
                         employeeId: empId,
-                        weekStart: S.data.wages.weekStart
+                        weekStart: curWeekStart
                     }
                 });
                 toast('ลบรายการเบิกล่วงหน้าแล้ว');
