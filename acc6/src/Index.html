@@ -1459,14 +1459,60 @@
         .quick-emp-chip:hover, .quick-emp-chip:active { border-color: #16a34a; background: #f0fdf4; color: #15803d; transform: translateY(-1px); box-shadow: 0 3px 6px rgba(22,163,74,0.15); }
         .quick-emp-chip .chip-avatar { font-size: 12px; opacity: 0.85; }
 
-        /* Modern Category Management Styles */
-        .cat-segmented-tabs { display: flex; gap: 5px; background: #f8fafc; padding: 4px; border-radius: 14px; margin: 12px 0 14px; border: 1px solid #e2e8f0; }
-        .cat-seg-btn { flex: 1 1 0; min-width: 0; padding: 8px 6px; font-size: 12px; font-weight: 750; color: #64748b; background: transparent; border: 0; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.18s ease; }
+        /* Modern Category Management Styles - Clean & Responsive */
+        .category-hub-card { border: 1.5px solid #e2e8f0!important; border-radius: 20px!important; padding: 18px!important; background: #ffffff!important; box-shadow: 0 4px 14px rgba(0,0,0,0.03)!important; }
+        .cat-hub-header { margin-bottom: 12px; }
+        .cat-hub-title-box { display: flex; flex-direction: column; gap: 3px; }
+        .cat-hub-main-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 800; color: #0f172a; }
+        .cat-hub-icon { font-size: 18px; line-height: 1; }
+        .cat-hub-subtitle { font-size: 12px; color: #64748b; line-height: 1.4; }
+        .cat-segmented-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; background: #f1f5f9; padding: 5px; border-radius: 14px; margin: 10px 0 14px; border: 1px solid #e2e8f0; }
+        .cat-seg-btn { width: 100%; min-width: 0; padding: 8px 6px; font-size: 12.5px; font-weight: 750; color: #64748b; background: transparent; border: 0; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.18s ease; }
+        .cat-seg-btn span.tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cat-seg-btn .seg-badge { background: #e2e8f0; color: #475569; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 99px; flex-shrink: 0; }
         .cat-seg-btn.active { background: #ffffff; color: #0f172a; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
         .cat-seg-btn.active .seg-badge { background: #fef3c7; color: #92400e; }
-        .category-hub-card { border: 1.5px solid #ebdca3; border-radius: 20px; padding: 18px; background: #ffffff; }
-        .cat-hub-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
-        .compact-category-list { display: grid; gap: 7px; margin-top: 8px; }
+        .cat-form-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px; margin-bottom: 14px; }
+        .cat-form-header { margin-bottom: 10px; }
+        .cat-form-title { font-size: 14px; font-weight: 800; color: #1e293b; display: block; }
+        .cat-form-desc { font-size: 11.5px; color: #64748b; margin-top: 2px; display: block; }
+        .cat-list-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 14px 0 8px; padding-bottom: 4px; }
+        .cat-list-head-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: #1e293b; min-width: 0; flex: 1 1 auto; }
+        .cat-list-head-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cat-list-head-hint { font-size: 11px; font-weight: 400; color: #94a3b8; white-space: nowrap; }
+        .cat-count-badge { flex-shrink: 0; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; border: 1px solid #e2e8f0; }
+        .compact-category-list { display: flex; flex-direction: column; gap: 7px; margin-top: 8px; }
+        .cat-row-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; transition: all 0.15s ease; }
+        .cat-row-item:hover { border-color: #cbd5e1; background: #fafafa; }
+        .cat-row-item.dragging { opacity: 0.45; }
+        .cat-row-item.drag-over { outline: 2px solid #f59e0b; transform: translateY(2px); }
+        .cat-row-left { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 auto; }
+        .cat-drag-handle { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: #f1f5f9; color: #64748b; font-size: 14px; cursor: grab; touch-action: none; flex-shrink: 0; user-select: none; }
+        .cat-row-info { min-width: 0; flex: 1 1 auto; }
+        .cat-row-name { font-size: 13.5px; font-weight: 750; color: #0f172a; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cat-row-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 11px; }
+        .cat-type-pill { padding: 1px 6px; border-radius: 6px; font-size: 10px; font-weight: 700; }
+        .cat-type-pill.income { background: #ecfdf5; color: #059669; }
+        .cat-type-pill.expense { background: #fef2f2; color: #dc2626; }
+        .cat-type-pill.system { background: #f1f5f9; color: #64748b; }
+        .cat-row-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+        .cat-action-btn { padding: 5px 9px; font-size: 12px; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; cursor: pointer; transition: all 0.15s ease; }
+        .cat-action-btn:hover { background: #f1f5f9; border-color: #94a3b8; }
+        .cat-action-btn.delete { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
+        .cat-action-btn.delete:hover { background: #fee2e2; border-color: #fca5a5; }
+        @media (max-width: 500px) {
+            .category-hub-card { padding: 14px!important; border-radius: 16px!important; }
+            .cat-segmented-tabs { gap: 4px; padding: 3px; }
+            .cat-seg-btn { flex-direction: column; gap: 2px; padding: 6px 2px; min-height: 46px; }
+            .cat-seg-btn span.tab-title { font-size: 11px; }
+            .cat-seg-btn .seg-badge { font-size: 10px; padding: 0 5px; }
+            .cat-hub-main-title { font-size: 15px; }
+            .cat-hub-subtitle { font-size: 11px; }
+            .cat-form-card { padding: 12px; border-radius: 14px; }
+            .cat-row-item { padding: 8px 10px; }
+            .cat-row-name { font-size: 13px; }
+            .cat-action-btn { padding: 4px 7px; font-size: 11px; }
+        }
 
         /* Modern Minimal Users & Team Page */
         .user-page-header { margin-bottom: 12px; }
@@ -2485,40 +2531,40 @@
                 <div id="entrySectionCategory" class="entry-section hidden">
                     <div class="card category-hub-card">
                         <div class="cat-hub-header">
-                            <div>
-                                <b style="font-size:16px">ศูนย์จัดการหมวดหมู่และหน่วยสินค้า</b>
-                                <div class="muted" style="font-size:12px">แยกแต่ละหมวดชัดเจน ไม่ปะปนกับหน้าอื่น ใช้งานง่ายเป็นสัดส่วน</div>
+                            <div class="cat-hub-title-box">
+                                <div class="cat-hub-main-title">
+                                    <span class="cat-hub-icon">🏷️</span>
+                                    <b>จัดการหมวดหมู่และหน่วยสินค้า</b>
+                                </div>
+                                <div class="cat-hub-subtitle">จัดระเบียบหมวดรายรับ–รายจ่าย หมวดสินค้า และหน่วยนับ</div>
                             </div>
-                            <span class="pill" style="background:#fef3c7;color:#92400e;font-weight:750">จัดการหมวดหมู่</span>
                         </div>
 
                         <!-- Segmented category subtabs -->
                         <div class="cat-segmented-tabs">
                             <button type="button" id="catSubTabTx" class="cat-seg-btn active" onclick="switchCatSegment('tx')">
-                                <span>หมวดรายรับ–รายจ่าย</span>
+                                <span class="tab-title">รายรับ–จ่าย</span>
                                 <span id="catTxCountBadge" class="seg-badge">0</span>
                             </button>
                             <button type="button" id="catSubTabProduct" class="cat-seg-btn" onclick="switchCatSegment('product')">
-                                <span>หมวดสินค้า/วัตถุดิบ</span>
+                                <span class="tab-title">สินค้า/วัตถุดิบ</span>
                                 <span id="catProdCountBadge" class="seg-badge">0</span>
                             </button>
                             <button type="button" id="catSubTabUnit" class="cat-seg-btn" onclick="switchCatSegment('unit')">
-                                <span>หน่วยนับสินค้า</span>
+                                <span class="tab-title">หน่วยนับ</span>
                                 <span id="catUnitCountBadge" class="seg-badge">0</span>
                             </button>
                         </div>
 
                         <!-- Segment 1: Transaction Categories (หมวดรายรับ-รายจ่าย) -->
                         <div id="catSegmentTx" class="cat-segment">
-                            <div class="card modern-user-card" id="txCatFormCard" style="margin-bottom:12px;border:1.5px solid #e2e8f0">
-                                <div class="section-card-head">
-                                    <div>
-                                        <b id="txCatFormTitle" style="font-size:15px">＋ เพิ่มหมวดรายรับ–รายจ่ายใหม่</b>
-                                        <div class="muted" style="font-size:12px">กำหนดหมวดหมู่สำหรับการลงบัญชีประจำวัน</div>
-                                    </div>
+                            <div class="cat-form-card" id="txCatFormCard">
+                                <div class="cat-form-header">
+                                    <b id="txCatFormTitle" class="cat-form-title">＋ เพิ่มหมวดรายรับ–รายจ่ายใหม่</b>
+                                    <span class="cat-form-desc">กำหนดหมวดหมู่สำหรับการลงบัญชีประจำวัน</span>
                                 </div>
                                 <input id="categoryId" type="hidden">
-                                <div class="modal-grid" style="margin-top:10px">
+                                <div class="modal-grid" style="gap:8px">
                                     <div class="modal-field">
                                         <label>ชื่อหมวด</label>
                                         <input id="categoryName" placeholder="เช่น ค่าการตลาด, ค่าขนส่ง">
@@ -2531,15 +2577,18 @@
                                         </select>
                                     </div>
                                 </div>
-                                <div class="row" style="margin-top:12px;gap:8px">
+                                <div class="row" style="margin-top:10px;gap:8px">
                                     <button type="button" class="btn light" style="flex:1" onclick="clearCategoryForm()">ล้างฟอร์ม</button>
                                     <button type="button" id="saveCatBtn" class="btn" style="flex:2" onclick="saveCategory()">บันทึกหมวดหมู่</button>
                                 </div>
                             </div>
 
-                            <div class="list-section-head">
-                                <span>รายชื่อหมวดหมู่รายรับ–รายจ่าย (ลาก⠿เพื่อจัดลำดับ)</span>
-                                <small id="txCatListCountText" class="muted">0 หมวด</small>
+                            <div class="cat-list-head">
+                                <div class="cat-list-head-title">
+                                    <span>รายการหมวดหมู่</span>
+                                    <span class="cat-list-head-hint">(ลาก⠿จัดลำดับ)</span>
+                                </div>
+                                <span id="txCatListCountText" class="cat-count-badge">0 หมวด</span>
                             </div>
                             <div id="categoryManager" class="category-manager-container">
                                 <div id="categoryList" class="compact-category-list"></div>
@@ -2548,43 +2597,42 @@
 
                         <!-- Segment 2: Product Categories (หมวดสินค้าและวัตถุดิบ) -->
                         <div id="catSegmentProduct" class="cat-segment hidden">
-                            <div class="card modern-user-card" id="prodCatFormCard" style="margin-bottom:12px;border:1.5px solid #e2e8f0">
-                                <div class="section-card-head">
-                                    <div>
-                                        <b id="prodCatFormTitle" style="font-size:15px">＋ เพิ่มหมวดสินค้า/วัตถุดิบใหม่</b>
-                                        <div class="muted" style="font-size:12px">ใช้สำหรับแยกหมวดสินค้าในหน้าซื้อของและเช็กราคา</div>
-                                    </div>
+                            <div class="cat-form-card" id="prodCatFormCard">
+                                <div class="cat-form-header">
+                                    <b id="prodCatFormTitle" class="cat-form-title">＋ เพิ่มหมวดสินค้า/วัตถุดิบใหม่</b>
+                                    <span class="cat-form-desc">ใช้สำหรับแยกหมวดสินค้าในหน้าซื้อของและเช็กราคา</span>
                                 </div>
                                 <input id="productCategoryId" type="hidden">
-                                <div class="inline-form" style="margin-top:10px">
+                                <div class="modal-field" style="margin-top:4px">
+                                    <label>ชื่อหมวดสินค้า</label>
                                     <input id="productCategoryName" placeholder="เช่น ผักผลไม้, เนื้อสัตว์, เครื่องดื่ม">
-                                    <div class="row" style="margin-top:8px;gap:8px">
-                                        <button type="button" class="btn light" style="flex:1" onclick="clearProductCategoryForm()">ล้าง</button>
-                                        <button type="button" class="btn" style="flex:2" onclick="saveProductCategory()">บันทึกหมวดสินค้า</button>
-                                    </div>
+                                </div>
+                                <div class="row" style="margin-top:10px;gap:8px">
+                                    <button type="button" class="btn light" style="flex:1" onclick="clearProductCategoryForm()">ล้างฟอร์ม</button>
+                                    <button type="button" class="btn" style="flex:2" onclick="saveProductCategory()">บันทึกหมวดสินค้า</button>
                                 </div>
                             </div>
 
-                            <div class="list-section-head">
-                                <span>รายชื่อหมวดสินค้า/วัตถุดิบ</span>
-                                <small id="prodCatListCountText" class="muted">0 หมวด</small>
+                            <div class="cat-list-head">
+                                <div class="cat-list-head-title">
+                                    <span>รายการหมวดสินค้า</span>
+                                </div>
+                                <span id="prodCatListCountText" class="cat-count-badge">0 หมวด</span>
                             </div>
                             <div id="catalogManager" class="catalog-manager-container">
-                                <div id="productCategoryList" class="compact-list"></div>
+                                <div id="productCategoryList" class="compact-category-list"></div>
                             </div>
                         </div>
 
                         <!-- Segment 3: Units (หน่วยนับสินค้า) -->
                         <div id="catSegmentUnit" class="cat-segment hidden">
-                            <div class="card modern-user-card" id="unitFormCard" style="margin-bottom:12px;border:1.5px solid #e2e8f0">
-                                <div class="section-card-head">
-                                    <div>
-                                        <b id="unitFormTitle" style="font-size:15px">＋ เพิ่มหน่วยนับสินค้าใหม่</b>
-                                        <div class="muted" style="font-size:12px">กำหนดชื่อหน่วย ตัวคูณ และหน่วยฐานสำหรับคำนวณราคาเฉลี่ย</div>
-                                    </div>
+                            <div class="cat-form-card" id="unitFormCard">
+                                <div class="cat-form-header">
+                                    <b id="unitFormTitle" class="cat-form-title">＋ เพิ่มหน่วยนับสินค้าใหม่</b>
+                                    <span class="cat-form-desc">กำหนดชื่อหน่วย ตัวคูณ และหน่วยฐานสำหรับคำนวณราคาเฉลี่ย</span>
                                 </div>
                                 <input id="unitId" type="hidden">
-                                <div class="modal-grid" style="margin-top:10px">
+                                <div class="modal-grid" style="gap:8px">
                                     <div class="modal-field">
                                         <label>ชื่อหน่วย</label>
                                         <input id="unitName" placeholder="เช่น กก., ลัง, โหล, แพ็ก">
@@ -2598,17 +2646,19 @@
                                     <label>หน่วยฐาน (สำหรับเทียบราคา)</label>
                                     <input id="unitBase" placeholder="เช่น กก., ชิ้น, ลิตร">
                                 </div>
-                                <div class="row" style="margin-top:12px;gap:8px">
-                                    <button type="button" class="btn light" style="flex:1" onclick="clearUnitForm()">ล้าง</button>
+                                <div class="row" style="margin-top:10px;gap:8px">
+                                    <button type="button" class="btn light" style="flex:1" onclick="clearUnitForm()">ล้างฟอร์ม</button>
                                     <button type="button" class="btn" style="flex:2" onclick="saveUnit()">บันทึกหน่วยนับ</button>
                                 </div>
                             </div>
 
-                            <div class="list-section-head">
-                                <span>รายชื่อหน่วยนับสินค้าในระบบ</span>
-                                <small id="unitListCountText" class="muted">0 หน่วย</small>
+                            <div class="cat-list-head">
+                                <div class="cat-list-head-title">
+                                    <span>รายการหน่วยนับสินค้า</span>
+                                </div>
+                                <span id="unitListCountText" class="cat-count-badge">0 หน่วย</span>
                             </div>
-                            <div id="unitList" class="compact-list"></div>
+                            <div id="unitList" class="compact-category-list"></div>
                         </div>
                     </div>
                 </div>
@@ -3596,7 +3646,24 @@
             if(!allowed)return;
             const list=$('categoryList');
             if(list){
-                list.innerHTML=rows.map(c=>`<div class="card category-row" draggable="true" data-category-id="${c.id}" ondragstart="categoryDragStart(event)" ondragover="categoryDragOver(event)" ondrop="categoryDrop(event)" ondragend="categoryDragEnd()"><div><b><span class="drag-handle" ontouchstart="categoryTouchStart(event)" ontouchmove="categoryTouchMove(event)" ontouchend="categoryTouchEnd(event)">⠿</span> ${esc(c.name)}</b><div class="muted">${c.type==='INCOME'?'รายรับ':'รายจ่าย'} · ${c.id==='CAT-DIVIDEND'?'หมวดระบบ':'ลากเพื่อจัดลำดับ'}</div></div><div class="category-actions"><button class="mini-btn" onclick="editCategory('${c.id}')">แก้ไข</button>${c.id==='CAT-DIVIDEND'?'':`<button class="mini-btn delete" onclick="deleteCategory('${c.id}')">ลบ</button>`}</div></div>`).join('');
+                list.innerHTML=rows.map(c=>`
+                    <div class="cat-row-item category-row" draggable="true" data-category-id="${c.id}" ondragstart="categoryDragStart(event)" ondragover="categoryDragOver(event)" ondrop="categoryDrop(event)" ondragend="categoryDragEnd()">
+                        <div class="cat-row-left">
+                            <span class="cat-drag-handle" ontouchstart="categoryTouchStart(event)" ontouchmove="categoryTouchMove(event)" ontouchend="categoryTouchEnd(event)">⠿</span>
+                            <div class="cat-row-info">
+                                <span class="cat-row-name">${esc(c.name)}</span>
+                                <div class="cat-row-meta">
+                                    <span class="cat-type-pill ${c.type==='INCOME'?'income':'expense'}">${c.type==='INCOME'?'รายรับ':'รายจ่าย'}</span>
+                                    ${c.id==='CAT-DIVIDEND'?'<span class="cat-type-pill system">หมวดระบบ</span>':'<span style="color:#94a3b8">ลาก⠿จัดลำดับ</span>'}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="cat-row-actions">
+                            <button type="button" class="cat-action-btn" onclick="editCategory('${c.id}')">แก้ไข</button>
+                            ${c.id==='CAT-DIVIDEND'?'':`<button type="button" class="cat-action-btn delete" onclick="deleteCategory('${c.id}')">ลบ</button>`}
+                        </div>
+                    </div>
+                `).join('');
             }
         }
         let draggedCategoryId='';function categoryDragStart(e){draggedCategoryId=e.currentTarget.dataset.categoryId;e.currentTarget.classList.add('dragging');e.dataTransfer.effectAllowed='move'}function categoryDragOver(e){e.preventDefault();e.currentTarget.classList.add('drag-over')}function categoryDragEnd(){document.querySelectorAll('.category-row').forEach(x=>x.classList.remove('dragging','drag-over'));draggedCategoryId=''}async function categoryDrop(e){e.preventDefault();const target=e.currentTarget.dataset.categoryId;if(!draggedCategoryId||target===draggedCategoryId)return;const ids=S.data.allCategories.map(x=>x.id),from=ids.indexOf(draggedCategoryId),to=ids.indexOf(target),moved=ids.splice(from,1)[0];ids.splice(to,0,moved);try{const r=await call('reorderCategory',{data:{ids}});applyAppData(r.refresh);toast('จัดลำดับหมวดแล้ว')}catch(x){alertError(x.message)}finally{categoryDragEnd()}}
@@ -5565,11 +5632,42 @@ function renderItems() { const box = $('buyItems'); const cats = (S.data.product
             if(!allowed)return;
             const pList=$('productCategoryList');
             if(pList){
-                pList.innerHTML=prodCats.map(x=>`<div class="compact-row"><span>${esc(x.name)}</span><span><button class="mini-btn" onclick="editProductCategory('${x.id}')">แก้</button><button class="mini-btn ${x.active?'delete':''}" onclick="toggleProductCategory('${x.id}',${!x.active})">${x.active?'ปิด':'เปิด'}</button></span></div>`).join('');
+                pList.innerHTML=prodCats.map(x=>`
+                    <div class="cat-row-item">
+                        <div class="cat-row-left">
+                            <div class="cat-row-info">
+                                <span class="cat-row-name">${esc(x.name)}</span>
+                                <div class="cat-row-meta">
+                                    <span class="cat-type-pill ${x.active?'income':'system'}">${x.active?'เปิดใช้งาน':'ปิดใช้งาน'}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="cat-row-actions">
+                            <button type="button" class="cat-action-btn" onclick="editProductCategory('${x.id}')">แก้ไข</button>
+                            <button type="button" class="cat-action-btn ${x.active?'delete':''}" onclick="toggleProductCategory('${x.id}',${!x.active})">${x.active?'ปิด':'เปิด'}</button>
+                        </div>
+                    </div>
+                `).join('');
             }
             const uList=$('unitList');
             if(uList){
-                uList.innerHTML=units.map(x=>`<div class="compact-row"><span>${esc(x.name)} <small>×${x.factor} ${esc(x.baseUnit)}</small></span><span><button class="mini-btn" onclick="editUnit('${x.id}')">แก้</button><button class="mini-btn ${x.active?'delete':''}" onclick="toggleUnit('${x.id}',${!x.active})">${x.active?'ปิด':'เปิด'}</button></span></div>`).join('');
+                uList.innerHTML=units.map(x=>`
+                    <div class="cat-row-item">
+                        <div class="cat-row-left">
+                            <div class="cat-row-info">
+                                <span class="cat-row-name">${esc(x.name)}</span>
+                                <div class="cat-row-meta">
+                                    <span style="color:#64748b">×${x.factor} ${esc(x.baseUnit)}</span>
+                                    <span class="cat-type-pill ${x.active?'income':'system'}">${x.active?'เปิดใช้งาน':'ปิดใช้งาน'}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="cat-row-actions">
+                            <button type="button" class="cat-action-btn" onclick="editUnit('${x.id}')">แก้ไข</button>
+                            <button type="button" class="cat-action-btn ${x.active?'delete':''}" onclick="toggleUnit('${x.id}',${!x.active})">${x.active?'ปิด':'เปิด'}</button>
+                        </div>
+                    </div>
+                `).join('');
             }
         }
         function clearProductCategoryForm(){
