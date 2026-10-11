@@ -1200,13 +1200,18 @@ function getPayrollSchedule_(user,data){if(!canManage_(user))throw new Error('�
 function getPayrollWeekStatus_(user, data) {
   if (!canManage_(user)) throw new Error('ไม่มีสิทธิ์ดูสถานะค่าจ้าง');
   const weekStart = data && data.weekStart ? validDate_(data.weekStart) : payrollWeek_().start;
-  invalidateRows_('WageAdvances');
-  invalidateRows_('WagePayments');
-  invalidateRows_('WageOvertime');
-  invalidateRows_('PartTimeWorkDays');
-  invalidateRows_('Transactions');
-  invalidateRows_('Accounts');
+  if (data && data.forceRefresh) {
+    invalidateRows_('WageAdvances');
+    invalidateRows_('WagePayments');
+    invalidateRows_('WageOvertime');
+    invalidateRows_('PartTimeWorkDays');
+    invalidateRows_('Transactions');
+    invalidateRows_('Accounts');
+  }
   const wages = buildWeeklyWages_(weekStart);
+  if (data && data.skipBootstrap) {
+    return ok({ wages, ...wages });
+  }
   return ok({ wages, ...wages, refresh: bootstrap_(user).data });
 }
 
