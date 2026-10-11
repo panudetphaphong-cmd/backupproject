@@ -557,48 +557,71 @@
         /* Subtabs for Entry Hub */
         .entry-subtabs {
             display: flex;
-            gap: 4px;
+            gap: 5px;
             margin: 10px 0 16px;
-            padding: 4px;
+            padding: 5px;
             background: #f4f1dc;
             border: 1px solid var(--line);
             border-radius: 16px;
-            overflow-x: auto;
-            scrollbar-width: none;
-            -webkit-overflow-scrolling: touch;
-        }
-        .entry-subtabs::-webkit-scrollbar {
-            display: none;
+            width: 100%;
+            box-sizing: border-box;
         }
         .entry-subtab {
-            flex: 1 0 auto;
-            min-width: max-content;
+            flex: 1 1 0;
+            min-width: 0;
             border: 0;
             border-radius: 12px;
             background: transparent;
             color: var(--muted);
             font-weight: 750;
-            font-size: 12px;
-            padding: 9px 10px;
-            white-space: nowrap;
+            font-size: 13px;
+            padding: 10px 6px;
             text-align: center;
             cursor: pointer;
             transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            min-height: 42px;
+            box-sizing: border-box;
         }
         .entry-subtab.active {
             background: #fff;
             color: var(--ink);
             font-weight: 900;
-            box-shadow: 0 3px 12px rgba(138, 114, 13, 0.16), 0 0 0 1px #f6c90e;
+            box-shadow: 0 3px 12px rgba(138, 114, 13, 0.16), 0 0 0 1.5px #f6c90e;
         }
-        @media(max-width: 440px) {
+        @media(max-width: 680px) {
             .entry-subtabs {
-                gap: 3px;
-                padding: 3px;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 5px;
+                padding: 6px;
+                border-radius: 16px;
+                overflow: visible;
             }
             .entry-subtab {
-                font-size: 11px;
-                padding: 8px 7px;
+                min-width: 0;
+                width: 100%;
+                font-size: 11.5px;
+                padding: 8px 4px;
+                white-space: normal;
+                word-break: break-word;
+                line-height: 1.25;
+                min-height: 42px;
+                border-radius: 11px;
+            }
+        }
+        @media(max-width: 360px) {
+            .entry-subtabs {
+                gap: 4px;
+                padding: 4px;
+            }
+            .entry-subtab {
+                font-size: 10.5px;
+                padding: 6px 2px;
+                min-height: 38px;
             }
         }
         /* Smart Quick Input Card & Top-Right Reorganization */
@@ -743,24 +766,27 @@
         .quick-account-pill-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 5px;
-            margin-top: 2px;
+            gap: 6px;
+            margin-top: 4px;
+            width: 100%;
+            box-sizing: border-box;
         }
         .quick-acc-btn {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 4px;
-            padding: 6px 9px;
-            border-radius: 10px;
+            gap: 6px;
+            padding: 8px 10px;
+            border-radius: 12px;
             border: 1.5px solid #e2e8f0;
             background: #ffffff;
             color: #334155;
-            font-size: 12px;
-            font-weight: 750;
+            min-height: 42px;
+            box-sizing: border-box;
+            width: 100%;
+            min-width: 0;
             cursor: pointer;
             transition: all 0.15s ease;
-            white-space: nowrap;
         }
         .quick-acc-btn:hover {
             border-color: #cbd5e1;
@@ -772,13 +798,146 @@
             color: #92400e;
             box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.22);
         }
+        .quick-acc-btn span:first-child {
+            font-size: 12px;
+            font-weight: 800;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            flex: 1 1 auto;
+            text-align: left;
+        }
         .quick-acc-btn .acc-badge {
             font-size: 10.5px;
-            font-weight: 800;
+            font-weight: 850;
             color: #64748b;
+            white-space: nowrap;
+            flex: 0 0 auto;
+            text-align: right;
         }
         .quick-acc-btn.active .acc-badge {
             color: #b45309;
+        }
+        @media (max-width: 480px) {
+            .quick-account-pill-grid {
+                gap: 5px;
+            }
+            .quick-acc-btn {
+                padding: 6px 8px;
+                min-height: 38px;
+                border-radius: 10px;
+            }
+            .quick-acc-btn span:first-child {
+                font-size: 11.5px;
+            }
+            .quick-acc-btn .acc-badge {
+                font-size: 10px;
+            }
+        }
+        @media (max-width: 360px) {
+            .quick-acc-btn {
+                padding: 5px 6px;
+                min-height: 36px;
+                gap: 4px;
+            }
+            .quick-acc-btn span:first-child {
+                font-size: 10.5px;
+            }
+            .quick-acc-btn .acc-badge {
+                font-size: 9.5px;
+            }
+        }
+
+        /* Expanded Quick Text Input & Responsive Action Bars */
+        .quick-input-expanded {
+            width: 100%;
+            min-height: 140px;
+            font-size: 15px !important;
+            line-height: 1.6;
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1.5px solid #cbd5e1;
+            background: #ffffff;
+            color: #0f172a;
+            box-sizing: border-box;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            transition: all 0.15s ease;
+            resize: vertical;
+        }
+        .quick-input-expanded:focus {
+            border-color: #f59e0b;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+            outline: none;
+        }
+        @media (max-width: 480px) {
+            .quick-input-expanded {
+                min-height: 150px;
+                font-size: 15px !important;
+                padding: 12px 14px;
+            }
+        }
+        .buy-action-bar, .quick-action-bar {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            align-items: stretch;
+            flex-wrap: wrap;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .buy-btn-parse, .quick-btn-parse {
+            flex: 2 1 180px;
+            min-height: 46px;
+            padding: 10px 16px;
+            font-size: 14.5px;
+            font-weight: 850;
+            border-radius: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            box-sizing: border-box;
+            white-space: nowrap;
+        }
+        .buy-btn-add, .buy-btn-clear, .quick-btn-clear {
+            flex: 1 1 110px;
+            min-height: 46px;
+            padding: 10px 12px;
+            font-size: 13px;
+            font-weight: 750;
+            border-radius: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            box-sizing: border-box;
+            white-space: nowrap;
+        }
+        @media (max-width: 540px) {
+            .buy-btn-parse, .quick-btn-parse {
+                flex: 1 1 100%;
+                width: 100%;
+                min-height: 48px;
+                font-size: 15px;
+            }
+            .buy-btn-add {
+                flex: 1 1 calc(50% - 4px);
+                min-height: 44px;
+                font-size: 13px;
+            }
+            .buy-btn-clear {
+                flex: 1 1 calc(50% - 4px);
+                min-height: 44px;
+                font-size: 13px;
+            }
+            .quick-btn-clear {
+                flex: 1 1 100%;
+                width: 100%;
+                min-height: 44px;
+                font-size: 13px;
+            }
         }
 
         /* Modern Responsive Table for Parsed Items & Purchases */
@@ -1490,74 +1649,7 @@
             min-width: 0;
         }
         .wage-avatar { display: none !important; }
-        .quick-wage-section {
-            background: #f8fafc;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 16px;
-            padding: 14px;
-            margin-bottom: 14px;
-        }
-        .quick-wage-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-            gap: 8px;
-        }
-        .quick-wage-head b {
-            font-size: 14px;
-            color: #0f172a;
-        }
-        .quick-wage-emp-chips {
-            display: flex;
-            gap: 6px;
-            overflow-x: auto;
-            padding-bottom: 4px;
-            margin-bottom: 8px;
-            scrollbar-width: none;
-            -webkit-overflow-scrolling: touch;
-        }
-        .quick-wage-emp-chips::-webkit-scrollbar { display: none; }
-        .wage-chip-btn {
-            background: #ffffff;
-            border: 1.5px solid #cbd5e1;
-            border-radius: 999px;
-            padding: 5px 12px;
-            font-size: 12px;
-            font-weight: 750;
-            color: #334155;
-            cursor: pointer;
-            white-space: nowrap;
-            transition: all 0.15s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .wage-chip-btn:hover {
-            background: #f1f5f9;
-            border-color: #94a3b8;
-        }
-        .wage-chip-btn.active {
-            background: #0f172a;
-            color: #ffffff;
-            border-color: #0f172a;
-        }
-        .wage-chip-btn .chip-rem {
-            font-size: 11px;
-            font-weight: 800;
-            color: #059669;
-        }
-        .wage-chip-btn.active .chip-rem {
-            color: #34d399;
-        }
-        .quick-wage-inputs {
-            flex: 1;
-            min-width: 240px;
-        }
-        .quick-wage-account-box {
-            flex: 1;
-            min-width: 240px;
-        }
+
         .wage-card-name {
             font-size: 16px;
             font-weight: 850;
@@ -2118,11 +2210,11 @@
 
                         <!-- Quick Text Input Area -->
                         <div style="margin-top:12px">
-                            <textarea id="quickItems" rows="3" placeholder="พิมพ์รายการซื้อที่นี่ เช่น:&#10;มะม่วง 1 กก 40 บาท&#10;นมสด 2 ขวด 90 บาท&#10;น้ำตาล 5 ถุง 125"></textarea>
-                            <div class="row" style="margin-top:8px;gap:8px">
-                                <button type="button" class="btn" style="flex:1" onclick="parseQuickItemsV2()">แยกรายการเข้าตาราง</button>
-                                <button type="button" class="btn light" onclick="addItem()" style="flex:0 0 auto">＋ เพิ่มแถวเอง</button>
-                                <button type="button" class="btn light" onclick="clearBuyItems()" style="flex:0 0 auto">ล้างรายการ</button>
+                            <textarea id="quickItems" rows="5" class="quick-input-expanded" placeholder="พิมพ์รายการซื้อที่นี่ เช่น:&#10;มะม่วง 1 กก 40 บาท&#10;นมสด 2 ขวด 90 บาท&#10;ไข่ไก่ 1 แผง 130&#10;น้ำตาล 5 ถุง 125"></textarea>
+                            <div class="buy-action-bar">
+                                <button type="button" class="btn buy-btn-parse" onclick="parseQuickItemsV2()">แยกรายการเข้าตาราง</button>
+                                <button type="button" class="btn light buy-btn-add" onclick="addItem()">＋ เพิ่มแถวเอง</button>
+                                <button type="button" class="btn light buy-btn-clear" onclick="clearBuyItems()">ล้างรายการ</button>
                             </div>
                         </div>
 
@@ -2202,10 +2294,12 @@
                             </div>
                         </div>
 
-                        <textarea id="smartQuickInput" rows="4" placeholder="พิมพ์ค่าใช้จ่ายของร้านที่นี่ เช่น:&#10;ค่าน้ำ 250&#10;ค่าไฟ 1500&#10;ค่าเน็ต 599&#10;ค่าเช่า 8000"></textarea>
-                        <div class="row" style="margin-top:8px;gap:8px">
-                            <button type="button" class="btn" style="flex:1" onclick="parseSmartQuickInput()">แยกรายการเข้าตาราง</button>
-                            <button type="button" class="btn light" style="flex:0 0 auto" onclick="$('smartQuickInput').value='';clearSmartParsed()">ล้างข้อความ</button>
+                        <div style="margin-top:12px">
+                            <textarea id="smartQuickInput" rows="5" class="quick-input-expanded" placeholder="พิมพ์ค่าใช้จ่ายของร้านที่นี่ เช่น:&#10;ค่าน้ำ 250&#10;ค่าไฟ 1500&#10;ค่าเน็ต 599&#10;ค่าเช่า 8000"></textarea>
+                            <div class="quick-action-bar">
+                                <button type="button" class="btn quick-btn-parse" onclick="parseSmartQuickInput()">แยกรายการเข้าตาราง</button>
+                                <button type="button" class="btn light quick-btn-clear" onclick="$('smartQuickInput').value='';clearSmartParsed()">ล้างข้อความ</button>
+                            </div>
                         </div>
 
                         <div id="smartParsedContainer" class="hidden" style="margin-top:14px">
@@ -2253,62 +2347,7 @@
                             <button type="button" class="wage-week-btn" onclick="changeWageWeek(1)">สัปดาห์ถัดไป &gt;</button>
                         </div>
 
-                        <!-- Quick Wage Pay Card (ช่องจ่ายค่าจ้างแบบเร็วเหมือนซื้อของ) -->
-                        <div class="quick-wage-section">
-                            <div class="quick-wage-head">
-                                <div>
-                                    <b>จ่ายค่าจ้างด่วน</b>
-                                    <span class="muted" style="font-size:11.5px;margin-left:4px">หักบัญชีและอัพเดทสถานะทันที</span>
-                                </div>
-                                <span class="pill" style="background:#ecfdf5;color:#047857;font-size:11px;font-weight:700">Real-time (0ms)</span>
-                            </div>
-                            
-                            <!-- Employee Chips to Quick-Pick -->
-                            <div id="quickWageEmpChips" class="quick-wage-emp-chips"></div>
 
-                            <div class="quick-top-header-grid" style="margin-top:8px">
-                                <div class="quick-wage-inputs">
-                                    <div class="row" style="gap:8px">
-                                        <div style="flex:1">
-                                            <label class="label" style="margin-top:0">เลือกพนักงาน</label>
-                                            <select id="quickWageEmpSelect" onchange="onQuickWageSelectEmp(this.value)"></select>
-                                        </div>
-                                        <div style="flex:1">
-                                            <label class="label" style="margin-top:0">ยอดจ่าย (บาท)</label>
-                                            <input id="quickWageAmount" type="number" min="0" step="1" inputmode="decimal" placeholder="0.00" style="font-size:16px;font-weight:750">
-                                        </div>
-                                    </div>
-                                    <div class="row" style="gap:8px;margin-top:6px">
-                                        <div style="flex:1">
-                                            <label class="label" style="margin-top:0">วันที่จ่าย</label>
-                                            <input id="quickWageDate" type="date">
-                                        </div>
-                                        <div style="flex:1">
-                                            <label class="label" style="margin-top:0">หมายเหตุ</label>
-                                            <input id="quickWageNote" placeholder="เช่น ค่าแรงสัปดาห์นี้">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="quick-wage-account-box">
-                                    <div class="quick-controls-card">
-                                        <div class="quick-ctrl-group">
-                                            <div class="quick-ctrl-label-row">
-                                                <label class="quick-ctrl-label">
-                                                    <span>จ่ายจากบัญชี</span>
-                                                </label>
-                                            </div>
-                                            <input id="quickWageAccount" type="hidden">
-                                            <div id="quickWageAccountPicker" class="quick-account-pill-grid"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button type="button" class="btn full" style="margin-top:10px;background:#0f172a;color:#ffffff;font-weight:800;padding:11px 16px" onclick="payQuickWage()">
-                                จ่ายค่าแรงทันที (0ms)
-                            </button>
-                        </div>
 
                         <!-- 4 Summary KPI Cards -->
                         <div class="wage-summary-grid">
@@ -3032,202 +3071,7 @@
             if ($('smartQuickAccount')) $('smartQuickAccount').value = id;
             renderSmartQuickAccounts();
         }
-        function renderWageQuickAccounts() {
-            const picker = $('quickWageAccountPicker');
-            if (!picker) return;
-            const accounts = (S.data && S.data.accounts) || [];
-            let cur = $('quickWageAccount')?.value || (accounts[0] && accounts[0].id) || '';
-            if (!accounts.some(a => a.id === cur) && accounts[0]) cur = accounts[0].id;
-            if ($('quickWageAccount')) $('quickWageAccount').value = cur;
-
-            picker.innerHTML = accounts.map(a => {
-                const isAct = a.id === cur;
-                const theme = getAccountBankTheme(a);
-                const bal = a.balance != null ? `<span class="acc-badge" style="color:${isAct ? theme.text : '#64748b'}">${money(a.balance)}</span>` : '';
-                const style = isAct
-                    ? `border: 2px solid ${theme.border}; background: ${theme.bg}; color: ${theme.text}; box-shadow: 0 0 0 2px ${theme.glow};`
-                    : `border: 2px solid ${theme.border}; background: #ffffff; color: ${theme.text};`;
-                return `
-                    <button type="button" class="quick-acc-btn ${isAct ? 'active' : ''}" style="${style}" onclick="selectQuickWageAccount('${esc(a.id)}')">
-                        <span>${theme.short}</span>
-                        ${bal}
-                    </button>
-                `;
-            }).join('');
-        }
-        function selectQuickWageAccount(id) {
-            if ($('quickWageAccount')) $('quickWageAccount').value = id;
-            renderWageQuickAccounts();
-        }
-        function renderWageQuickPaySection() {
-            const select = $('quickWageEmpSelect');
-            if (!select) return;
-            const box = $('quickWageEmpChips');
-            const wages = S.data && S.data.wages;
-            const emps = (wages && (wages.employees || wages.items)) || (S.data && S.data.employees) || [];
-            const pendingEmps = emps.filter(e => !e.isPaid && Number(e.remaining !== undefined ? e.remaining : e.weeklyWage || 0) > 0);
-            const curVal = select.value || (pendingEmps[0] ? pendingEmps[0].id : (emps[0] ? emps[0].id : ''));
-
-            select.innerHTML = `<option value="">-- เลือกพนักงาน --</option>` + emps.map(e => {
-                const rem = Number(e.remaining !== undefined ? e.remaining : e.weeklyWage || 0);
-                const statusTxt = e.isPaid ? ' (จ่ายครบแล้ว)' : ` (คงเหลือ ${money(rem)})`;
-                return `<option value="${esc(e.id)}" ${e.id === curVal ? 'selected' : ''}>${esc(e.name)}${statusTxt}</option>`;
-            }).join('');
-
-            if (box) {
-                if (!pendingEmps.length) {
-                    box.innerHTML = '<span class="muted" style="font-size:12px;padding:4px 0">พนักงานทุกคนในสัปดาห์นี้จ่ายครบแล้ว</span>';
-                } else {
-                    box.innerHTML = pendingEmps.map(e => {
-                        const rem = Number(e.remaining !== undefined ? e.remaining : e.weeklyWage || 0);
-                        const isAct = e.id === curVal;
-                        return `
-                            <button type="button" class="wage-chip-btn ${isAct ? 'active' : ''}" onclick="onQuickWageSelectEmp('${esc(e.id)}')">
-                                <span>${esc(e.name)}</span>
-                                <span class="chip-rem">${money(rem)}</span>
-                            </button>
-                        `;
-                    }).join('');
-                }
-            }
-
-            const selEmp = emps.find(e => e.id === curVal);
-            if (selEmp && (!$('quickWageAmount').value || $('quickWageAmount').dataset.empId !== curVal)) {
-                const rem = Number(selEmp.remaining !== undefined ? selEmp.remaining : selEmp.weeklyWage || 0);
-                $('quickWageAmount').value = rem > 0 ? rem : '';
-                $('quickWageAmount').dataset.empId = curVal;
-            }
-
-            if ($('quickWageDate') && !$('quickWageDate').value) {
-                $('quickWageDate').value = today();
-            }
-
-            renderWageQuickAccounts();
-        }
-        function onQuickWageSelectEmp(empId) {
-            if (!empId) return;
-            if ($('quickWageEmpSelect')) $('quickWageEmpSelect').value = empId;
-            const wages = S.data && S.data.wages;
-            const emps = (wages && (wages.employees || wages.items)) || (S.data && S.data.employees) || [];
-            const emp = emps.find(e => e.id === empId);
-            if (emp) {
-                const rem = Number(emp.remaining !== undefined ? emp.remaining : emp.weeklyWage || 0);
-                if ($('quickWageAmount')) {
-                    $('quickWageAmount').value = rem > 0 ? rem : '';
-                    $('quickWageAmount').dataset.empId = empId;
-                }
-            }
-            document.querySelectorAll('.wage-chip-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('onclick')?.includes(`'${empId}'`));
-            });
-        }
-        async function payQuickWage() {
-            const empId = $('quickWageEmpSelect')?.value;
-            const amount = Number($('quickWageAmount')?.value || 0);
-            const date = $('quickWageDate')?.value || today();
-            const accountId = $('quickWageAccount')?.value || (S.data.accounts[0] && S.data.accounts[0].id) || '';
-            const note = ($('quickWageNote')?.value || '').trim();
-
-            if (!empId) return alertError('กรุณาเลือกพนักงาน');
-            if (amount <= 0) return alertError('กรุณาระบุจำนวนเงินที่จ่าย');
-            if (!accountId) return alertError('กรุณาเลือกบัญชีที่ใช้จ่าย');
-
-            const empList = (S.data && S.data.wages && (S.data.wages.employees || S.data.wages.items)) || (S.data && S.data.employees) || [];
-            const emp = empList.find(x => x.id === empId);
-            if (!emp) return alertError('ไม่พบข้อมูลพนักงาน');
-
-            const acc = (S.data.accounts || []).find(a => a.id === accountId);
-            const curWeekStart = (S.data.wages && (S.data.wages.weekStart || (S.data.wages.week && S.data.wages.week.start))) || payrollWeek_().start;
-            const txNote = note || ('จ่ายค่าแรง ' + emp.name + ' รอบ ' + curWeekStart);
-
-            // 1. Optimistic Deduction (0ms Real-time Update)
-            if (acc) acc.balance = round_((acc.balance || 0) - amount);
-            if (S.data.balances) {
-                const bal = S.data.balances.find(a => a.id === accountId);
-                if (bal) bal.balance = round_((bal.balance || 0) - amount);
-            }
-            if (S.data.month) {
-                S.data.month.expense = round_((S.data.month.expense || 0) + amount);
-                S.data.month.net = round_((S.data.month.income || 0) - (S.data.month.expense || 0));
-            }
-
-            // Update Employee state
-            const oldRem = Number(emp.remaining !== undefined ? emp.remaining : emp.weeklyWage || 0);
-            const newRem = Math.max(0, oldRem - amount);
-            emp.remaining = newRem;
-            const totalEarned = Number(emp.totalEarned || emp.weeklyWage || 0);
-            emp.percentRemaining = totalEarned > 0 ? (newRem / totalEarned) * 100 : 0;
-            emp.isPaid = newRem === 0;
-            emp.status = emp.isPaid ? 'PAID' : 'PARTIAL';
-            if (!emp.payments) emp.payments = [];
-            emp.payments.push({
-                id: 'OPT-PAY-' + Date.now(),
-                date,
-                accountId,
-                amount,
-                note: txNote
-            });
-
-            // Update KPI summary cards
-            if (S.data.wages && S.data.wages.summary) {
-                if (emp.isPaid) S.data.wages.summary.paidCount = (S.data.wages.summary.paidCount || 0) + 1;
-                S.data.wages.summary.totalPaid = round_((S.data.wages.summary.totalPaid || 0) + amount);
-                S.data.wages.summary.totalRemaining = round_(Math.max(0, (S.data.wages.summary.totalRemaining || 0) - amount));
-            }
-
-            // Create Optimistic Transaction
-            const optTx = {
-                id: 'OPT-WAGE-' + Date.now(),
-                date,
-                type: 'EXPENSE',
-                amount,
-                categoryId: 'CAT-WAGE',
-                categoryName: 'ค่าจ้างพนักงาน',
-                accountId,
-                accountName: acc ? acc.name : accountId,
-                note: txNote,
-                purchaseItems: [],
-                createdByName: (S.data.user && S.data.user.name) || '-',
-                createdById: (S.data.user && S.data.user.id) || '',
-                status: 'CONFIRMED',
-                createdAt: new Date().toISOString()
-            };
-            if (!S.data.recentToday) S.data.recentToday = [];
-            if (!S.data.transactionHistory) S.data.transactionHistory = [];
-            if (!S.data.allTransactionHistory) S.data.allTransactionHistory = [];
-            if (!S.data.managerHistory) S.data.managerHistory = [];
-            S.data.recentToday.unshift(optTx);
-            S.data.transactionHistory.unshift(optTx);
-            S.data.allTransactionHistory.unshift(optTx);
-            S.data.managerHistory.unshift(optTx);
-
-            // Re-render UI immediately
-            render();
-            renderWeeklyWages();
-            renderTransactionLists();
-
-            // Instant Toast
-            toast(`จ่ายค่าแรง ${emp.name} สำเร็จ ${money(amount)} (0ms)`, 'success');
-            if ($('quickWageAmount')) $('quickWageAmount').value = '';
-
-            // Silent server save
-            try {
-                const r = await callSilent('payWeeklyWage', {
-                    data: {
-                        employeeId: emp.id,
-                        date,
-                        accountId,
-                        amount,
-                        note: txNote,
-                        weekStart: curWeekStart
-                    }
-                });
-                if (r && r.refresh) applyAppData(r.refresh);
-            } catch (err) {
-                console.warn('payWeeklyWage background notice:', err);
-                toast('กำลังบันทึกจ่ายค่าแรงในเบื้องหลัง ข้อมูลยังคงแสดงอยู่', 'info');
-            }
-        }
+        function renderWageQuickPaySection() {}
         function insertExpenseExample(text) {
             const el = $('smartQuickInput');
             if (!el) return;
@@ -3264,7 +3108,6 @@
             const d = S.data; if (!d) return;
             const dateInput = $('smartQuickDate'); if (dateInput && !dateInput.value) dateInput.value = today();
             renderSmartQuickAccounts();
-            renderWageQuickPaySection();
         }
         function renderQuickEmployeeChips() {}
         let smartParsedItems = [];
@@ -3978,8 +3821,7 @@
                 return;
             }
 
-            // Render Quick Wage Pay bar at top
-            renderWageQuickPaySection();
+
 
             // 1. Week Label
             const weekLabelEl = $('wageWeekLabel');
